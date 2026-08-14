@@ -121,6 +121,7 @@ export function AppLayout() {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
+        className="gsm-sider"
         theme="dark"
         breakpoint="lg"
         collapsedWidth={64}
