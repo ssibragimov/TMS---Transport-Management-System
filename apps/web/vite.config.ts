@@ -3,6 +3,10 @@ import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  // На GitHub Pages сайт живёт в подкаталоге /<имя-репозитория>/, поэтому пути
+  // к ассетам должны быть с префиксом. Задаётся через VITE_BASE только на время
+  // такой сборки; локальная разработка и обычный build остаются на корне.
+  base: process.env.VITE_BASE ?? '/',
   plugins: [react()],
   resolve: {
     alias: {

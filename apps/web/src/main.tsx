@@ -42,7 +42,9 @@ createRoot(document.getElementById('root')!).render(
     >
       <AntApp>
         <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
+          {/* BASE_URL совпадает с base из vite.config: при сборке под
+              GitHub Pages роутер должен знать про префикс подкаталога. */}
+          <BrowserRouter basename={import.meta.env.BASE_URL}>
             <AuthProvider>
               <App />
             </AuthProvider>
