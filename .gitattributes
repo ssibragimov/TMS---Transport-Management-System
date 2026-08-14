@@ -1,0 +1,5 @@
+# Shell-скрипты обязаны попадать в образ с LF: контейнер с CRLF падает на
+# запуске с сообщением вида "no such file or directory" на существующий файл.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.sql text eol=lf

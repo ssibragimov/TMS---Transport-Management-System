@@ -52,7 +52,10 @@ const HISTORY_DAYS = 30;
 /** Доля дней, в которые единица техники выходит в смену. */
 const UTILISATION = 0.65;
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS ?? 12);
-const DEMO_PASSWORD = 'Demo123!';
+// Пароль демо-сотрудников. В локальной среде остаётся общеизвестным Demo123!,
+// но на публичном стенде его обязательно задают через SEED_DEMO_PASSWORD:
+// иначе войти сможет любой, кто прочитал README в открытом репозитории.
+const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? 'Demo123!';
 
 // ─── Детерминированный генератор ────────────────────────────────────────────
 // Обычный Math.random дал бы разные данные при каждом прогоне, и обсуждать

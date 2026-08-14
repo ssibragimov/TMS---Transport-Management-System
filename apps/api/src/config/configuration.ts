@@ -76,7 +76,16 @@ export interface AppConfig {
 }
 
 export function loadConfiguration(): AppConfig {
-  const parsed = envSchema.safeParse(process.env);
+  // Облачные платформы (Render, Railway, Fly) сами выбирают порт и передают его
+  // в PORT, а слушать что-то другое означает, что балансировщик не достучится.
+  // Свой API_PORT остаётся главнее: локальный .env не должен зависеть от того,
+  // что где-то в окружении оказалась переменная PORT.
+  const source: NodeJS.ProcessEnv = {
+    ...process.env,
+    API_PORT: process.env.API_PORT ?? process.env.PORT,
+  };
+
+  const parsed = envSchema.safeParse(source);
 
   if (!parsed.success) {
     const issues = parsed.error.issues

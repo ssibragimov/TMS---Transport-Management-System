@@ -1,0 +1,68 @@
+# Описание сервиса для Render (Blueprint). Подхватывается автоматически при
+# подключении репозитория: Render → New → Blueprint.
+#
+# База данных здесь НЕ описана намеренно: используется внешний Neon, потому что
+# бесплатный PostgreSQL на Render удаляется через месяц, а на Neon free-план
+# бессрочный. DATABASE_URL и APP_DATABASE_URL задаются вручную в панели.
+services:
+  - type: web
+    name: gsm-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    # Контекст — корень репозитория: сборке нужны package-lock.json и @gsm/shared.
+    dockerContext: .
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TZ
+        value: Asia/Tashkent
+
+      # Владелец схемы — под ним идут миграции. Строка подключения Neon.
+      - key: DATABASE_URL
+        sync: false
+      # Прикладная роль gsm_app — под ней работает рантайм и действует RLS.
+      # Если не задать, RLS молча отключится и офисы перестанут быть изолированы.
+      - key: APP_DATABASE_URL
+        sync: false
+
+      # В управляемом PostgreSQL нет TimescaleDB и PostGIS.
+      - key: SKIP_SQL
+        value: 03_telemetry.sql
+
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+
+      # Домен GitHub Pages, откуда браузер обращается к API.
+      - key: API_CORS_ORIGINS
+        value: https://ssibragimov.github.io
+
+      # Хранилище файлов не развёрнуто: конфигурация требует эти переменные при
+      # старте, поэтому заданы заглушки. Загрузка сканов и фото работать не
+      # будет — для этого нужен реальный S3-совместимый бакет.
+      - key: S3_ENDPOINT
+        value: http://localhost:9000
+      - key: S3_BUCKET
+        value: gsm-files
+      - key: S3_ACCESS_KEY
+        value: unused
+      - key: S3_SECRET_KEY
+        value: unused
+
+      # Первый деплой — true, чтобы залить схему ролей и демо-данные.
+      # После успешного старта переключить в false, иначе каждое пробуждение
+      # контейнера будет пересоздавать демо-историю.
+      - key: SEED_ON_START
+        value: 'true'
+      - key: SEED_DEMO_DATA
+        value: 'true'
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: SEED_DEMO_PASSWORD
+        sync: false

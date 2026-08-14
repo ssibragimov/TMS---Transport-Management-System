@@ -32,6 +32,9 @@ const prisma = new PrismaClient();
 
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? 'admin@gsm.local';
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? 'Admin123!';
+// Общий пароль неадминистративных учёток. На публичном стенде задаётся через
+// SEED_DEMO_PASSWORD — значение по умолчанию опубликовано в README.
+const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? 'Demo123!';
 const WITH_DEMO = process.env.SEED_DEMO_DATA === 'true';
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS ?? 12);
 
@@ -606,7 +609,7 @@ async function seedDemoData(
     update: {},
     create: {
       email: 'dispatcher.tas@gsm.local',
-      passwordHash: await bcrypt.hash('Dispatcher123!', BCRYPT_ROUNDS),
+      passwordHash: await bcrypt.hash(DEMO_PASSWORD, BCRYPT_ROUNDS),
       fullName: 'Диспетчер Ташкента',
       status: UserStatus.ACTIVE,
       defaultOfficeId: officeId,
