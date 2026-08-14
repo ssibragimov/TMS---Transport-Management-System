@@ -43,6 +43,11 @@ interface ColumnLike {
   dataIndex?: unknown;
   title?: unknown;
   width?: number | string;
+  /**
+   * Закреплённая колонка. Она не переставляется и остаётся на своём месте:
+   * порядковый номер строки посреди таблицы смысла не имеет.
+   */
+  fixed?: unknown;
 }
 
 /** Ключ колонки: то, чем её можно опознать между сеансами. */
@@ -208,11 +213,19 @@ export function StickyTable<RecordType extends object>({
       (columns ?? []).map((column, index) => ({
         key: columnKeyOf(column as ColumnLike, index),
         column,
+        pinned: Boolean((column as ColumnLike).fixed),
       })),
     [columns],
   );
   const keys = useMemo(() => entries.map((entry) => entry.key), [entries]);
+  // Переставляются только незакреплённые: закреплённая колонка в перестановке
+  // не участвует ни как груз, ни как место назначения.
+  const movableKeys = useMemo(
+    () => entries.filter((entry) => !entry.pinned).map((entry) => entry.key),
+    [entries],
+  );
   const signature = keys.join('|');
+  const movableSignature = movableKeys.join('|');
   const storageId = `${STORAGE_PREFIX}${columnsKey ?? `${pathname}:${digest(signature)}`}`;
 
   const [layout, setLayout] = useState<Layout>(EMPTY_LAYOUT);
@@ -225,8 +238,8 @@ export function StickyTable<RecordType extends object>({
   layoutRef.current = layout;
 
   useEffect(() => {
-    setLayout(readLayout(storageId, signature.split('|')));
-  }, [storageId, signature]);
+    setLayout(readLayout(storageId, movableSignature.split('|')));
+  }, [storageId, movableSignature]);
 
   const persist = (next: Layout): void => {
     setLayout(next);
@@ -237,17 +250,28 @@ export function StickyTable<RecordType extends object>({
     }
   };
 
-  const effectiveOrder = layout.order ?? keys;
+  const effectiveOrder = layout.order ?? movableKeys;
 
+  /*
+    Закреплённые колонки остаются на своих исходных местах, а переставляемые
+    занимают оставшиеся позиции в выбранном пользователем порядке. Так номер
+    строки не уедет в середину таблицы, даже если в хранилище лежит раскладка,
+    сохранённая до его закрепления.
+  */
   const orderedEntries = useMemo(() => {
-    const byKey = new Map(entries.map((entry) => [entry.key, entry]));
-    return effectiveOrder
-      .map((key) => byKey.get(key))
+    const movableByKey = new Map(
+      entries.filter((entry) => !entry.pinned).map((entry) => [entry.key, entry]),
+    );
+    const queue = effectiveOrder
+      .map((key) => movableByKey.get(key))
       .filter((entry): entry is (typeof entries)[number] => entry !== undefined);
+
+    let next = 0;
+    return entries.map((entry) => (entry.pinned ? entry : (queue[next++] ?? entry)));
   }, [entries, effectiveOrder]);
 
   const isCustomised =
-    (layout.order !== null && layout.order.join('|') !== signature) ||
+    (layout.order !== null && layout.order.join('|') !== movableSignature) ||
     Object.keys(layout.widths).length > 0;
 
   // Стабильная ссылка: функция уходит в зависимости эффекта ниже.
@@ -332,11 +356,15 @@ export function StickyTable<RecordType extends object>({
   };
 
   const preparedColumns = columns
-    ? orderedEntries.map(({ key, column }) => {
+    ? orderedEntries.map(({ key, column, pinned }) => {
         const typed = column as ColumnLike;
         const width = layout.widths[key] ?? typed.width;
 
-        if (!typed.title) return width === typed.width ? column : { ...column, width };
+        // Без заголовка не за что ухватиться, закреплённую двигать нельзя —
+        // и в том, и в другом случае ячейка остаётся обычной.
+        if (pinned || !typed.title) {
+          return width === typed.width ? column : { ...column, width };
+        }
 
         return {
           ...column,
