@@ -160,6 +160,20 @@ export function DriversPage() {
           },
         }}
         columns={[
+          {
+            title: '№',
+            key: 'rowNumber',
+            width: 64,
+            align: 'right',
+            // Нумерация сквозная по всему списку, а не внутри страницы:
+            // на второй странице отсчёт продолжается, а не начинается заново.
+            // index — позиция в текущей выборке, поэтому смещаем на страницу.
+            render: (_: unknown, __: DriverRow, index: number) => (
+              <Typography.Text type="secondary">
+                {(page - 1) * pageSize + index + 1}
+              </Typography.Text>
+            ),
+          },
           { title: 'Табельный', dataIndex: 'personnelNumber', width: 120 },
           {
             title: 'ФИО',
