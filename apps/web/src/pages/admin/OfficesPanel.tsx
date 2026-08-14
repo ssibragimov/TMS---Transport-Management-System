@@ -238,6 +238,7 @@ export function OfficesPanel() {
 
       <StickyTable<OfficeRow>
         rowKey="id"
+        rowNumbers
         size="small"
         loading={offices.isLoading}
         dataSource={offices.data ?? []}

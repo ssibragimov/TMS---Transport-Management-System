@@ -430,6 +430,7 @@ export function AdminPage() {
                   pagination={false}
                   dataSource={dictionaries.data?.vehicleModels.slice(0, 5) ?? []}
                   rowKey="id"
+                  rowNumbers
                   columns={[
                     {
                       title: 'Модель',

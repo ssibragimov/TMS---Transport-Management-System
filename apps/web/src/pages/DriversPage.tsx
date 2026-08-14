@@ -145,6 +145,7 @@ export function DriversPage() {
     >
       <StickyTable<DriverRow>
         rowKey="id"
+        rowNumbers
         loading={query.isLoading}
         dataSource={query.data?.items ?? []}
         onRow={(row) => ({ onClick: () => setDetailId(row.id), style: { cursor: 'pointer' } })}
@@ -160,23 +161,6 @@ export function DriversPage() {
           },
         }}
         columns={[
-          {
-            title: '№',
-            key: 'rowNumber',
-            width: 64,
-            align: 'center',
-            // fixed закрепляет колонку слева: номер строки посреди таблицы
-            // смысла не имеет, поэтому в перестановке она не участвует.
-            fixed: 'left',
-            // Нумерация сквозная по всему списку, а не внутри страницы:
-            // на второй странице отсчёт продолжается, а не начинается заново.
-            // index — позиция в текущей выборке, поэтому смещаем на страницу.
-            render: (_: unknown, __: DriverRow, index: number) => (
-              <Typography.Text type="secondary">
-                {(page - 1) * pageSize + index + 1}
-              </Typography.Text>
-            ),
-          },
           { title: 'Табельный', dataIndex: 'personnelNumber', width: 120 },
           {
             title: 'ФИО',

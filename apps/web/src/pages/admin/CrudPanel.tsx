@@ -154,6 +154,7 @@ export function CrudPanel<T extends { id: number; isActive?: boolean }>({
 
       <StickyTable<T>
         rowKey="id"
+        rowNumbers
         size="small"
         loading={query.isLoading}
         dataSource={query.data ?? []}

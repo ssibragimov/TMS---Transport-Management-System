@@ -83,7 +83,7 @@ export class AuthService {
         });
       }
 
-      const availableOffices = user.offices.map((uo) => uo.office);
+      const availableOffices = await this.accessibleOffices(user.id, user.bypassRls);
       if (availableOffices.length === 0) {
         throw new ForbiddenException({
           code: 'auth.no_office',
@@ -114,10 +114,15 @@ export class AuthService {
   /** Переключение активного офиса без повторного ввода пароля. */
   async switchOffice(userId: number, officeId: number): Promise<AuthTokens & { user: CurrentUserDto }> {
     return TenantStore.runAsSystem(async () => {
-      const membership = await this.prisma.db.userOffice.findUnique({
-        where: { userId_officeId: { userId, officeId } },
+      const user = await this.prisma.db.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { bypassRls: true },
       });
-      if (!membership) {
+
+      // Проверка тем же способом, каким строится список в шапке: иначе
+      // суперадминистратор видел бы новый аэропорт, но не мог бы в него войти.
+      const allowed = await this.accessibleOffices(userId, user.bypassRls);
+      if (!allowed.some((office) => office.id === officeId)) {
         throw new ForbiddenException({
           code: 'auth.office_not_allowed',
           message: 'Нет доступа к выбранному офису',
@@ -281,6 +286,34 @@ export class AuthService {
    * работающий в контексте головного офиса, — весь Узбекистан: иначе
    * сводный отчёт по стране собрать нечем.
    */
+  /**
+   * Офисы, доступные пользователю.
+   *
+   * Суперадминистратор (bypassRls) получает все действующие офисы, а не только
+   * те, на которые заведены записи в user_offices. Иначе созданный аэропорт не
+   * появлялся бы в переключателе до тех пор, пока кому-то не проставят связь
+   * вручную, — а создавший его администратор как раз и не смог бы туда войти.
+   *
+   * Остальным доступ по-прежнему даётся явной записью: это и есть разграничение
+   * между аэропортами.
+   */
+  private async accessibleOffices(userId: number, bypassRls: boolean) {
+    if (bypassRls) {
+      return this.prisma.db.office.findMany({
+        where: { deletedAt: null, isActive: true },
+        orderBy: [{ kind: 'asc' }, { code: 'asc' }],
+      });
+    }
+
+    const links = await this.prisma.db.userOffice.findMany({
+      where: { userId },
+      include: { office: true },
+      orderBy: [{ office: { kind: 'asc' } }, { office: { code: 'asc' } }],
+    });
+
+    return links.map((link) => link.office);
+  }
+
   private async resolveOfficeScope(
     userId: number,
     activeOfficeId: number,
@@ -349,7 +382,7 @@ export class AuthService {
       kind: o.kind,
     });
 
-    const availableOffices = user.offices.map((uo) => toSummary(uo.office));
+    const availableOffices = (await this.accessibleOffices(user.id, user.bypassRls)).map(toSummary);
     const activeOffice =
       availableOffices.find((o) => o.id === officeId) ?? availableOffices[0];
 

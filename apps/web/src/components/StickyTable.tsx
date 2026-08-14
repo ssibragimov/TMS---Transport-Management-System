@@ -1,4 +1,4 @@
-import { Table } from 'antd';
+import { Table, Typography } from 'antd';
 import type { TableProps } from 'antd';
 import {
   createContext,
@@ -191,10 +191,33 @@ export interface StickyTableProps<RecordType> extends TableProps<RecordType> {
    * несколько таблиц со схожим набором колонок; иначе вычисляется сам.
    */
   columnsKey?: string;
+  /** Колонка с порядковым номером строки, закреплённая слева. */
+  rowNumbers?: boolean;
+}
+
+/**
+ * Колонка нумерации.
+ *
+ * Смещение берётся из настроек постраничного вывода: Ant Design передаёт в
+ * отрисовку номер строки внутри текущей выборки, поэтому без поправки на
+ * страницу отсчёт начинался бы заново на каждой из них.
+ */
+function rowNumberColumn(offset: number) {
+  return {
+    title: '№',
+    key: 'rowNumber',
+    width: 64,
+    align: 'center' as const,
+    fixed: 'left' as const,
+    render: (_: unknown, __: unknown, index: number) => (
+      <Typography.Text type="secondary">{offset + index + 1}</Typography.Text>
+    ),
+  };
 }
 
 export function StickyTable<RecordType extends object>({
   columnsKey,
+  rowNumbers,
   columns,
   components,
   ...props
@@ -208,14 +231,25 @@ export function StickyTable<RecordType extends object>({
     перестановки позиция другая — пересчёт на переставленном списке дал бы
     другие ключи, и сопоставление рассыпалось бы.
   */
+  // Смещение нумерации: у таблицы без постраничного вывода оно нулевое.
+  const pageOffset =
+    props.pagination && typeof props.pagination === 'object'
+      ? ((props.pagination.current ?? 1) - 1) * (props.pagination.pageSize ?? 10)
+      : 0;
+
+  const allColumns = useMemo(
+    () => (rowNumbers && columns ? [rowNumberColumn(pageOffset), ...columns] : columns),
+    [rowNumbers, columns, pageOffset],
+  );
+
   const entries = useMemo(
     () =>
-      (columns ?? []).map((column, index) => ({
+      (allColumns ?? []).map((column, index) => ({
         key: columnKeyOf(column as ColumnLike, index),
         column,
         pinned: Boolean((column as ColumnLike).fixed),
       })),
-    [columns],
+    [allColumns],
   );
   const keys = useMemo(() => entries.map((entry) => entry.key), [entries]);
   // Переставляются только незакреплённые: закреплённая колонка в перестановке
@@ -355,7 +389,7 @@ export function StickyTable<RecordType extends object>({
     },
   };
 
-  const preparedColumns = columns
+  const preparedColumns = allColumns
     ? orderedEntries.map(({ key, column, pinned }) => {
         const typed = column as ColumnLike;
         const width = layout.widths[key] ?? typed.width;
@@ -372,7 +406,7 @@ export function StickyTable<RecordType extends object>({
           onHeaderCell: () => ({ 'data-col-key': key }) as never,
         };
       })
-    : columns;
+    : allColumns;
 
   /*
     Запасной вариант для таблиц вне карточки списка: там кнопке сброса негде
