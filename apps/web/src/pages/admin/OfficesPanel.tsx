@@ -1,0 +1,327 @@
+import { EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { useQuery } from '@tanstack/react-query';
+import {
+  Button,
+  Col,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Row,
+  Select,
+  Space,
+  Switch,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd';
+import { useEffect, useState } from 'react';
+import { OfficeKind, PERMISSIONS } from '@gsm/shared';
+
+import { api } from '@/api/client';
+import { useApiMutation } from '@/api/hooks';
+import { useAuth } from '@/auth/AuthContext';
+
+interface OfficeRow {
+  id: number;
+  code: string;
+  kind: string;
+  parentId: number | null;
+  nameRu: string;
+  nameUz: string;
+  nameEn: string;
+  iataCode: string | null;
+  icaoCode: string | null;
+  city: string | null;
+  timezone: string;
+}
+
+const KIND_LABEL: Record<string, string> = {
+  HEADQUARTERS: 'Головной офис',
+  AIRPORT: 'Аэропорт',
+  BRANCH: 'Филиал',
+};
+
+const MONTHS = [
+  'январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
+  'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь',
+];
+
+/**
+ * Офисы — это масштабирование платформы на новые аэропорты.
+ *
+ * Список приходит уже отфильтрованным политикой RLS: администратор
+ * аэропорта увидит здесь только свой офис, суперадминистратор — все.
+ */
+export function OfficesPanel() {
+  const { can } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<OfficeRow | null>(null);
+  const [form] = Form.useForm();
+
+  const manage = can(PERMISSIONS.OFFICE_MANAGE);
+
+  const offices = useQuery({
+    queryKey: ['offices-admin'],
+    queryFn: async () => (await api.get<OfficeRow[]>('/offices')).data,
+  });
+
+  // Полная карточка нужна ради зимней надбавки: в списке её нет.
+  const detail = useQuery({
+    queryKey: ['office-detail', editing?.id],
+    enabled: open && editing !== null,
+    queryFn: async () => (await api.get(`/offices/${editing!.id}`)).data as Record<string, unknown>,
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    if (!editing) {
+      form.resetFields();
+      form.setFieldsValue({
+        kind: OfficeKind.AIRPORT,
+        timezone: 'Asia/Tashkent',
+        winterSurchargePct: 8,
+        winterFromMonth: 11,
+        winterToMonth: 3,
+      });
+      return;
+    }
+    if (detail.data) {
+      form.setFieldsValue({
+        ...editing,
+        winterSurchargePct: Number(detail.data.winterSurchargePct ?? 0),
+        winterFromMonth: detail.data.winterFromMonth,
+        winterToMonth: detail.data.winterToMonth,
+        address: detail.data.address,
+        phone: detail.data.phone,
+        isActive: detail.data.isActive,
+      });
+    }
+  }, [open, editing, detail.data, form]);
+
+  const save = useApiMutation(
+    async (values: Record<string, unknown>) => {
+      if (editing) {
+        return (await api.patch(`/offices/${editing.id}`, values)).data;
+      }
+      return (await api.post('/offices', values)).data;
+    },
+    {
+      successMessage: editing ? 'Офис обновлён' : 'Аэропорт подключён',
+      invalidate: [['offices-admin'], ['offices']],
+    },
+  );
+
+  return (
+    <>
+      <Typography.Paragraph type="secondary">
+        Код офиса участвует в номерах документов (<Typography.Text code>PL-TAS-2026-000123</Typography.Text>)
+        и после создания не меняется. Зимняя надбавка задаётся здесь и применяется ко всей
+        технике офиса — у каждого региона она своя.
+      </Typography.Paragraph>
+
+      {manage && (
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          style={{ marginBottom: 12 }}
+          onClick={() => {
+            setEditing(null);
+            setOpen(true);
+          }}
+        >
+          Подключить аэропорт
+        </Button>
+      )}
+
+      <Table<OfficeRow>
+        rowKey="id"
+        size="small"
+        loading={offices.isLoading}
+        dataSource={offices.data ?? []}
+        pagination={false}
+        columns={[
+          { title: 'Код', dataIndex: 'code', width: 90 },
+          { title: 'Наименование', dataIndex: 'nameRu' },
+          {
+            title: 'Тип',
+            dataIndex: 'kind',
+            width: 150,
+            render: (value: string) => (
+              <Tag color={value === 'HEADQUARTERS' ? 'purple' : 'blue'}>
+                {KIND_LABEL[value] ?? value}
+              </Tag>
+            ),
+          },
+          { title: 'IATA', dataIndex: 'iataCode', width: 80 },
+          { title: 'ICAO', dataIndex: 'icaoCode', width: 80 },
+          { title: 'Город', dataIndex: 'city', width: 140 },
+          { title: 'Часовой пояс', dataIndex: 'timezone', width: 160 },
+          ...(manage
+            ? [
+                {
+                  title: '',
+                  width: 60,
+                  render: (_: unknown, row: OfficeRow) => (
+                    <Tooltip title="Изменить">
+                      <Button
+                        type="text"
+                        icon={<EditOutlined />}
+                        onClick={() => {
+                          setEditing(row);
+                          setOpen(true);
+                        }}
+                      />
+                    </Tooltip>
+                  ),
+                },
+              ]
+            : []),
+        ]}
+      />
+
+      <Modal
+        open={open}
+        width={760}
+        title={editing ? `Офис ${editing.code}` : 'Подключение аэропорта'}
+        okText="Сохранить"
+        cancelText="Отмена"
+        confirmLoading={save.isPending}
+        onCancel={() => setOpen(false)}
+        onOk={() => {
+          void form.validateFields().then((values) => {
+            save.mutate(values, { onSuccess: () => setOpen(false) });
+          });
+        }}
+      >
+        <Form form={form} layout="vertical">
+          <Row gutter={16}>
+            <Col span={6}>
+              <Form.Item
+                name="code"
+                label="Код"
+                tooltip="2–8 заглавных латинских букв. После создания не меняется."
+                rules={[
+                  { required: true, message: 'Обязательное поле' },
+                  { pattern: /^[A-Z]{2,8}$/, message: '2–8 заглавных латинских букв' },
+                ]}
+              >
+                <Input disabled={Boolean(editing)} placeholder="JIZ" />
+              </Form.Item>
+            </Col>
+            <Col span={9}>
+              <Form.Item name="kind" label="Тип" rules={[{ required: true }]}>
+                <Select
+                  disabled={Boolean(editing)}
+                  options={Object.values(OfficeKind).map((value) => ({
+                    value,
+                    label: KIND_LABEL[value] ?? value,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={9}>
+              <Form.Item name="parentId" label="Головной офис">
+                <Select
+                  allowClear
+                  disabled={Boolean(editing)}
+                  options={(offices.data ?? [])
+                    .filter((office) => office.kind === 'HEADQUARTERS')
+                    .map((office) => ({ value: office.id, label: office.nameRu }))}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="nameRu" label="Название (рус)" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="nameUz" label="Название (узб)" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="nameEn" label="Название (англ)" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={5}>
+              <Form.Item name="iataCode" label="IATA">
+                <Input maxLength={3} placeholder="JIZ" />
+              </Form.Item>
+            </Col>
+            <Col span={5}>
+              <Form.Item name="icaoCode" label="ICAO">
+                <Input maxLength={4} placeholder="UTSJ" />
+              </Form.Item>
+            </Col>
+            <Col span={7}>
+              <Form.Item name="city" label="Город">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={7}>
+              <Form.Item name="timezone" label="Часовой пояс">
+                <Select
+                  options={[
+                    { value: 'Asia/Tashkent', label: 'Asia/Tashkent' },
+                    { value: 'Asia/Samarkand', label: 'Asia/Samarkand' },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Typography.Text strong>Зимняя надбавка к норме расхода</Typography.Text>
+          <Row gutter={16} style={{ marginTop: 8 }}>
+            <Col span={8}>
+              <Form.Item
+                name="winterSurchargePct"
+                label="Надбавка, %"
+                tooltip="Применяется ко всей технике офиса в указанный период"
+              >
+                <InputNumber min={0} max={100} step={0.5} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="winterFromMonth" label="С месяца">
+                <Select
+                  options={MONTHS.map((label, index) => ({ value: index + 1, label }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="winterToMonth" label="По месяц">
+                <Select
+                  options={MONTHS.map((label, index) => ({ value: index + 1, label }))}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Space>
+            <Form.Item name="phone" label="Телефон">
+              <Input style={{ width: 220 }} />
+            </Form.Item>
+            {editing && (
+              <Form.Item name="isActive" label="Активен" valuePropName="checked">
+                <Switch />
+              </Form.Item>
+            )}
+          </Space>
+          <Form.Item name="address" label="Адрес">
+            <Input.TextArea rows={2} />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
+  );
+}

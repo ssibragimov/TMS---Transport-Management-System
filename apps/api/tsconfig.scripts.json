@@ -1,0 +1,10 @@
+{
+  // Конфигурация для скриптов, запускаемых через ts-node (seed, apply-sql).
+  // Отдельный файл нужен потому, что они лежат вне rootDir основной сборки.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./",
+    "noEmit": true
+  },
+  "include": ["prisma/**/*", "src/**/*"]
+}

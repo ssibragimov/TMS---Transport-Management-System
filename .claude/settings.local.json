@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem -Recurse -Depth 2 -Filter \"package.json\" -File | Where-Object { $_.FullName -notmatch 'node_modules' } | Select-Object -ExpandProperty FullName)",
+      "PowerShell(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in 5173,3000,3001,4000,5432,6379,8080,9000,9001 } | Select-Object LocalAddress, LocalPort, OwningProcess | Sort-Object LocalPort | Format-Table -AutoSize)",
+      "PowerShell(Get-Process node,docker,\"Docker Desktop\" -ErrorAction SilentlyContinue)"
+    ]
+  }
+}

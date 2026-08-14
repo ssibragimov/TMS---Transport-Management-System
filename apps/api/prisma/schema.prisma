@@ -1,0 +1,1525 @@
+// ═══════════════════════════════════════════════════════════════════════════
+//  Схема БД платформы учёта спецтранспорта и ГСМ аэропортов Узбекистана
+//
+//  Принципы:
+//   1. Мультиофисность — почти каждая прикладная таблица несёт office_id,
+//      изоляция обеспечивается политиками RLS (см. migrations/.../rls.sql),
+//      а не только фильтрами в коде.
+//   2. Историчность — приписка техники, нормы расхода и показания счётчиков
+//      хранятся периодами. Отчёт за прошлый месяц не должен «поехать»
+//      после перемещения техники или изменения нормы.
+//   3. Мягкое удаление (deleted_at) для всего, на что могут ссылаться документы.
+//   4. Decimal для объёмов и денег. Float здесь недопустим.
+// ═══════════════════════════════════════════════════════════════════════════
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions", "relationJoins"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // Расширения, входящие в поставку любого PostgreSQL, — Prisma создаёт их сама.
+  // PostGIS и TimescaleDB здесь намеренно не перечислены: они есть не в каждой
+  // среде (например, в portable-сборке для локального запуска их нет), и
+  // отсутствие пакета ломало бы миграцию целиком. Их создаёт инфраструктура —
+  // docker/postgres/init/01-init.sh, а объекты на их основе — prisma/sql/03_telemetry.sql.
+  extensions = [pgcrypto, pg_trgm, btree_gist]
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  БЛОК 1. Организационная структура и доступ
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum OfficeKind {
+  HEADQUARTERS
+  AIRPORT
+  BRANCH
+}
+
+/// Офис = аэропорт (или головной офис). Корень мультиарендности.
+model Office {
+  id       Int        @id @default(autoincrement())
+  /// Код в номерах документов: PL-TAS-2026-000123
+  code     String     @unique @db.VarChar(8)
+  kind     OfficeKind @default(AIRPORT)
+  /// Иерархия: головной офис → аэропорты. Определяет officeScope пользователя.
+  parentId Int?       @map("parent_id")
+
+  nameRu String @map("name_ru") @db.VarChar(160)
+  nameUz String @map("name_uz") @db.VarChar(160)
+  nameEn String @map("name_en") @db.VarChar(160)
+
+  iataCode String? @map("iata_code") @db.VarChar(3)
+  icaoCode String? @map("icao_code") @db.VarChar(4)
+  city     String? @db.VarChar(120)
+  address  String? @db.VarChar(400)
+  phone    String? @db.VarChar(40)
+  timezone String  @default("Asia/Tashkent") @db.VarChar(64)
+
+  latitude  Decimal? @db.Decimal(10, 7)
+  longitude Decimal? @db.Decimal(10, 7)
+
+  /// Зимняя надбавка к норме расхода, %. У каждого региона своя.
+  winterSurchargePct Decimal @default(0) @map("winter_surcharge_pct") @db.Decimal(5, 2)
+  winterFromMonth    Int     @default(11) @map("winter_from_month") @db.SmallInt
+  winterToMonth      Int     @default(3) @map("winter_to_month") @db.SmallInt
+
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  parent   Office?  @relation("OfficeHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children Office[] @relation("OfficeHierarchy")
+
+  departments        Department[]
+  userOffices        UserOffice[]
+  usersByDefault     User[]              @relation("UserDefaultOffice")
+  vehicles           Vehicle[]
+  vehicleAssignments VehicleAssignment[]
+  drivers            Driver[]
+  fuelTanks          FuelTank[]
+  fuelReceipts       FuelReceipt[]
+  fuelIssues         FuelIssue[]
+  fuelCards          FuelCard[]
+  fuelNorms          FuelNorm[]
+  fuelInventories    FuelInventory[]
+  waybills           Waybill[]
+  workOrders         WorkOrder[]
+  sparePartStocks    SparePartStock[]
+  geofences          Geofence[]
+  alerts             Alert[]
+  documentSequences  DocumentSequence[]
+  counterparties     Counterparty[]
+
+  @@index([parentId])
+  @@index([isActive])
+  @@map("offices")
+}
+
+/// Подразделение внутри офиса: автобаза, служба спецтранспорта, гараж.
+model Department {
+  id       Int    @id @default(autoincrement())
+  officeId Int    @map("office_id")
+  code     String @db.VarChar(24)
+  name     String @db.VarChar(160)
+
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office   Office    @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  vehicles Vehicle[]
+  drivers  Driver[]
+
+  @@unique([officeId, code])
+  @@index([officeId])
+  @@map("departments")
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+model User {
+  id           Int    @id @default(autoincrement())
+  email        String @unique @db.VarChar(190)
+  passwordHash String @map("password_hash") @db.VarChar(120)
+
+  fullName String  @map("full_name") @db.VarChar(200)
+  phone    String? @db.VarChar(40)
+  locale   String  @default("ru") @db.VarChar(8)
+
+  status UserStatus @default(INVITED)
+  /// Офис, в который пользователь попадает сразу после входа.
+  defaultOfficeId Int? @map("default_office_id")
+
+  /// Обход RLS. Только для технических учёток и SUPER_ADMIN.
+  bypassRls Boolean @default(false) @map("bypass_rls")
+
+  /// Инкремент разлогинивает пользователя на всех устройствах.
+  sessionVersion Int @default(1) @map("session_version")
+
+  lastLoginAt      DateTime? @map("last_login_at") @db.Timestamptz(3)
+  failedLoginCount Int       @default(0) @map("failed_login_count")
+  lockedUntil      DateTime? @map("locked_until") @db.Timestamptz(3)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  defaultOffice Office?        @relation("UserDefaultOffice", fields: [defaultOfficeId], references: [id], onDelete: SetNull)
+  offices       UserOffice[]
+  roles         UserRole[]
+  refreshTokens RefreshToken[]
+  driverProfile Driver?
+  auditLogs     AuditLog[]
+
+  @@index([status])
+  @@index([defaultOfficeId])
+  @@map("users")
+}
+
+/// Доступ пользователя к офису. Один человек может работать в нескольких аэропортах.
+model UserOffice {
+  userId   Int @map("user_id")
+  officeId Int @map("office_id")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  office Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, officeId])
+  @@index([officeId])
+  @@map("user_offices")
+}
+
+model Role {
+  id   Int    @id @default(autoincrement())
+  code String @unique @db.VarChar(48)
+  name String @db.VarChar(120)
+  /// Системные роли нельзя удалить, только изменить набор прав.
+  isSystem Boolean @default(false) @map("is_system")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id   Int    @id @default(autoincrement())
+  /// "vehicle.create", "waybill.close" — см. packages/shared/src/permissions.ts
+  code String @unique @db.VarChar(64)
+  /// Группировка в UI настройки ролей
+  groupCode   String  @map("group_code") @db.VarChar(32)
+  description String? @db.VarChar(300)
+
+  roles RolePermission[]
+
+  @@index([groupCode])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       Int @map("role_id")
+  permissionId Int @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+/// Роль выдаётся в разрезе офиса: диспетчер в Ташкенте ≠ диспетчер в Бухаре.
+/// office_id = NULL означает роль во всех доступных пользователю офисах.
+model UserRole {
+  id       Int  @id @default(autoincrement())
+  userId   Int  @map("user_id")
+  roleId   Int  @map("role_id")
+  officeId Int? @map("office_id")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, officeId])
+  @@index([userId])
+  @@index([officeId])
+  @@map("user_roles")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    Int       @map("user_id")
+  tokenHash String    @map("token_hash") @db.VarChar(128)
+  /// Офис, в контексте которого выдана сессия.
+  officeId  Int       @map("office_id")
+  userAgent String?   @map("user_agent") @db.VarChar(400)
+  ipAddress String?   @map("ip_address") @db.Inet
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  БЛОК 2. Транспорт и спецтехника
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum VehicleCategory {
+  APRON_BUS
+  PUSHBACK_TUG
+  BAGGAGE_TUG
+  BELT_LOADER
+  AMBULIFT
+  DEICER
+  REFUELLER
+  GPU
+  ASU
+  ACU
+  CATERING_TRUCK
+  WATER_TRUCK
+  LAVATORY_TRUCK
+  CARGO_LOADER
+  SNOW_REMOVAL
+  FIRE_TRUCK
+  FOLLOW_ME
+  CAR
+  STAFF_BUS
+  TRUCK
+  FORKLIFT
+  TRAILER
+  STATIONARY_EQUIPMENT
+  OTHER
+}
+
+enum MeterType {
+  ODOMETER
+  ENGINE_HOURS
+  BOTH
+  NONE
+}
+
+enum VehicleStatus {
+  ACTIVE
+  MAINTENANCE
+  REPAIR
+  RESERVE
+  IN_TRANSFER
+  DECOMMISSIONED
+}
+
+enum OwnershipType {
+  OWNED
+  LEASED
+  RENTED
+}
+
+/// Справочник видов топлива. Плотность нужна для перевода литров в килограммы
+/// (топливозаправщики и бухгалтерия считают ГСМ в тоннах).
+model FuelType {
+  id      Int     @id @default(autoincrement())
+  code    String  @unique @db.VarChar(24)
+  name    String  @db.VarChar(80)
+  /// кг/л при +20 °C
+  density Decimal @default(0.75) @db.Decimal(6, 4)
+  isActive Boolean @default(true) @map("is_active")
+
+  models    VehicleModel[]
+  vehicles  Vehicle[]
+  tanks     FuelTank[]
+  receipts  FuelReceipt[]
+  issues    FuelIssue[]
+  norms     FuelNorm[]
+
+  @@map("fuel_types")
+}
+
+/// Марка/модель техники. Нормы расхода по умолчанию задаются здесь,
+/// на конкретной единице их можно переопределить.
+model VehicleModel {
+  id           Int             @id @default(autoincrement())
+  category     VehicleCategory
+  manufacturer String          @db.VarChar(120)
+  model        String          @db.VarChar(120)
+  fuelTypeId   Int?            @map("fuel_type_id")
+
+  meterType    MeterType @default(ODOMETER) @map("meter_type")
+  tankCapacity Decimal?  @map("tank_capacity") @db.Decimal(10, 2)
+  /// Полная масса, кг — для расчёта т·км и допуска водителя по категории прав
+  grossWeight  Int?      @map("gross_weight")
+  seats        Int?
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  fuelType FuelType?  @relation(fields: [fuelTypeId], references: [id], onDelete: SetNull)
+  vehicles Vehicle[]
+  norms    FuelNorm[]
+
+  @@unique([manufacturer, model])
+  @@index([category])
+  @@map("vehicle_models")
+}
+
+/// Единица техники.
+///
+/// office_id здесь — ТЕКУЩАЯ приписка (денормализация ради быстрых списков и RLS).
+/// Историю перемещений между аэропортами хранит VehicleAssignment; отчёты за прошлые
+/// периоды обязаны опираться на неё, а не на это поле.
+model Vehicle {
+  id           Int  @id @default(autoincrement())
+  officeId     Int  @map("office_id")
+  departmentId Int? @map("department_id")
+  modelId      Int  @map("model_id")
+
+  /// Гаражный номер — то, чем техника называется в реальной жизни
+  garageNumber String  @map("garage_number") @db.VarChar(24)
+  plateNumber  String? @map("plate_number") @db.VarChar(24)
+  vin          String? @db.VarChar(24)
+  inventoryNumber String? @map("inventory_number") @db.VarChar(32)
+
+  category   VehicleCategory
+  status     VehicleStatus   @default(ACTIVE)
+  ownership  OwnershipType   @default(OWNED)
+  fuelTypeId Int?            @map("fuel_type_id")
+
+  meterType    MeterType @default(ODOMETER) @map("meter_type")
+  tankCapacity Decimal?  @map("tank_capacity") @db.Decimal(10, 2)
+
+  /// Текущие показания — денормализация последней записи VehicleMeterReading.
+  currentOdometer    Decimal? @map("current_odometer") @db.Decimal(12, 1)
+  currentEngineHours Decimal? @map("current_engine_hours") @db.Decimal(12, 1)
+  /// Текущий остаток топлива в баке, л. Ведётся путевыми листами и выдачами.
+  currentFuelLevel   Decimal  @default(0) @map("current_fuel_level") @db.Decimal(10, 2)
+
+  manufactureYear Int?      @map("manufacture_year") @db.SmallInt
+  commissionedAt  DateTime? @map("commissioned_at") @db.Date
+  decommissionedAt DateTime? @map("decommissioned_at") @db.Date
+
+  /// Требуется ли допуск на перрон для работы на этой технике
+  requiresAirsidePermit Boolean @default(true) @map("requires_airside_permit")
+
+  notes String? @db.Text
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office      Office       @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  department  Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  model       VehicleModel @relation(fields: [modelId], references: [id], onDelete: Restrict)
+  fuelType    FuelType?    @relation(fields: [fuelTypeId], references: [id], onDelete: SetNull)
+
+  assignments    VehicleAssignment[]
+  documents      VehicleDocument[]
+  photos         VehiclePhoto[]
+  meterReadings  VehicleMeterReading[]
+  fuelIssues     FuelIssue[]
+  fuelCards      FuelCard[]
+  norms          FuelNorm[]
+  waybills       Waybill[]
+  maintenancePlans MaintenancePlan[]
+  workOrders     WorkOrder[]
+  tires          TireInstallation[]
+  gpsDevices     GpsDevice[]
+  alerts         Alert[]
+
+  @@unique([officeId, garageNumber])
+  @@index([officeId, status])
+  @@index([officeId, category])
+  @@index([plateNumber])
+  @@index([modelId])
+  @@map("vehicles")
+}
+
+/// История приписки техники к офису. Закрытый период = to_date IS NOT NULL.
+/// Пересечение периодов у одной единицы техники запрещено ограничением exclusion
+/// (создаётся в SQL-миграции — Prisma такие constraint'ы не умеет).
+model VehicleAssignment {
+  id        Int       @id @default(autoincrement())
+  vehicleId Int       @map("vehicle_id")
+  officeId  Int       @map("office_id")
+  fromDate  DateTime  @map("from_date") @db.Date
+  toDate    DateTime? @map("to_date") @db.Date
+  reason    String?   @db.VarChar(300)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  office  Office  @relation(fields: [officeId], references: [id], onDelete: Restrict)
+
+  @@index([vehicleId, fromDate])
+  @@index([officeId])
+  @@map("vehicle_assignments")
+}
+
+enum VehicleDocumentType {
+  REGISTRATION
+  INSURANCE_OSAGO
+  INSURANCE_CASCO
+  TECH_INSPECTION
+  AIRSIDE_VEHICLE_PERMIT
+  CALIBRATION_CERTIFICATE
+  LEASE_CONTRACT
+  TACHOGRAPH
+  OTHER
+}
+
+/// Документы техники со сроком действия. Источник дашборда «истекает через N дней».
+model VehicleDocument {
+  id        Int                 @id @default(autoincrement())
+  vehicleId Int                 @map("vehicle_id")
+  type      VehicleDocumentType
+  number    String?             @db.VarChar(64)
+  issuer    String?             @db.VarChar(200)
+  issuedAt  DateTime?           @map("issued_at") @db.Date
+  expiresAt DateTime?           @map("expires_at") @db.Date
+  /// Ключ объекта в S3/MinIO
+  fileKey   String?             @map("file_key") @db.VarChar(400)
+  amount    Decimal?            @db.Decimal(14, 2)
+  notes     String?             @db.VarChar(400)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId, type])
+  @@index([expiresAt])
+  @@map("vehicle_documents")
+}
+
+/// Фотографии единицы техники: общий вид, повреждения, заводские таблички.
+/// Сам файл в БД не хранится — только ключ в объектном хранилище.
+model VehiclePhoto {
+  id        Int    @id @default(autoincrement())
+  vehicleId Int    @map("vehicle_id")
+  /// Ключ объекта в хранилище (локальный диск или S3/MinIO)
+  fileKey   String @map("file_key") @db.VarChar(400)
+  /// Исходное имя файла — показывается пользователю при скачивании
+  fileName  String @map("file_name") @db.VarChar(260)
+  mimeType  String @map("mime_type") @db.VarChar(80)
+  sizeBytes Int    @map("size_bytes")
+  /// Главное фото — оно показывается в списке техники. На единицу техники
+  /// оно ровно одно, обеспечивается частичным уникальным индексом.
+  isPrimary Boolean @default(false) @map("is_primary")
+  caption   String? @db.VarChar(300)
+
+  uploadedBy Int?     @map("uploaded_by")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId])
+  @@map("vehicle_photos")
+}
+
+enum MeterSource {
+  MANUAL
+  WAYBILL
+  TELEMETRY
+  MOBILE_PHOTO
+  ADJUSTMENT
+}
+
+/// История показаний счётчиков. Никогда не обновляется — только добавление.
+/// Замена счётчика оформляется записью с source = ADJUSTMENT.
+model VehicleMeterReading {
+  id        BigInt      @id @default(autoincrement())
+  vehicleId Int         @map("vehicle_id")
+  recordedAt DateTime   @map("recorded_at") @db.Timestamptz(3)
+  odometer     Decimal? @db.Decimal(12, 1)
+  engineHours  Decimal? @map("engine_hours") @db.Decimal(12, 1)
+  source    MeterSource @default(MANUAL)
+  waybillId Int?        @map("waybill_id")
+  photoKey  String?     @map("photo_key") @db.VarChar(400)
+  comment   String?     @db.VarChar(300)
+  createdBy Int?        @map("created_by")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  vehicle Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  waybill Waybill? @relation(fields: [waybillId], references: [id], onDelete: SetNull)
+
+  @@index([vehicleId, recordedAt])
+  @@map("vehicle_meter_readings")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  БЛОК 3. Водители и допуски
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum LicenseCategory {
+  A
+  B
+  C
+  D
+  BE
+  CE
+  DE
+  TRACTOR
+  FORKLIFT
+}
+
+enum PermitZone {
+  LANDSIDE
+  AIRSIDE
+  APRON
+  MANEUVERING_AREA
+  RUNWAY
+}
+
+enum CheckResult {
+  PASSED
+  FAILED
+  CONDITIONAL
+}
+
+model Driver {
+  id           Int  @id @default(autoincrement())
+  officeId     Int  @map("office_id")
+  departmentId Int? @map("department_id")
+  /// Учётка в системе, если водитель пользуется мобильным приложением.
+  userId       Int? @unique @map("user_id")
+
+  personnelNumber String  @map("personnel_number") @db.VarChar(24)
+  lastName        String  @map("last_name") @db.VarChar(80)
+  firstName       String  @map("first_name") @db.VarChar(80)
+  middleName      String? @map("middle_name") @db.VarChar(80)
+  birthDate       DateTime? @map("birth_date") @db.Date
+  phone           String? @db.VarChar(40)
+
+  hireDate     DateTime? @map("hire_date") @db.Date
+  dismissDate  DateTime? @map("dismiss_date") @db.Date
+  isActive     Boolean   @default(true) @map("is_active")
+  photoKey     String?   @map("photo_key") @db.VarChar(400)
+  notes        String?   @db.Text
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office     Office      @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  licenses       DriverLicense[]
+  permits        DriverPermit[]
+  medicalChecks  MedicalCheck[]
+  waybills       Waybill[]
+  fuelIssues     FuelIssue[]
+  alerts         Alert[]
+
+  @@unique([officeId, personnelNumber])
+  @@index([officeId, isActive])
+  @@index([lastName])
+  @@map("drivers")
+}
+
+model DriverLicense {
+  id         Int      @id @default(autoincrement())
+  driverId   Int      @map("driver_id")
+  number     String   @db.VarChar(32)
+  categories LicenseCategory[]
+  issuedAt   DateTime @map("issued_at") @db.Date
+  expiresAt  DateTime @map("expires_at") @db.Date
+  fileKey    String?  @map("file_key") @db.VarChar(400)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId])
+  @@index([expiresAt])
+  @@map("driver_licenses")
+}
+
+/// Допуск на движение в контролируемой зоне аэродрома.
+/// Без действующего допуска водитель не должен попадать в путевой лист
+/// на технику с requires_airside_permit = true.
+model DriverPermit {
+  id        Int        @id @default(autoincrement())
+  driverId  Int        @map("driver_id")
+  zone      PermitZone
+  number    String     @db.VarChar(32)
+  issuedAt  DateTime   @map("issued_at") @db.Date
+  expiresAt DateTime   @map("expires_at") @db.Date
+  fileKey   String?    @map("file_key") @db.VarChar(400)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId, zone])
+  @@index([expiresAt])
+  @@map("driver_permits")
+}
+
+/// Медосмотр: периодический и предрейсовый.
+model MedicalCheck {
+  id         Int         @id @default(autoincrement())
+  driverId   Int         @map("driver_id")
+  checkedAt  DateTime    @map("checked_at") @db.Timestamptz(3)
+  validUntil DateTime?   @map("valid_until") @db.Date
+  result     CheckResult @default(PASSED)
+  /// true — предрейсовый (действует одну смену), false — периодический
+  isPreTrip  Boolean     @default(false) @map("is_pre_trip")
+  doctorName String?     @map("doctor_name") @db.VarChar(200)
+  bloodPressure String?  @map("blood_pressure") @db.VarChar(16)
+  temperature Decimal?   @db.Decimal(4, 1)
+  alcoholPpm  Decimal?   @map("alcohol_ppm") @db.Decimal(5, 3)
+  notes      String?     @db.VarChar(400)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId, checkedAt])
+  @@index([validUntil])
+  @@map("medical_checks")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  БЛОК 4. ГСМ
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Контрагент: поставщик ГСМ, сеть АЗС, подрядчик по ремонту.
+model Counterparty {
+  id       Int     @id @default(autoincrement())
+  officeId Int     @map("office_id")
+  name     String  @db.VarChar(240)
+  inn      String? @db.VarChar(20)
+  isFuelSupplier Boolean @default(false) @map("is_fuel_supplier")
+  isServiceProvider Boolean @default(false) @map("is_service_provider")
+  contactPhone String? @map("contact_phone") @db.VarChar(40)
+  address  String? @db.VarChar(400)
+
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office     Office        @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  receipts   FuelReceipt[]
+  fuelCards  FuelCard[]
+  workOrders WorkOrder[]
+
+  @@index([officeId])
+  @@map("counterparties")
+}
+
+/// Ёмкость хранения: резервуар, бочка, топливораздаточная колонка предприятия.
+model FuelTank {
+  id         Int     @id @default(autoincrement())
+  officeId   Int     @map("office_id")
+  fuelTypeId Int     @map("fuel_type_id")
+  code       String  @db.VarChar(24)
+  name       String  @db.VarChar(160)
+  capacity   Decimal @db.Decimal(12, 2)
+  /// Книжный остаток. Изменяется только приходами, выдачами и инвентаризациями.
+  currentVolume Decimal @default(0) @map("current_volume") @db.Decimal(12, 2)
+  /// Порог для алерта TANK_LOW_LEVEL
+  minVolume  Decimal @default(0) @map("min_volume") @db.Decimal(12, 2)
+  location   String? @db.VarChar(240)
+
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office      Office          @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  fuelType    FuelType        @relation(fields: [fuelTypeId], references: [id], onDelete: Restrict)
+  receipts    FuelReceipt[]
+  issues      FuelIssue[]
+  inventories FuelInventory[]
+
+  @@unique([officeId, code])
+  @@index([officeId])
+  @@map("fuel_tanks")
+}
+
+/// Приход топлива в ёмкость.
+model FuelReceipt {
+  id         Int      @id @default(autoincrement())
+  officeId   Int      @map("office_id")
+  tankId     Int      @map("tank_id")
+  fuelTypeId Int      @map("fuel_type_id")
+  supplierId Int?     @map("supplier_id")
+
+  documentNumber String   @map("document_number") @db.VarChar(40)
+  /// Номер накладной поставщика
+  externalNumber String?  @map("external_number") @db.VarChar(64)
+  receivedAt     DateTime @map("received_at") @db.Timestamptz(3)
+
+  volume     Decimal  @db.Decimal(12, 2)
+  /// Плотность на момент приёмки — по паспорту качества
+  density    Decimal? @db.Decimal(6, 4)
+  pricePerLitre Decimal? @map("price_per_litre") @db.Decimal(14, 4)
+  totalAmount   Decimal? @map("total_amount") @db.Decimal(16, 2)
+  /// Скан накладной / паспорта качества
+  fileKey    String?  @map("file_key") @db.VarChar(400)
+  notes      String?  @db.VarChar(400)
+
+  createdBy Int?      @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office   Office        @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  tank     FuelTank      @relation(fields: [tankId], references: [id], onDelete: Restrict)
+  fuelType FuelType      @relation(fields: [fuelTypeId], references: [id], onDelete: Restrict)
+  supplier Counterparty? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  @@unique([officeId, documentNumber])
+  @@index([officeId, receivedAt])
+  @@index([tankId, receivedAt])
+  @@map("fuel_receipts")
+}
+
+enum FuelSource {
+  TANK
+  FUEL_CARD
+  CASH
+  EXTERNAL
+}
+
+/// Топливная карта для заправок на внешних АЗС.
+model FuelCard {
+  id         Int     @id @default(autoincrement())
+  officeId   Int     @map("office_id")
+  number       String  @db.VarChar(32)
+  /// Название сети АЗС, если контрагент не заведён в справочнике
+  providerName String? @map("provider_name") @db.VarChar(120)
+  providerId   Int?    @map("provider_id")
+  /// Закреплена за конкретной техникой; null — карта общего пула
+  vehicleId  Int?    @map("vehicle_id")
+  monthlyLimit Decimal? @map("monthly_limit") @db.Decimal(12, 2)
+  expiresAt  DateTime? @map("expires_at") @db.Date
+
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office   Office        @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  vehicle  Vehicle?      @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  provider Counterparty? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  issues   FuelIssue[]
+
+  @@unique([officeId, number])
+  @@index([officeId])
+  @@index([vehicleId])
+  @@map("fuel_cards")
+}
+
+/// Выдача топлива в бак техники. Ключевая операционная таблица блока ГСМ.
+///
+/// Если source = TANK, объём списывается с fuel_tanks.current_volume
+/// (в одной транзакции, см. FuelIssuesService).
+model FuelIssue {
+  id         Int        @id @default(autoincrement())
+  officeId   Int        @map("office_id")
+  vehicleId  Int        @map("vehicle_id")
+  driverId   Int?       @map("driver_id")
+  waybillId  Int?       @map("waybill_id")
+  fuelTypeId Int        @map("fuel_type_id")
+  source     FuelSource @default(TANK)
+  tankId     Int?       @map("tank_id")
+  fuelCardId Int?       @map("fuel_card_id")
+
+  documentNumber String   @map("document_number") @db.VarChar(40)
+  issuedAt       DateTime @map("issued_at") @db.Timestamptz(3)
+  volume         Decimal  @db.Decimal(10, 2)
+  pricePerLitre  Decimal? @map("price_per_litre") @db.Decimal(14, 4)
+  totalAmount    Decimal? @map("total_amount") @db.Decimal(16, 2)
+
+  /// Показания счётчика в момент заправки — для сверки с путевым листом
+  odometerAtIssue    Decimal? @map("odometer_at_issue") @db.Decimal(12, 1)
+  engineHoursAtIssue Decimal? @map("engine_hours_at_issue") @db.Decimal(12, 1)
+
+  /// Где заправляли (для внешних АЗС и детекта невозможных последовательностей)
+  locationName String?  @map("location_name") @db.VarChar(240)
+  latitude     Decimal? @db.Decimal(10, 7)
+  longitude    Decimal? @db.Decimal(10, 7)
+
+  /// Кто отпустил топливо
+  operatorId Int?    @map("operator_id")
+  receiptKey String? @map("receipt_key") @db.VarChar(400)
+  notes      String? @db.VarChar(400)
+
+  createdBy Int?      @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office   Office    @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  vehicle  Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  driver   Driver?   @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  waybill  Waybill?  @relation(fields: [waybillId], references: [id], onDelete: SetNull)
+  fuelType FuelType  @relation(fields: [fuelTypeId], references: [id], onDelete: Restrict)
+  tank     FuelTank? @relation(fields: [tankId], references: [id], onDelete: Restrict)
+  fuelCard FuelCard? @relation(fields: [fuelCardId], references: [id], onDelete: SetNull)
+
+  @@unique([officeId, documentNumber])
+  @@index([officeId, issuedAt])
+  @@index([vehicleId, issuedAt])
+  @@index([waybillId])
+  @@map("fuel_issues")
+}
+
+enum NormType {
+  PER_100KM
+  PER_ENGINE_HOUR
+  PER_OPERATION
+  PER_TON_KM
+  PER_SHIFT
+}
+
+enum NormAdjustmentKind {
+  WINTER
+  AIR_CONDITIONING
+  FREQUENT_STOPS
+  VEHICLE_AGE
+  IDLE_EQUIPMENT
+  RUN_IN
+  OTHER
+}
+
+/// Норма расхода. Версионируется периодом действия — изменение нормы
+/// не переписывает историю, а открывает новую версию.
+///
+/// Область действия по убыванию приоритета:
+///   vehicle_id  → норма конкретной единицы техники
+///   model_id    → норма модели
+/// Ровно одно из полей должно быть заполнено (проверяется CHECK в SQL-миграции).
+model FuelNorm {
+  id         Int      @id @default(autoincrement())
+  officeId   Int      @map("office_id")
+  vehicleId  Int?     @map("vehicle_id")
+  modelId    Int?     @map("model_id")
+  fuelTypeId Int?     @map("fuel_type_id")
+
+  normType NormType @map("norm_type")
+  /// Л/100км, л/моточас, л/операцию, л/смену или л/т·км
+  baseRate Decimal  @map("base_rate") @db.Decimal(10, 3)
+
+  validFrom DateTime  @map("valid_from") @db.Date
+  validTo   DateTime? @map("valid_to") @db.Date
+
+  /// Основание: номер и дата приказа
+  documentRef String? @map("document_ref") @db.VarChar(200)
+  notes       String? @db.VarChar(400)
+
+  createdBy Int?      @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office      Office               @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  vehicle     Vehicle?             @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  model       VehicleModel?        @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  fuelType    FuelType?            @relation(fields: [fuelTypeId], references: [id], onDelete: SetNull)
+  adjustments FuelNormAdjustment[]
+
+  @@index([officeId, vehicleId, validFrom])
+  @@index([officeId, modelId, validFrom])
+  @@map("fuel_norms")
+}
+
+/// Надбавка к норме. Процентная либо абсолютная, с периодом и сезонностью.
+model FuelNormAdjustment {
+  id     Int                @id @default(autoincrement())
+  normId Int                @map("norm_id")
+  kind   NormAdjustmentKind
+
+  /// Процент к базе, например 8.00 для зимней надбавки
+  percent         Decimal? @db.Decimal(6, 2)
+  /// Абсолютная надбавка на единицу объёма работы (л/мч, л/100км)
+  absolutePerUnit Decimal? @map("absolute_per_unit") @db.Decimal(10, 3)
+  /// К какой базе применяется. null — ко всей сумме базовых расходов.
+  appliesTo       NormType? @map("applies_to")
+
+  validFrom DateTime  @map("valid_from") @db.Date
+  validTo   DateTime? @map("valid_to") @db.Date
+  /// Сезонность, месяцы 1–12. null — круглый год.
+  seasonFromMonth Int? @map("season_from_month") @db.SmallInt
+  seasonToMonth   Int? @map("season_to_month") @db.SmallInt
+
+  documentRef String? @map("document_ref") @db.VarChar(200)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  norm FuelNorm @relation(fields: [normId], references: [id], onDelete: Cascade)
+
+  @@index([normId])
+  @@map("fuel_norm_adjustments")
+}
+
+/// Инвентаризация ёмкости: сверка книжного остатка с фактическим замером.
+model FuelInventory {
+  id       Int      @id @default(autoincrement())
+  officeId Int      @map("office_id")
+  tankId   Int      @map("tank_id")
+
+  documentNumber String   @map("document_number") @db.VarChar(40)
+  countedAt      DateTime @map("counted_at") @db.Timestamptz(3)
+  /// Остаток по учёту на момент замера
+  bookVolume   Decimal @map("book_volume") @db.Decimal(12, 2)
+  /// Фактический замер
+  actualVolume Decimal @map("actual_volume") @db.Decimal(12, 2)
+  /// actual − book. Отрицательное = недостача.
+  difference   Decimal @db.Decimal(12, 2)
+  temperature  Decimal? @db.Decimal(4, 1)
+  density      Decimal? @db.Decimal(6, 4)
+
+  /// Списана ли разница (корректировка остатка ёмкости проведена)
+  isAdjusted Boolean @default(false) @map("is_adjusted")
+  commission String? @db.VarChar(500)
+  fileKey    String? @map("file_key") @db.VarChar(400)
+  notes      String? @db.VarChar(400)
+
+  createdBy Int?      @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office Office   @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  tank   FuelTank @relation(fields: [tankId], references: [id], onDelete: Restrict)
+
+  @@unique([officeId, documentNumber])
+  @@index([tankId, countedAt])
+  @@map("fuel_inventories")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  БЛОК 5. Путевые листы
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum WaybillType {
+  SHIFT
+  PERIOD
+}
+
+enum WaybillStatus {
+  DRAFT
+  ISSUED
+  IN_PROGRESS
+  SUBMITTED
+  CLOSED
+  CANCELLED
+}
+
+/// Путевой лист — ядро системы.
+///
+/// Расчётное тождество при закрытии:
+///   fuel_opening + fuel_issued − fuel_consumed = fuel_closing
+/// Норма (fuel_norm) считается движком из packages/shared/src/fuel-norms.ts
+/// по правилам, действовавшим на дату valid_from.
+model Waybill {
+  id       Int           @id @default(autoincrement())
+  officeId Int           @map("office_id")
+  number   String        @db.VarChar(40)
+  type     WaybillType   @default(SHIFT)
+  status   WaybillStatus @default(DRAFT)
+
+  vehicleId Int @map("vehicle_id")
+  driverId  Int @map("driver_id")
+  /// Сменщик на том же путевом листе
+  coDriverId Int? @map("co_driver_id")
+
+  validFrom DateTime @map("valid_from") @db.Timestamptz(3)
+  validTo   DateTime @map("valid_to") @db.Timestamptz(3)
+
+  /// Показания на выезд
+  odometerStart    Decimal? @map("odometer_start") @db.Decimal(12, 1)
+  engineHoursStart Decimal? @map("engine_hours_start") @db.Decimal(12, 1)
+  /// Показания на возврат
+  odometerEnd      Decimal? @map("odometer_end") @db.Decimal(12, 1)
+  engineHoursEnd   Decimal? @map("engine_hours_end") @db.Decimal(12, 1)
+
+  /// Производные величины, рассчитываются при закрытии
+  distanceKm  Decimal? @map("distance_km") @db.Decimal(12, 1)
+  engineHours Decimal? @map("engine_hours") @db.Decimal(12, 1)
+  operations  Int?
+  tonKm       Decimal? @map("ton_km") @db.Decimal(14, 2)
+
+  /// Топливо, л
+  fuelOpening  Decimal  @default(0) @map("fuel_opening") @db.Decimal(10, 2)
+  fuelIssued   Decimal  @default(0) @map("fuel_issued") @db.Decimal(10, 2)
+  fuelConsumed Decimal? @map("fuel_consumed") @db.Decimal(10, 2)
+  fuelClosing  Decimal? @map("fuel_closing") @db.Decimal(10, 2)
+  /// Нормативный расход
+  fuelNorm     Decimal? @map("fuel_norm") @db.Decimal(10, 2)
+  /// Отклонение факт − норма. Положительное = перерасход.
+  fuelDeviation    Decimal? @map("fuel_deviation") @db.Decimal(10, 2)
+  fuelDeviationPct Decimal? @map("fuel_deviation_pct") @db.Decimal(8, 2)
+  /// Расшифровка расчёта нормы (CalculationLine[]) — чтобы спор через год
+  /// разбирался по сохранённым цифрам, а не по текущим нормам.
+  normBreakdown Json? @map("norm_breakdown")
+
+  /// Предрейсовый контроль
+  preTripMedicalOk   Boolean?  @map("pre_trip_medical_ok")
+  preTripTechnicalOk Boolean?  @map("pre_trip_technical_ok")
+  preTripCheckedAt   DateTime? @map("pre_trip_checked_at") @db.Timestamptz(3)
+  preTripCheckedBy   Int?      @map("pre_trip_checked_by")
+  /// Чек-лист осмотра из мобильного приложения
+  preTripChecklist   Json?     @map("pre_trip_checklist")
+
+  issuedBy   Int?      @map("issued_by")
+  issuedAt   DateTime? @map("issued_at") @db.Timestamptz(3)
+  submittedAt DateTime? @map("submitted_at") @db.Timestamptz(3)
+  closedBy   Int?      @map("closed_by")
+  closedAt   DateTime? @map("closed_at") @db.Timestamptz(3)
+  cancelReason String? @map("cancel_reason") @db.VarChar(400)
+
+  notes String? @db.Text
+
+  createdBy Int?      @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office  Office  @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  driver  Driver  @relation(fields: [driverId], references: [id], onDelete: Restrict)
+
+  tasks         WaybillTask[]
+  fuelIssues    FuelIssue[]
+  meterReadings VehicleMeterReading[]
+
+  @@unique([officeId, number])
+  @@index([officeId, status, validFrom])
+  @@index([vehicleId, validFrom])
+  @@index([driverId, validFrom])
+  @@map("waybills")
+}
+
+/// Задание в путевом листе — одна ездка/операция.
+/// Для аэропорта сюда попадает номер рейса и борт: это позволит считать
+/// себестоимость обслуживания рейса после интеграции с AODB.
+model WaybillTask {
+  id        Int @id @default(autoincrement())
+  waybillId Int @map("waybill_id")
+  sequence  Int @db.SmallInt
+
+  fromPoint String? @map("from_point") @db.VarChar(240)
+  toPoint   String? @map("to_point") @db.VarChar(240)
+  /// Номер рейса, например HY603
+  flightNumber String? @map("flight_number") @db.VarChar(16)
+  /// Бортовой номер ВС
+  aircraftReg  String? @map("aircraft_reg") @db.VarChar(16)
+  standNumber  String? @map("stand_number") @db.VarChar(16)
+
+  startedAt DateTime? @map("started_at") @db.Timestamptz(3)
+  endedAt   DateTime? @map("ended_at") @db.Timestamptz(3)
+
+  distanceKm  Decimal? @map("distance_km") @db.Decimal(10, 1)
+  engineHours Decimal? @map("engine_hours") @db.Decimal(8, 2)
+  cargoTons   Decimal? @map("cargo_tons") @db.Decimal(10, 3)
+  passengers  Int?
+  /// Число операций (обработок ВС) — база для нормы PER_OPERATION
+  operations  Int?
+
+  notes String? @db.VarChar(400)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  waybill Waybill @relation(fields: [waybillId], references: [id], onDelete: Cascade)
+
+  @@unique([waybillId, sequence])
+  @@index([flightNumber])
+  @@map("waybill_tasks")
+}
+
+/// Сквозная нумерация документов без пропусков, в разрезе офиса, года и вида.
+/// Инкремент только внутри транзакции с SELECT ... FOR UPDATE.
+model DocumentSequence {
+  id       Int    @id @default(autoincrement())
+  officeId Int    @map("office_id")
+  kind     String @db.VarChar(32)
+  year     Int    @db.SmallInt
+  lastValue Int   @default(0) @map("last_value")
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
+
+  @@unique([officeId, kind, year])
+  @@map("document_sequences")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  БЛОК 6. ТО, ремонты, склад
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum MaintenanceKind {
+  DAILY
+  TO_1
+  TO_2
+  SEASONAL
+  CURRENT_REPAIR
+  OVERHAUL
+  TIRE_SERVICE
+}
+
+enum MaintenanceTrigger {
+  ODOMETER
+  ENGINE_HOURS
+  CALENDAR
+}
+
+enum WorkOrderStatus {
+  REQUESTED
+  APPROVED
+  IN_PROGRESS
+  WAITING_PARTS
+  COMPLETED
+  REJECTED
+}
+
+/// План-график ТО. Срабатывает по тому триггеру, что наступит раньше.
+model MaintenancePlan {
+  id        Int             @id @default(autoincrement())
+  vehicleId Int             @map("vehicle_id")
+  kind      MaintenanceKind
+  trigger   MaintenanceTrigger
+
+  /// Периодичность: км, моточасы или дни — в зависимости от trigger
+  intervalValue Int @map("interval_value")
+  /// За сколько единиц до срока поднимать алерт
+  warnBefore    Int @default(500) @map("warn_before")
+
+  /// Показания/дата последнего выполнения
+  lastOdometer    Decimal?  @map("last_odometer") @db.Decimal(12, 1)
+  lastEngineHours Decimal?  @map("last_engine_hours") @db.Decimal(12, 1)
+  lastPerformedAt DateTime? @map("last_performed_at") @db.Date
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@unique([vehicleId, kind])
+  @@index([vehicleId])
+  @@map("maintenance_plans")
+}
+
+/// Наряд-заказ на ТО или ремонт.
+model WorkOrder {
+  id       Int             @id @default(autoincrement())
+  officeId Int             @map("office_id")
+  vehicleId Int            @map("vehicle_id")
+  number   String          @db.VarChar(40)
+  kind     MaintenanceKind
+  status   WorkOrderStatus @default(REQUESTED)
+
+  /// Внешний подрядчик; null — выполняется своими силами
+  contractorId Int? @map("contractor_id")
+
+  description String  @db.Text
+  odometerAt    Decimal? @map("odometer_at") @db.Decimal(12, 1)
+  engineHoursAt Decimal? @map("engine_hours_at") @db.Decimal(12, 1)
+
+  plannedStart DateTime? @map("planned_start") @db.Date
+  actualStart  DateTime? @map("actual_start") @db.Timestamptz(3)
+  actualEnd    DateTime? @map("actual_end") @db.Timestamptz(3)
+  /// Простой техники, часов — метрика доступности парка
+  downtimeHours Decimal? @map("downtime_hours") @db.Decimal(8, 2)
+
+  laborCost Decimal? @map("labor_cost") @db.Decimal(16, 2)
+  partsCost Decimal? @map("parts_cost") @db.Decimal(16, 2)
+  totalCost Decimal? @map("total_cost") @db.Decimal(16, 2)
+
+  requestedBy Int?      @map("requested_by")
+  approvedBy  Int?      @map("approved_by")
+  approvedAt  DateTime? @map("approved_at") @db.Timestamptz(3)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office     Office        @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  vehicle    Vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  contractor Counterparty? @relation(fields: [contractorId], references: [id], onDelete: SetNull)
+  parts      WorkOrderPart[]
+
+  @@unique([officeId, number])
+  @@index([officeId, status])
+  @@index([vehicleId])
+  @@map("work_orders")
+}
+
+model SparePart {
+  id       Int     @id @default(autoincrement())
+  code     String  @unique @db.VarChar(48)
+  name     String  @db.VarChar(240)
+  unit     String  @default("шт") @db.VarChar(16)
+  /// Каталожный номер производителя
+  catalogNumber String? @map("catalog_number") @db.VarChar(64)
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  stocks         SparePartStock[]
+  workOrderParts WorkOrderPart[]
+
+  @@map("spare_parts")
+}
+
+/// Остаток запчасти на складе офиса.
+model SparePartStock {
+  id       Int     @id @default(autoincrement())
+  officeId Int     @map("office_id")
+  partId   Int     @map("part_id")
+  quantity Decimal @default(0) @db.Decimal(12, 3)
+  minQuantity Decimal @default(0) @map("min_quantity") @db.Decimal(12, 3)
+  avgPrice Decimal? @map("avg_price") @db.Decimal(16, 2)
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office Office    @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  part   SparePart @relation(fields: [partId], references: [id], onDelete: Cascade)
+
+  @@unique([officeId, partId])
+  @@map("spare_part_stocks")
+}
+
+model WorkOrderPart {
+  id          Int     @id @default(autoincrement())
+  workOrderId Int     @map("work_order_id")
+  partId      Int     @map("part_id")
+  quantity    Decimal @db.Decimal(12, 3)
+  unitPrice   Decimal? @map("unit_price") @db.Decimal(16, 2)
+  totalPrice  Decimal? @map("total_price") @db.Decimal(16, 2)
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  part      SparePart @relation(fields: [partId], references: [id], onDelete: Restrict)
+
+  @@index([workOrderId])
+  @@map("work_order_parts")
+}
+
+/// Установка шины на ось/позицию. Позволяет считать пробег конкретной покрышки.
+model TireInstallation {
+  id        Int    @id @default(autoincrement())
+  vehicleId Int    @map("vehicle_id")
+  /// Серийный номер покрышки
+  serialNumber String @map("serial_number") @db.VarChar(48)
+  brand     String? @db.VarChar(120)
+  size      String? @db.VarChar(32)
+  /// Позиция: ось и сторона, например "2L", "1R"
+  position  String  @db.VarChar(8)
+
+  installedAt       DateTime  @map("installed_at") @db.Date
+  installedOdometer Decimal?  @map("installed_odometer") @db.Decimal(12, 1)
+  removedAt         DateTime? @map("removed_at") @db.Date
+  removedOdometer   Decimal?  @map("removed_odometer") @db.Decimal(12, 1)
+  removeReason      String?   @map("remove_reason") @db.VarChar(240)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId, removedAt])
+  @@index([serialNumber])
+  @@map("tire_installations")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  БЛОК 7. Телематика (этап 8)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model GpsDevice {
+  id        Int     @id @default(autoincrement())
+  vehicleId Int     @map("vehicle_id")
+  imei      String  @unique @db.VarChar(24)
+  provider  String? @db.VarChar(80)
+  model     String? @db.VarChar(80)
+  simNumber String? @map("sim_number") @db.VarChar(24)
+  /// Есть ли датчик уровня топлива — от этого зависит детект сливов
+  hasFuelSensor Boolean @default(false) @map("has_fuel_sensor")
+
+  installedAt DateTime  @map("installed_at") @db.Date
+  removedAt   DateTime? @map("removed_at") @db.Date
+  lastSeenAt  DateTime? @map("last_seen_at") @db.Timestamptz(3)
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId])
+  @@map("gps_devices")
+}
+
+/// Точки трека. Самая горячая таблица системы: ~1 запись/10 сек на единицу техники.
+/// Превращается в hypertable TimescaleDB в SQL-миграции (см. 02_timescale.sql).
+/// Индекс по (vehicle_id, ts DESC) обязателен — все запросы идут по нему.
+/// Первичный ключ составной и начинается с ts: TimescaleDB требует, чтобы
+/// колонка партиционирования входила во все уникальные индексы гипертаблицы.
+model TelemetryPosition {
+  id        BigInt   @default(autoincrement())
+  vehicleId Int      @map("vehicle_id")
+  deviceId  Int?     @map("device_id")
+  ts        DateTime @db.Timestamptz(3)
+
+  latitude  Decimal @db.Decimal(10, 7)
+  longitude Decimal @db.Decimal(10, 7)
+  altitude  Int?
+  /// км/ч
+  speed     Decimal? @db.Decimal(6, 2)
+  heading   Int?     @db.SmallInt
+  satellites Int?    @db.SmallInt
+
+  ignition    Boolean?
+  /// Показание датчика уровня топлива, л
+  fuelLevel   Decimal? @map("fuel_level") @db.Decimal(10, 2)
+  engineHours Decimal? @map("engine_hours") @db.Decimal(12, 1)
+  odometer    Decimal? @db.Decimal(12, 1)
+  /// Прочие входы/выходы трекера
+  raw         Json?
+
+  @@id([ts, id])
+  @@index([vehicleId, ts(sort: Desc)])
+  @@map("telemetry_positions")
+}
+
+/// Геозона: перрон, стоянка техники, периметр аэропорта, топливный склад.
+/// Полигон хранится в столбце geometry(Polygon, 4326), добавляемом SQL-миграцией
+/// (Prisma не типизирует PostGIS-типы — работа через $queryRaw).
+model Geofence {
+  id       Int     @id @default(autoincrement())
+  officeId Int     @map("office_id")
+  name     String  @db.VarChar(160)
+  kind     String  @db.VarChar(32)
+  /// Ограничение скорости внутри зоны, км/ч. На перроне обычно 20–30.
+  speedLimit Int?  @map("speed_limit")
+  /// Поднимать алерт на въезд / на выезд
+  alertOnEntry Boolean @default(false) @map("alert_on_entry")
+  alertOnExit  Boolean @default(false) @map("alert_on_exit")
+  color    String? @db.VarChar(9)
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
+
+  @@index([officeId])
+  @@map("geofences")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  БЛОК 8. Алерты и аудит
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertType {
+  DOCUMENT_EXPIRING
+  DOCUMENT_EXPIRED
+  DRIVER_CLEARANCE_EXPIRING
+  FUEL_OVERCONSUMPTION
+  FUEL_TANK_OVERFLOW
+  FUEL_IMPOSSIBLE_SEQUENCE
+  FUEL_DRAIN_SUSPECTED
+  MILEAGE_MISMATCH
+  GEOFENCE_EXIT
+  GEOFENCE_ENTRY
+  SPEEDING
+  MAINTENANCE_DUE
+  TANK_LOW_LEVEL
+  INVENTORY_DISCREPANCY
+}
+
+model Alert {
+  id       Int           @id @default(autoincrement())
+  officeId Int           @map("office_id")
+  type     AlertType
+  severity AlertSeverity @default(WARNING)
+
+  vehicleId Int? @map("vehicle_id")
+  driverId  Int? @map("driver_id")
+  /// Ссылка на источник: waybill, fuel_issue, vehicle_document…
+  entityType String? @map("entity_type") @db.VarChar(48)
+  entityId   Int?    @map("entity_id")
+
+  title   String @db.VarChar(240)
+  message String @db.Text
+  /// Числа для разбора: норма/факт, срок/остаток дней и т. п.
+  payload Json?
+
+  occurredAt     DateTime  @map("occurred_at") @db.Timestamptz(3)
+  acknowledgedBy Int?      @map("acknowledged_by")
+  acknowledgedAt DateTime? @map("acknowledged_at") @db.Timestamptz(3)
+  resolvedAt     DateTime? @map("resolved_at") @db.Timestamptz(3)
+  /// Ключ дедупликации: не плодить одинаковый алерт каждую ночь
+  dedupeKey String? @map("dedupe_key") @db.VarChar(200)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  office  Office   @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driver  Driver?  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@unique([dedupeKey])
+  @@index([officeId, type, occurredAt])
+  @@index([officeId, acknowledgedAt])
+  @@map("alerts")
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  RESTORE
+  LOGIN
+  LOGIN_FAILED
+  LOGOUT
+  EXPORT
+  PRINT
+  APPROVE
+  REJECT
+}
+
+/// Журнал действий. Пишется перехватчиком, не бизнес-кодом.
+/// office_id nullable: события входа происходят до выбора офиса.
+model AuditLog {
+  id       BigInt      @id @default(autoincrement())
+  officeId Int?        @map("office_id")
+  userId   Int?        @map("user_id")
+  action   AuditAction
+  entity   String      @db.VarChar(64)
+  entityId String?     @map("entity_id") @db.VarChar(64)
+
+  /// Значения до и после — только изменившиеся поля
+  before Json?
+  after  Json?
+
+  ipAddress String?  @map("ip_address") @db.Inet
+  userAgent String?  @map("user_agent") @db.VarChar(400)
+  requestId String?  @map("request_id") @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([officeId, createdAt])
+  @@index([entity, entityId])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}

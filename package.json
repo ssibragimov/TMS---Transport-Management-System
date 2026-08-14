@@ -1,0 +1,45 @@
+{
+  "name": "gsm-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Платформа учёта спецтранспорта и ГСМ аэропортов Узбекистана",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.11.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently -n shared,api,web -c gray,cyan,magenta \"npm:dev:shared\" \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:shared": "npm run dev -w @gsm/shared",
+    "dev:api": "npm run dev -w @gsm/api",
+    "dev:web": "npm run dev -w @gsm/web",
+    "build": "npm run build -w @gsm/shared && npm run build -w @gsm/api && npm run build -w @gsm/web",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,yml}\"",
+    "_comment:typecheck": "--incremental false обязателен: прогон с --noEmit иначе запишет в tsbuildinfo отметку 'всё собрано', и следующий nest build не сгенерирует dist/main.js.",
+    "typecheck": "tsc -p packages/shared --noEmit --incremental false && tsc -p apps/api/tsconfig.scripts.json --incremental false && tsc -p apps/web --noEmit --incremental false",
+    "test": "npm run test -w @gsm/api",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "infra:reset": "docker compose down -v && docker compose up -d",
+    "db:migrate": "npm run db:migrate -w @gsm/api",
+    "db:generate": "npm run db:generate -w @gsm/api",
+    "db:seed": "npm run db:seed -w @gsm/api",
+    "db:seed:demo": "npm run db:seed:demo -w @gsm/api",
+    "db:studio": "npm run db:studio -w @gsm/api",
+    "bootstrap": "npm install && npm run build -w @gsm/shared && npm run db:generate && npm run db:migrate && npm run db:seed"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "@typescript-eslint/eslint-plugin": "^7.16.0",
+    "@typescript-eslint/parser": "^7.16.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.2",
+    "typescript": "^5.5.3"
+  }
+}
