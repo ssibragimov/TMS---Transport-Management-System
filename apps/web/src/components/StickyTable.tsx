@@ -13,5 +13,18 @@ import { useStickyOffset } from './TableCard';
 export function StickyTable<RecordType extends object>(props: TableProps<RecordType>) {
   const offsetHeader = useStickyOffset();
 
-  return <Table<RecordType> sticky={{ offsetHeader }} {...props} />;
+  return (
+    <Table<RecordType>
+      sticky={{ offsetHeader }}
+      /*
+        Широкая таблица прокручивается внутри себя, а не растягивает страницу.
+        Без этого страница уезжала вбок, и первые колонки — гаражный номер и
+        госномер — оказывались под боковым меню.
+        Задано до распространения props: странице оставлена возможность
+        переопределить прокрутку своим значением.
+      */
+      scroll={{ x: 'max-content' }}
+      {...props}
+    />
+  );
 }

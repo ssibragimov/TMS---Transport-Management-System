@@ -13,12 +13,18 @@ interface OfficeLogoProps {
   /** Код офиса — запасной вариант, когда логотип не загружен. */
   code: string;
   size?: number;
+  /**
+   * Фон, на котором стоит логотип. От него зависит только запасной вариант:
+   * на светлой шапке белые буквы на прозрачном фоне были бы не видны.
+   */
+  variant?: 'light' | 'dark';
 }
 
-export function OfficeLogo({ officeId, code, size = 32 }: OfficeLogoProps) {
+export function OfficeLogo({ officeId, code, size = 32, variant = 'dark' }: OfficeLogoProps) {
   const src = useAuthedImage(officeId ? `/offices/${officeId}/logo` : null);
 
   if (!src) {
+    const onLight = variant === 'light';
     return (
       <div
         aria-hidden
@@ -29,8 +35,8 @@ export function OfficeLogo({ officeId, code, size = 32 }: OfficeLogoProps) {
           display: 'grid',
           placeItems: 'center',
           borderRadius: 6,
-          background: 'rgba(255, 255, 255, 0.14)',
-          color: '#fff',
+          background: onLight ? '#f0f2f5' : 'rgba(255, 255, 255, 0.14)',
+          color: onLight ? '#0b3d6b' : '#fff',
           fontSize: size * 0.36,
           fontWeight: 700,
           letterSpacing: 0.5,

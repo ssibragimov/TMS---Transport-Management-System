@@ -119,127 +119,124 @@ export function AppLayout() {
   const activeOffice = user?.activeOffice;
 
   return (
+    /*
+      Шапка — верхний уровень разметки, а меню лежит под ней.
+      Так шапка занимает всю ширину окна и не зависит от того, свёрнуто
+      меню или нет: при переключении разделов она остаётся неподвижной.
+    */
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        className="gsm-sider"
-        theme="dark"
-        breakpoint="lg"
-        collapsedWidth={64}
-        width={220}
-        collapsed={collapsed}
-        onCollapse={(value) => {
-          // Срабатывает и при переходе через контрольную точку ширины:
-          // сохраняем, чтобы состояние не разошлось с кнопкой.
-          localStorage.setItem(COLLAPSED_KEY, value ? '1' : '0');
-          setCollapsed(value);
+      <Header
+        className="gsm-header"
+        style={{
+          background: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingInline: 16,
+          gap: 12,
         }}
       >
         {/*
-          Логотип аэропорта в свёрнутом виде остаётся единственным
-          указанием на офис — поэтому он, а не название, стоит первым.
+          Переключатель офиса вынесен в шапку намеренно: пользователь
+          должен постоянно видеть, данные какого аэропорта перед ним.
+          Ошибка «внёс путевой лист не в тот офис» стоит дорого.
         */}
-        <div className={`gsm-sider-brand${collapsed ? ' gsm-sider-brand--collapsed' : ''}`}>
+        <Space size="middle">
+          <Tooltip title={collapsed ? t('nav.expandMenu') : t('nav.collapseMenu')}>
+            <Button
+              type="text"
+              aria-label={collapsed ? t('nav.expandMenu') : t('nav.collapseMenu')}
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={toggleCollapsed}
+            />
+          </Tooltip>
+
+          {/* Логотип рядом с названием офиса: связка «эмблема — название»
+              читается как одно целое и не теряется при сворачивании меню. */}
           <OfficeLogo
             officeId={activeOffice?.id}
             code={activeOffice?.iataCode ?? activeOffice?.code ?? 'ГСМ'}
-            size={collapsed ? 32 : 30}
+            size={34}
+            variant="light"
           />
-          {!collapsed && (
-            <Typography.Text
-              ellipsis
-              style={{ color: '#fff', fontWeight: 600, letterSpacing: 0.4 }}
-              title={activeOffice?.name}
-            >
-              {activeOffice?.name ?? 'ГСМ · UZ'}
-            </Typography.Text>
-          )}
-        </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[location.pathname]}
-          items={menuItems}
-          onClick={({ key }) => navigate(key)}
-        />
-      </Sider>
+
+          <Select
+            value={user?.activeOffice.id}
+            style={{ minWidth: 240 }}
+            onChange={(officeId) => void switchOffice(officeId)}
+            options={user?.availableOffices.map((office) => ({
+              value: office.id,
+              label: `${office.code} — ${office.name}`,
+            }))}
+            disabled={(user?.availableOffices.length ?? 0) < 2}
+          />
+          <Tag color="blue">{user?.activeOffice.iataCode ?? user?.activeOffice.code}</Tag>
+        </Space>
+
+        <Space size="middle">
+          <Select
+            value={localeDescriptor(i18n.language).code}
+            style={{ width: 140 }}
+            onChange={changeLocale}
+            optionLabelProp="label"
+            options={SUPPORTED_LOCALES.map((locale) => ({
+              value: locale.code,
+              label: (
+                <Space size={8}>
+                  <LocaleFlag code={locale.flag} />
+                  {locale.label}
+                </Space>
+              ),
+            }))}
+          />
+
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: 'logout',
+                  icon: <LogoutOutlined />,
+                  label: t('auth.signOut'),
+                  onClick: () => void logout(),
+                },
+              ],
+            }}
+          >
+            <Space style={{ cursor: 'pointer' }}>
+              <Typography.Text strong>{user?.fullName}</Typography.Text>
+            </Space>
+          </Dropdown>
+        </Space>
+      </Header>
 
       <Layout>
-        <Header
-          className="gsm-header"
-          style={{
-            background: '#fff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingInline: 16,
-            gap: 12,
+        <Sider
+          className="gsm-sider"
+          theme="dark"
+          breakpoint="lg"
+          collapsedWidth={64}
+          width={220}
+          collapsed={collapsed}
+          onCollapse={(value) => {
+            // Срабатывает и при переходе через контрольную точку ширины:
+            // сохраняем, чтобы состояние не разошлось с кнопкой.
+            localStorage.setItem(COLLAPSED_KEY, value ? '1' : '0');
+            setCollapsed(value);
           }}
         >
-          {/*
-            Переключатель офиса вынесен в шапку намеренно: пользователь
-            должен постоянно видеть, данные какого аэропорта перед ним.
-            Ошибка «внёс путевой лист не в тот офис» стоит дорого.
-          */}
-          <Space size="middle">
-            <Tooltip title={collapsed ? t('nav.expandMenu') : t('nav.collapseMenu')}>
-              <Button
-                type="text"
-                aria-label={collapsed ? t('nav.expandMenu') : t('nav.collapseMenu')}
-                icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                onClick={toggleCollapsed}
-              />
-            </Tooltip>
+          <Menu
+            theme="dark"
+            mode="inline"
+            selectedKeys={[location.pathname]}
+            items={menuItems}
+            onClick={({ key }) => navigate(key)}
+          />
+        </Sider>
 
-            <Select
-              value={user?.activeOffice.id}
-              style={{ minWidth: 240 }}
-              onChange={(officeId) => void switchOffice(officeId)}
-              options={user?.availableOffices.map((office) => ({
-                value: office.id,
-                label: `${office.code} — ${office.name}`,
-              }))}
-              disabled={(user?.availableOffices.length ?? 0) < 2}
-            />
-            <Tag color="blue">{user?.activeOffice.iataCode ?? user?.activeOffice.code}</Tag>
-          </Space>
-
-          <Space size="middle">
-            <Select
-              value={localeDescriptor(i18n.language).code}
-              style={{ width: 140 }}
-              onChange={changeLocale}
-              optionLabelProp="label"
-              options={SUPPORTED_LOCALES.map((locale) => ({
-                value: locale.code,
-                label: (
-                  <Space size={8}>
-                    <LocaleFlag code={locale.flag} />
-                    {locale.label}
-                  </Space>
-                ),
-              }))}
-            />
-
-            <Dropdown
-              menu={{
-                items: [
-                  {
-                    key: 'logout',
-                    icon: <LogoutOutlined />,
-                    label: t('auth.signOut'),
-                    onClick: () => void logout(),
-                  },
-                ],
-              }}
-            >
-              <Space style={{ cursor: 'pointer' }}>
-                <Typography.Text strong>{user?.fullName}</Typography.Text>
-              </Space>
-            </Dropdown>
-          </Space>
-        </Header>
-
-        <Content style={{ margin: 24 }}>
+        {/* minWidth: 0 обязателен: без него флекс-элемент не даёт широкой
+            таблице сжаться, страница уезжает вбок и первые колонки
+            оказываются под меню. */}
+        <Content style={{ margin: 24, minWidth: 0 }}>
           <Outlet />
         </Content>
       </Layout>
