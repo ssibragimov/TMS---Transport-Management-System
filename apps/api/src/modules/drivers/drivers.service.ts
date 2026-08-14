@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { CheckResult, PermitZone, Prisma } from '@prisma/client';
 import type { ExpiryAlertDto, PaginatedResult } from '@gsm/shared';
 
-import { PaginationDto, paginate } from '@/common/dto/pagination.dto';
+import { paginate } from '@/common/dto/pagination.dto';
 import { PrismaService } from '@/common/prisma/prisma.service';
 
 import type {

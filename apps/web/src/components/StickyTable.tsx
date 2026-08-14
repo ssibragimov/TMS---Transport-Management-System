@@ -2,6 +2,7 @@ import { Table } from 'antd';
 import type { TableProps } from 'antd';
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -13,22 +14,25 @@ import {
 } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { useStickyOffset } from './TableCard';
+import { useTableCard } from './TableCard';
 
 /**
  * Таблица с закреплёнными заголовками и колонками, которые пользователь
- * переставляет мышью.
+ * переставляет и растягивает мышью.
  *
  * Отдельный компонент, а не пропсы на каждой странице: отступ сверху зависит
- * от высоты шапки конкретной карточки, а порядок колонок нужно хранить и
- * восстанавливать — повторять это в десяти местах значит разъехаться в одном.
+ * от высоты шапки конкретной карточки, а настройку колонок нужно хранить и
+ * восстанавливать — повторять это в полутора десятках мест значит разъехаться
+ * в одном из них.
  *
- * Перетаскивание сделано на нативном HTML5 drag-and-drop, без внешней
- * библиотеки: задача — поменять местами ячейки заголовка, и тянуть ради
- * этого dnd-kit в сборку неоправданно.
+ * Перетаскивание и растягивание сделаны на штатных событиях браузера, без
+ * внешней библиотеки: задача сводится к перестановке ячеек заголовка и смене
+ * их ширины, и тянуть ради этого dnd-kit с react-resizable в сборку незачем.
  */
 
 const STORAGE_PREFIX = 'gsm.columns.';
+/** Уже этого колонка не станет: заголовок должен оставаться читаемым. */
+const MIN_WIDTH = 60;
 
 /**
  * Достаточно того, что есть у любой колонки. Конкретный ColumnType здесь не
@@ -38,6 +42,7 @@ interface ColumnLike {
   key?: Key;
   dataIndex?: unknown;
   title?: unknown;
+  width?: number | string;
 }
 
 /** Ключ колонки: то, чем её можно опознать между сеансами. */
@@ -58,10 +63,17 @@ function digest(input: string): string {
   return Math.abs(value).toString(36);
 }
 
+interface Layout {
+  order: string[] | null;
+  widths: Record<string, number>;
+}
+
+const EMPTY_LAYOUT: Layout = { order: null, widths: {} };
+
 /**
  * Сохранённый порядок приводится к текущему набору колонок: исчезнувшие
  * отбрасываются, новые добавляются в конец. Иначе после доработки таблицы
- * пользователь с сохранённой раскладкой не увидел бы новую колонку вовсе.
+ * пользователь со старой раскладкой не увидел бы новую колонку вовсе.
  */
 function reconcile(saved: string[], keys: string[]): string[] {
   const known = new Set(keys);
@@ -70,35 +82,61 @@ function reconcile(saved: string[], keys: string[]): string[] {
   return [...kept, ...missing];
 }
 
-interface DragState {
+function readLayout(storageId: string, keys: string[]): Layout {
+  try {
+    const raw = localStorage.getItem(storageId);
+    if (!raw) return EMPTY_LAYOUT;
+    const parsed: unknown = JSON.parse(raw);
+
+    // Раскладки, сохранённые до появления ширины, хранились простым массивом.
+    if (Array.isArray(parsed)) {
+      return { order: reconcile(parsed as string[], keys), widths: {} };
+    }
+
+    const value = parsed as Partial<Layout>;
+    return {
+      order: Array.isArray(value.order) ? reconcile(value.order, keys) : null,
+      widths: value.widths && typeof value.widths === 'object' ? value.widths : {},
+    };
+  } catch {
+    // Испорченное значение в хранилище не должно ломать таблицу.
+    return EMPTY_LAYOUT;
+  }
+}
+
+interface HeaderApi {
   draggingKey: string | null;
   overKey: string | null;
   begin: (key: string) => void;
   hover: (key: string) => void;
   drop: (key: string) => void;
   end: () => void;
+  startResize: (key: string, event: React.MouseEvent<HTMLElement>) => void;
+  resizingKey: string | null;
 }
 
-const DragContext = createContext<DragState | null>(null);
+const HeaderContext = createContext<HeaderApi | null>(null);
 
 /**
- * Ячейка заголовка. Ключ колонки приходит через data-атрибут: он проходит
- * в DOM без предупреждений React, в отличие от произвольного пропса.
+ * Ячейка заголовка: ручка перетаскивания и ручка изменения ширины.
+ * Ключ колонки приходит через data-атрибут — он проходит в DOM без
+ * предупреждений React, в отличие от произвольного пропса.
  */
-function DraggableHeaderCell(
+function HeaderCell(
   props: ThHTMLAttributes<HTMLTableCellElement> & { 'data-col-key'?: string },
 ) {
-  const drag = useContext(DragContext);
+  const api = useContext(HeaderContext);
   const columnKey = props['data-col-key'];
 
-  // Колонки без заголовка (значок фото, кнопки действий) не таскаются:
-  // им нечего показать под курсором и незачем менять место.
-  if (!drag || !columnKey) {
+  // Колонки без заголовка (кнопки действий) не настраиваются: ухватиться
+  // там не за что, и место у правого края для них единственно верное.
+  if (!api || !columnKey) {
     return <th {...props} />;
   }
 
-  const isOver = drag.overKey === columnKey && drag.draggingKey !== columnKey;
-  const className = [props.className, 'gsm-th-draggable', isOver ? 'gsm-th-over' : '']
+  const isOver = api.overKey === columnKey && api.draggingKey !== columnKey;
+  const isResizing = api.resizingKey === columnKey;
+  const className = [props.className, 'gsm-th-interactive', isOver ? 'gsm-th-over' : '']
     .filter(Boolean)
     .join(' ');
 
@@ -106,24 +144,39 @@ function DraggableHeaderCell(
     <th
       {...props}
       className={className}
-      draggable
+      // Пока тянут ширину, перетаскивание колонки должно быть выключено:
+      // иначе браузер начнёт перенос вместо изменения размера.
+      draggable={!api.resizingKey}
       onDragStart={(event) => {
-        // Без этого Firefox не начинает перетаскивание.
+        // Без данных в dataTransfer Firefox не начинает перетаскивание.
         event.dataTransfer.setData('text/plain', columnKey);
         event.dataTransfer.effectAllowed = 'move';
-        drag.begin(columnKey);
+        api.begin(columnKey);
       }}
       onDragOver={(event) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move';
-        drag.hover(columnKey);
+        api.hover(columnKey);
       }}
       onDrop={(event) => {
         event.preventDefault();
-        drag.drop(columnKey);
+        api.drop(columnKey);
       }}
-      onDragEnd={drag.end}
-    />
+      onDragEnd={api.end}
+    >
+      {props.children}
+      <span
+        className={`gsm-th-resizer${isResizing ? ' gsm-th-resizer--active' : ''}`}
+        role="presentation"
+        onMouseDown={(event) => {
+          // Иначе начнётся перетаскивание колонки, а не изменение ширины.
+          event.stopPropagation();
+          event.preventDefault();
+          api.startResize(columnKey, event);
+        }}
+        onClick={(event) => event.stopPropagation()}
+      />
+    </th>
   );
 }
 
@@ -141,7 +194,7 @@ export function StickyTable<RecordType extends object>({
   components,
   ...props
 }: StickyTableProps<RecordType>) {
-  const offsetHeader = useStickyOffset();
+  const { offsetHeader, registerReset } = useTableCard();
   const { pathname } = useLocation();
 
   /*
@@ -162,31 +215,29 @@ export function StickyTable<RecordType extends object>({
   const signature = keys.join('|');
   const storageId = `${STORAGE_PREFIX}${columnsKey ?? `${pathname}:${digest(signature)}`}`;
 
-  const [order, setOrder] = useState<string[] | null>(null);
-  const draggingRef = useRef<string | null>(null);
+  const [layout, setLayout] = useState<Layout>(EMPTY_LAYOUT);
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
+  const [resizingKey, setResizingKey] = useState<string | null>(null);
+  const draggingRef = useRef<string | null>(null);
+  const layoutRef = useRef<Layout>(EMPTY_LAYOUT);
+
+  layoutRef.current = layout;
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(storageId);
-      setOrder(raw ? reconcile(JSON.parse(raw) as string[], signature.split('|')) : null);
-    } catch {
-      // Испорченное значение в хранилище не должно ломать таблицу.
-      setOrder(null);
-    }
+    setLayout(readLayout(storageId, signature.split('|')));
   }, [storageId, signature]);
 
-  const applyOrder = (next: string[]): void => {
-    setOrder(next);
+  const persist = (next: Layout): void => {
+    setLayout(next);
     try {
       localStorage.setItem(storageId, JSON.stringify(next));
     } catch {
-      // Переполненное или недоступное хранилище — не повод ломать перестановку.
+      // Переполненное или недоступное хранилище — не повод ломать настройку.
     }
   };
 
-  const effectiveOrder = order ?? keys;
+  const effectiveOrder = layout.order ?? keys;
 
   const orderedEntries = useMemo(() => {
     const byKey = new Map(entries.map((entry) => [entry.key, entry]));
@@ -195,9 +246,35 @@ export function StickyTable<RecordType extends object>({
       .filter((entry): entry is (typeof entries)[number] => entry !== undefined);
   }, [entries, effectiveOrder]);
 
-  const drag: DragState = {
+  const isCustomised =
+    (layout.order !== null && layout.order.join('|') !== signature) ||
+    Object.keys(layout.widths).length > 0;
+
+  // Стабильная ссылка: функция уходит в зависимости эффекта ниже.
+  const reset = useCallback((): void => {
+    setLayout(EMPTY_LAYOUT);
+    try {
+      localStorage.removeItem(storageId);
+    } catch {
+      // См. выше: недоступное хранилище не должно ломать сброс на экране.
+    }
+  }, [storageId]);
+
+  /*
+    Кнопка сброса живёт в шапке карточки, а не над таблицей: появляясь и
+    исчезая над таблицей, она сдвигала бы содержимое вниз после каждой
+    перестановки колонки.
+  */
+  useEffect(() => {
+    if (!registerReset) return;
+    registerReset(isCustomised ? reset : null);
+    return () => registerReset(null);
+  }, [registerReset, isCustomised, reset]);
+
+  const headerApi: HeaderApi = {
     draggingKey,
     overKey,
+    resizingKey,
     begin: (key) => {
       draggingRef.current = key;
       setDraggingKey(key);
@@ -216,45 +293,76 @@ export function StickyTable<RecordType extends object>({
       if (from < 0 || to < 0) return;
       next.splice(from, 1);
       next.splice(to, 0, source);
-      applyOrder(next);
+      persist({ ...layoutRef.current, order: next });
     },
     end: () => {
       draggingRef.current = null;
       setDraggingKey(null);
       setOverKey(null);
     },
+    startResize: (key, event) => {
+      const cell = (event.target as HTMLElement).closest('th');
+      if (!cell) return;
+
+      const startX = event.clientX;
+      const startWidth = cell.getBoundingClientRect().width;
+      setResizingKey(key);
+
+      // Слушатели на документе, а не на ячейке: курсор при быстром движении
+      // выходит за её пределы, и события ушли бы мимо.
+      const onMove = (move: MouseEvent): void => {
+        const width = Math.max(MIN_WIDTH, Math.round(startWidth + move.clientX - startX));
+        setLayout((current) => ({ ...current, widths: { ...current.widths, [key]: width } }));
+      };
+
+      const onUp = (): void => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.body.classList.remove('gsm-resizing');
+        setResizingKey(null);
+        // В хранилище пишем один раз по отпусканию, а не на каждый пиксель.
+        persist(layoutRef.current);
+      };
+
+      // Курсор изменения размера на всё время перетаскивания, где бы он ни был.
+      document.body.classList.add('gsm-resizing');
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    },
   };
 
-  const isCustomised = order !== null && order.join('|') !== signature;
-
-  const columnsWithDragProps = columns
+  const preparedColumns = columns
     ? orderedEntries.map(({ key, column }) => {
-        // Заголовок пустой — колонка служебная (кнопки действий),
-        // переставлять её незачем и не за что ухватиться.
-        if (!(column as ColumnLike).title) return column;
+        const typed = column as ColumnLike;
+        const width = layout.widths[key] ?? typed.width;
+
+        if (!typed.title) return width === typed.width ? column : { ...column, width };
 
         return {
           ...column,
+          width,
           onHeaderCell: () => ({ 'data-col-key': key }) as never,
         };
       })
     : columns;
 
-  const resetBar: (() => ReactNode) | undefined = isCustomised
-    ? () => (
-        <div className="gsm-columns-reset">
-          <button type="button" onClick={() => {
-            setOrder(null);
-            localStorage.removeItem(storageId);
-          }}>
-            Вернуть исходный порядок колонок
-          </button>
-        </div>
-      )
-    : undefined;
+  /*
+    Запасной вариант для таблиц вне карточки списка: там кнопке сброса негде
+    жить, кроме подвала. Подвал под таблицей — он её вниз не сдвигает.
+  */
+  const footer: (() => ReactNode) | undefined =
+    !registerReset && isCustomised
+      ? () => (
+          <div className="gsm-columns-reset">
+            <button type="button" onClick={reset}>
+              Вернуть исходный порядок и ширину колонок
+            </button>
+          </div>
+        )
+      : undefined;
 
   return (
-    <DragContext.Provider value={drag}>
+    <HeaderContext.Provider value={headerApi}>
       <Table<RecordType>
         sticky={{ offsetHeader }}
         /*
@@ -265,14 +373,14 @@ export function StickyTable<RecordType extends object>({
           переопределить прокрутку своим значением.
         */
         scroll={{ x: 'max-content' }}
-        title={resetBar}
+        footer={footer}
         {...props}
-        columns={columnsWithDragProps}
+        columns={preparedColumns}
         components={{
           ...components,
-          header: { ...components?.header, cell: DraggableHeaderCell },
+          header: { ...components?.header, cell: HeaderCell },
         }}
       />
-    </DragContext.Provider>
+    </HeaderContext.Provider>
   );
 }

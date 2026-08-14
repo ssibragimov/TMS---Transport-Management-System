@@ -88,14 +88,53 @@
 
 /* ─── Перестановка колонок ─────────────────────────────────────────────── */
 
-/* Захват именно за заголовок, поэтому курсор меняется только на нём. */
-.gsm-th-draggable {
+/* Захват именно за заголовок, поэтому курсор меняется только на нём.
+   position: relative нужен ручке изменения ширины у правого края. */
+.gsm-th-interactive {
+  position: relative;
   cursor: grab;
   user-select: none;
 }
 
-.gsm-th-draggable:active {
+.gsm-th-interactive:active {
   cursor: grabbing;
+}
+
+/* Ручка изменения ширины. Шире, чем выглядит: попасть в полосу
+   толщиной в пиксель мышью почти невозможно. */
+.gsm-th-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+}
+
+.gsm-th-resizer::after {
+  content: '';
+  position: absolute;
+  top: 25%;
+  right: 3px;
+  width: 2px;
+  height: 50%;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.gsm-th-resizer:hover::after,
+.gsm-th-resizer--active::after {
+  background: #0b3d6b;
+}
+
+/* Во время растягивания курсор не должен зависеть от того, над чем он
+   оказался: мышь легко уходит с заголовка на строки таблицы. */
+body.gsm-resizing,
+body.gsm-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 /* Куда встанет колонка. Полоса слева, а не подсветка всей ячейки: так

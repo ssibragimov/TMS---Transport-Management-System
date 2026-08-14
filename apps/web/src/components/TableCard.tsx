@@ -1,6 +1,7 @@
-import { Card } from 'antd';
+import { UndoOutlined } from '@ant-design/icons';
+import { Button, Card, Space, Tooltip } from 'antd';
 import type { CardProps } from 'antd';
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 /**
@@ -15,25 +16,42 @@ import type { ReactNode } from 'react';
  * строку, и фиксированное значение оставило бы заголовки таблицы либо с
  * разрывом, либо под панелью. Поэтому она измеряется и передаётся таблице
  * через контекст.
+ *
+ * Здесь же живёт кнопка сброса настройки колонок. Она намеренно в шапке, а не
+ * над таблицей: появляясь и исчезая над таблицей, она сдвигала бы содержимое
+ * вниз при каждой перестановке колонки.
  */
 
 /** Высота шапки приложения — под ней прилипает панель фильтров. */
 export const APP_HEADER_HEIGHT = 64;
 
-const StickyOffsetContext = createContext<number>(APP_HEADER_HEIGHT);
+interface TableCardApi {
+  /** Отступ сверху для заголовков таблицы: шапка приложения + панель фильтров. */
+  offsetHeader: number;
+  /**
+   * Таблица сообщает сюда, что её колонки настроены и можно предложить сброс.
+   * null — настройки нет, кнопку показывать не нужно.
+   */
+  registerReset: ((reset: (() => void) | null) => void) | null;
+}
 
-/** Отступ сверху для заголовков таблицы: шапка приложения + панель фильтров. */
-export function useStickyOffset(): number {
-  return useContext(StickyOffsetContext);
+const TableCardContext = createContext<TableCardApi>({
+  offsetHeader: APP_HEADER_HEIGHT,
+  registerReset: null,
+});
+
+export function useTableCard(): TableCardApi {
+  return useContext(TableCardContext);
 }
 
 interface TableCardProps extends Omit<CardProps, 'children'> {
   children: ReactNode;
 }
 
-export function TableCard({ children, ...cardProps }: TableCardProps) {
+export function TableCard({ children, extra, ...cardProps }: TableCardProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [headHeight, setHeadHeight] = useState(0);
+  const [resetColumns, setResetColumns] = useState<{ run: () => void } | null>(null);
 
   useEffect(() => {
     const head = ref.current?.querySelector<HTMLElement>(':scope > .ant-card > .ant-card-head');
@@ -48,11 +66,49 @@ export function TableCard({ children, ...cardProps }: TableCardProps) {
     return () => observer.disconnect();
   }, []);
 
+  /*
+    Функция обязана быть стабильной: таблица держит её в зависимостях эффекта,
+    и новая ссылка на каждой отрисовке замкнула бы цикл
+    «эффект → setState → отрисовка → новый эффект».
+    Обёртка результата в объект — потому что setState принял бы голую функцию
+    за ленивое вычисление состояния и вызвал бы её вместо сохранения.
+  */
+  const registerReset = useCallback(
+    (reset: (() => void) | null) => setResetColumns(reset ? { run: reset } : null),
+    [],
+  );
+
+  const api = useMemo<TableCardApi>(
+    () => ({ offsetHeader: APP_HEADER_HEIGHT + headHeight, registerReset }),
+    [headHeight, registerReset],
+  );
+
+  // Пустой extra не рендерим: Card иначе отводит под него место в шапке.
+  const headExtra =
+    resetColumns || extra ? (
+      <Space size="small">
+        {resetColumns && (
+          <Tooltip title="Вернуть исходный порядок и ширину колонок">
+            <Button
+              type="text"
+              size="small"
+              icon={<UndoOutlined />}
+              onClick={resetColumns.run}
+              aria-label="Сбросить настройку колонок"
+            />
+          </Tooltip>
+        )}
+        {extra}
+      </Space>
+    ) : undefined;
+
   return (
     <div ref={ref} className="gsm-table-card">
-      <StickyOffsetContext.Provider value={APP_HEADER_HEIGHT + headHeight}>
-        <Card {...cardProps}>{children}</Card>
-      </StickyOffsetContext.Provider>
+      <TableCardContext.Provider value={api}>
+        <Card {...cardProps} extra={headExtra}>
+          {children}
+        </Card>
+      </TableCardContext.Provider>
     </div>
   );
 }
