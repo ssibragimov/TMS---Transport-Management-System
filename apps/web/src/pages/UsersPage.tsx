@@ -1,4 +1,5 @@
 import { DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import {
   Button,
   Checkbox,
@@ -38,6 +39,8 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export function UsersPage() {
+  const { t } = useTranslation();
+
   const { can, user: me } = useAuth();
 
   const [page, setPage] = useState(1);
@@ -66,12 +69,12 @@ export function UsersPage() {
   const resetPassword = useApiMutation(
     async (values: { password: string }) =>
       (await api.post(`/users/${resetFor!.id}/reset-password`, values)).data,
-    { successMessage: 'Пароль сброшен, все сессии пользователя завершены' },
+    { successMessage: t("Пароль сброшен, все сессии пользователя завершены") },
   );
 
   const remove = useApiMutation(
     async (id: number) => (await api.delete(`/users/${id}`)).data,
-    { successMessage: 'Учётная запись заблокирована', invalidate: [['users']] },
+    { successMessage: t("Учётная запись заблокирована"), invalidate: [['users']] },
   );
 
   if (!can(PERMISSIONS.USER_READ)) {
@@ -83,18 +86,18 @@ export function UsersPage() {
   const multiOffice = (me?.availableOffices.length ?? 0) > 1;
 
   return (
-    <TableCard title="Управление пользователями">
+    <TableCard title={t("Управление пользователями")}>
       <Tabs
         items={[
           {
             key: 'users',
-            label: 'Пользователи',
+            label: t("Пользователи"),
             children: (
               <>
                 <Space wrap style={{ marginBottom: 12 }}>
                   <Input.Search
                     allowClear
-                    placeholder="ФИО или почта"
+                    placeholder={t("ФИО или почта")}
                     style={{ width: 260 }}
                     onSearch={(value) => {
                       setSearch(value);
@@ -103,7 +106,7 @@ export function UsersPage() {
                   />
                   <Select
                     allowClear
-                    placeholder="Статус"
+                    placeholder={t("Статус")}
                     style={{ width: 170 }}
                     value={status}
                     onChange={(value) => {
@@ -123,7 +126,7 @@ export function UsersPage() {
                         setPage(1);
                       }}
                     >
-                      Все доступные офисы
+                      {t("Все доступные офисы")}
                     </Checkbox>
                   )}
                   {canManage && (
@@ -135,7 +138,7 @@ export function UsersPage() {
                         setFormOpen(true);
                       }}
                     >
-                      Создать пользователя
+                      {t("Создать пользователя")}
                     </Button>
                   )}
                 </Space>
@@ -149,7 +152,7 @@ export function UsersPage() {
                     pageSize,
                     total: query.data?.meta.total ?? 0,
                     showSizeChanger: true,
-                    showTotal: (total) => `Всего: ${total}`,
+                    showTotal: (total) => `${t('Всего:')} ${total}`,
                     onChange: (nextPage, nextSize) => {
                       setPage(nextPage);
                       setPageSize(nextSize);
@@ -157,22 +160,22 @@ export function UsersPage() {
                   }}
                   columns={[
                     {
-                      title: 'ФИО',
+                      title: t("ФИО"),
                       dataIndex: 'fullName',
                       render: (name: string, row) => (
                         <Space>
                           <span>{name}</span>
                           {row.bypassRls && (
-                            <Tooltip title="Видит данные всех аэропортов">
+                            <Tooltip title={t("Видит данные всех аэропортов")}>
                               <Tag color="purple">все офисы</Tag>
                             </Tooltip>
                           )}
                         </Space>
                       ),
                     },
-                    { title: 'Почта', dataIndex: 'email', width: 240 },
+                    { title: t("Почта"), dataIndex: 'email', width: 240 },
                     {
-                      title: 'Офисы',
+                      title: t("Офисы"),
                       width: 200,
                       render: (_: unknown, row) => (
                         <Space size={[0, 4]} wrap>
@@ -183,7 +186,7 @@ export function UsersPage() {
                       ),
                     },
                     {
-                      title: 'Роли',
+                      title: t("Роли"),
                       render: (_: unknown, row) => {
                         const names = [
                           ...new Set(row.roles.map((assignment) => assignment.role.name)),
@@ -192,15 +195,15 @@ export function UsersPage() {
                       },
                     },
                     {
-                      title: 'Статус',
+                      title: t("Статус"),
                       dataIndex: 'status',
                       width: 130,
                       render: (value: string) => (
-                        <Tag color={STATUS_COLOR[value]}>{STATUS_LABEL[value] ?? value}</Tag>
+                        <Tag color={STATUS_COLOR[value]}>{t(STATUS_LABEL[value] ?? value)}</Tag>
                       ),
                     },
                     {
-                      title: 'Последний вход',
+                      title: t("Последний вход"),
                       dataIndex: 'lastLoginAt',
                       width: 150,
                       render: (value: string | null) =>
@@ -213,7 +216,7 @@ export function UsersPage() {
                             width: 120,
                             render: (_: unknown, row: UserDetail) => (
                               <Space size={0}>
-                                <Tooltip title="Изменить">
+                                <Tooltip title={t("Изменить")}>
                                   <Button
                                     type="text"
                                     icon={<EditOutlined />}
@@ -223,7 +226,7 @@ export function UsersPage() {
                                     }}
                                   />
                                 </Tooltip>
-                                <Tooltip title="Сбросить пароль">
+                                <Tooltip title={t("Сбросить пароль")}>
                                   <Button
                                     type="text"
                                     icon={<KeyOutlined />}
@@ -235,13 +238,13 @@ export function UsersPage() {
                                 </Tooltip>
                                 {row.id !== me?.id && !row.bypassRls && (
                                   <Popconfirm
-                                    title="Заблокировать учётную запись?"
-                                    description="Все сессии пользователя будут завершены."
-                                    okText="Заблокировать"
-                                    cancelText="Отмена"
+                                    title={t("Заблокировать учётную запись?")}
+                                    description={t("Все сессии пользователя будут завершены.")}
+                                    okText={t("Заблокировать")}
+                                    cancelText={t("Отмена")}
                                     onConfirm={() => remove.mutate(row.id)}
                                   >
-                                    <Tooltip title="Заблокировать">
+                                    <Tooltip title={t("Заблокировать")}>
                                       <Button type="text" danger icon={<DeleteOutlined />} />
                                     </Tooltip>
                                   </Popconfirm>
@@ -258,7 +261,7 @@ export function UsersPage() {
           },
           {
             key: 'roles',
-            label: 'Роли и права',
+            label: t("Роли и права"),
             children: <RolesPanel />,
           },
         ]}
@@ -269,8 +272,8 @@ export function UsersPage() {
       <Modal
         open={resetFor !== null}
         title={`Сброс пароля: ${resetFor?.fullName ?? ''}`}
-        okText="Сбросить"
-        cancelText="Отмена"
+        okText={t("Сбросить")}
+        cancelText={t("Отмена")}
         confirmLoading={resetPassword.isPending}
         onCancel={() => setResetFor(null)}
         onOk={() => {
@@ -280,15 +283,15 @@ export function UsersPage() {
         }}
       >
         <Typography.Paragraph type="secondary">
-          Все активные сессии пользователя будут завершены — он войдёт заново с новым паролем.
+          {t("Все активные сессии пользователя будут завершены — он войдёт заново с новым паролем.")}
         </Typography.Paragraph>
         <Form form={resetForm} layout="vertical">
           <Form.Item
             name="password"
-            label="Новый пароль"
+            label={t("Новый пароль")}
             rules={[
-              { required: true, message: 'Обязательное поле' },
-              { min: 8, message: 'Не короче 8 символов' },
+              { required: true, message: t("Обязательное поле") },
+              { min: 8, message: t("Не короче 8 символов") },
             ]}
           >
             <Input.Password autoComplete="new-password" />

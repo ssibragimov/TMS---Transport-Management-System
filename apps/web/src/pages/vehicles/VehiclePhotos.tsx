@@ -1,4 +1,5 @@
 import { DeleteOutlined, StarFilled, StarOutlined, UploadOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   App,
@@ -65,6 +66,8 @@ function PhotoThumb({ vehicleId, photo }: { vehicleId: number; photo: PhotoRow }
 }
 
 export function VehiclePhotos({ vehicleId }: { vehicleId: number }) {
+  const { t } = useTranslation();
+
   const { can } = useAuth();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
@@ -81,13 +84,13 @@ export function VehiclePhotos({ vehicleId }: { vehicleId: number }) {
   const setPrimary = useApiMutation(
     async (photoId: number) =>
       (await api.patch(`/vehicles/${vehicleId}/photos/${photoId}/primary`)).data,
-    { successMessage: 'Главное фото изменено', invalidate },
+    { successMessage: t("Главное фото изменено"), invalidate },
   );
 
   const remove = useApiMutation(
     async (photoId: number) =>
       (await api.delete(`/vehicles/${vehicleId}/photos/${photoId}`)).data,
-    { successMessage: 'Фотография удалена', invalidate },
+    { successMessage: t("Фотография удалена"), invalidate },
   );
 
   /**
@@ -128,13 +131,13 @@ export function VehiclePhotos({ vehicleId }: { vehicleId: number }) {
           }}
         >
           <Button icon={<UploadOutlined />} style={{ marginBottom: 16 }}>
-            Загрузить фотографии
+            {t("Загрузить фотографии")}
           </Button>
         </Upload>
       )}
 
       {photos.data && photos.data.length === 0 && (
-        <Empty description="Фотографий нет" />
+        <Empty description={t("Фотографий нет")} />
       )}
 
       <Image.PreviewGroup>
@@ -166,7 +169,7 @@ export function VehiclePhotos({ vehicleId }: { vehicleId: number }) {
                   {manage && (
                     <Space size={0}>
                       {!photo.isPrimary && (
-                        <Tooltip title="Сделать главным">
+                        <Tooltip title={t("Сделать главным")}>
                           <Button
                             type="text"
                             size="small"
@@ -176,9 +179,9 @@ export function VehiclePhotos({ vehicleId }: { vehicleId: number }) {
                         </Tooltip>
                       )}
                       <Popconfirm
-                        title="Удалить фотографию?"
-                        okText="Удалить"
-                        cancelText="Отмена"
+                        title={t("Удалить фотографию?")}
+                        okText={t("Удалить")}
+                        cancelText={t("Отмена")}
                         onConfirm={() => remove.mutate(photo.id)}
                       >
                         <Button type="text" size="small" danger icon={<DeleteOutlined />} />

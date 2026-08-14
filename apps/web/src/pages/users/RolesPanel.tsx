@@ -1,4 +1,5 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   Button,
@@ -37,6 +38,8 @@ interface PermissionGroup {
 }
 
 export function RolesPanel() {
+  const { t } = useTranslation();
+
   const { can } = useAuth();
   const [editing, setEditing] = useState<RoleRow | null>(null);
   const [open, setOpen] = useState(false);
@@ -89,7 +92,7 @@ export function RolesPanel() {
 
   const remove = useApiMutation(
     async (id: number) => (await api.delete(`/roles/${id}`)).data,
-    { successMessage: 'Роль удалена', invalidate: [['roles']] },
+    { successMessage: t("Роль удалена"), invalidate: [['roles']] },
   );
 
   return (
@@ -104,11 +107,11 @@ export function RolesPanel() {
               setOpen(true);
             }}
           >
-            Создать роль
+            {t("Создать роль")}
           </Button>
         )}
         <Typography.Text type="secondary">
-          Изменение набора прав действует на всех, кому роль назначена.
+          {t("Изменение набора прав действует на всех, кому роль назначена.")}
         </Typography.Text>
       </Space>
 
@@ -119,28 +122,28 @@ export function RolesPanel() {
         dataSource={roles.data ?? []}
         pagination={false}
         columns={[
-          { title: 'Название', dataIndex: 'name' },
+          { title: t("Название"), dataIndex: 'name' },
           {
-            title: 'Код',
+            title: t("Код"),
             dataIndex: 'code',
             width: 180,
             render: (code: string) => <Typography.Text code>{code}</Typography.Text>,
           },
           {
-            title: 'Тип',
+            title: t("Тип"),
             dataIndex: 'isSystem',
             width: 120,
             render: (isSystem: boolean) =>
               isSystem ? <Tag color="blue">системная</Tag> : <Tag>своя</Tag>,
           },
           {
-            title: 'Прав',
+            title: t("Прав"),
             width: 90,
             align: 'right',
             render: (_: unknown, row: RoleRow) => row.permissions.length,
           },
           {
-            title: 'Назначена',
+            title: t("Назначена"),
             width: 110,
             align: 'right',
             render: (_: unknown, row: RoleRow) => row._count.users,
@@ -152,7 +155,7 @@ export function RolesPanel() {
                   width: 90,
                   render: (_: unknown, row: RoleRow) => (
                     <Space size={0}>
-                      <Tooltip title="Изменить права">
+                      <Tooltip title={t("Изменить права")}>
                         <Button
                           type="text"
                           icon={<EditOutlined />}
@@ -164,9 +167,9 @@ export function RolesPanel() {
                       </Tooltip>
                       {!row.isSystem && (
                         <Popconfirm
-                          title="Удалить роль?"
-                          okText="Удалить"
-                          cancelText="Отмена"
+                          title={t("Удалить роль?")}
+                          okText={t("Удалить")}
+                          cancelText={t("Отмена")}
                           onConfirm={() => remove.mutate(row.id)}
                         >
                           <Button type="text" danger icon={<DeleteOutlined />} />
@@ -184,8 +187,8 @@ export function RolesPanel() {
         open={open}
         width={780}
         title={editing ? `Роль: ${editing.name}` : 'Новая роль'}
-        okText="Сохранить"
-        cancelText="Отмена"
+        okText={t("Сохранить")}
+        cancelText={t("Отмена")}
         confirmLoading={save.isPending}
         onCancel={() => setOpen(false)}
         onOk={() => {
@@ -198,13 +201,13 @@ export function RolesPanel() {
           <Space align="start">
             <Form.Item
               name="code"
-              label="Код"
-              tooltip="Машинный идентификатор, менять после создания нельзя"
+              label={t("Код")}
+              tooltip={t("Машинный идентификатор, менять после создания нельзя")}
               rules={[
-                { required: true, message: 'Обязательное поле' },
+                { required: true, message: t("Обязательное поле") },
                 {
                   pattern: /^[A-Z][A-Z0-9_]*$/,
-                  message: 'Заглавные латинские буквы, цифры и подчёркивание',
+                  message: t("Заглавные латинские буквы, цифры и подчёркивание"),
                 },
               ]}
             >
@@ -212,17 +215,17 @@ export function RolesPanel() {
             </Form.Item>
             <Form.Item
               name="name"
-              label="Название"
-              rules={[{ required: true, message: 'Обязательное поле' }]}
+              label={t("Название")}
+              rules={[{ required: true, message: t("Обязательное поле") }]}
             >
-              <Input placeholder="Старший смены" style={{ width: 320 }} />
+              <Input placeholder={t("Старший смены")} style={{ width: 320 }} />
             </Form.Item>
           </Space>
 
           <Form.Item
             name="permissions"
-            label="Права"
-            rules={[{ required: true, message: 'Выберите хотя бы одно право' }]}
+            label={t("Права")}
+            rules={[{ required: true, message: t("Выберите хотя бы одно право") }]}
           >
             <Checkbox.Group style={{ width: '100%' }}>
               <Collapse

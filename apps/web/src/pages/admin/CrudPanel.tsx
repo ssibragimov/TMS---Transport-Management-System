@@ -1,4 +1,5 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   Button,
@@ -55,6 +56,7 @@ export function CrudPanel<T extends { id: number; isActive?: boolean }>({
   canManage,
   invalidateExtra = [],
 }: CrudPanelProps<T>) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<T | null>(null);
   const [showInactive, setShowInactive] = useState(false);
@@ -88,7 +90,7 @@ export function CrudPanel<T extends { id: number; isActive?: boolean }>({
 
   const remove = useApiMutation(
     async (id: number) => (await api.delete(`${url}/${id}`)).data,
-    { successMessage: 'Запись удалена', invalidate },
+    { successMessage: t("Запись удалена"), invalidate },
   );
 
   const actionColumn: ColumnsType<T> = canManage
@@ -98,7 +100,7 @@ export function CrudPanel<T extends { id: number; isActive?: boolean }>({
           width: 90,
           render: (_: unknown, row: T) => (
             <Space size={0}>
-              <Tooltip title="Изменить">
+              <Tooltip title={t("Изменить")}>
                 <Button
                   type="text"
                   icon={<EditOutlined />}
@@ -109,13 +111,13 @@ export function CrudPanel<T extends { id: number; isActive?: boolean }>({
                 />
               </Tooltip>
               <Popconfirm
-                title="Удалить запись?"
-                description="Если на неё есть ссылки, запись будет отключена, а не удалена."
-                okText="Удалить"
-                cancelText="Отмена"
+                title={t("Удалить запись?")}
+                description={t("Если на неё есть ссылки, запись будет отключена, а не удалена.")}
+                okText={t("Удалить")}
+                cancelText={t("Отмена")}
                 onConfirm={() => remove.mutate(row.id)}
               >
-                <Tooltip title="Удалить">
+                <Tooltip title={t("Удалить")}>
                   <Button type="text" danger icon={<DeleteOutlined />} />
                 </Tooltip>
               </Popconfirm>
@@ -141,14 +143,14 @@ export function CrudPanel<T extends { id: number; isActive?: boolean }>({
               setOpen(true);
             }}
           >
-            Добавить
+            {t("Добавить")}
           </Button>
         )}
         <Checkbox
           checked={showInactive}
           onChange={(event) => setShowInactive(event.target.checked)}
         >
-          Показывать отключённые
+          {t("Показывать отключённые")}
         </Checkbox>
       </Space>
 
@@ -168,8 +170,8 @@ export function CrudPanel<T extends { id: number; isActive?: boolean }>({
       <Modal
         open={open}
         title={editing ? `${title}: изменение` : `${title}: добавление`}
-        okText="Сохранить"
-        cancelText="Отмена"
+        okText={t("Сохранить")}
+        cancelText={t("Отмена")}
         confirmLoading={save.isPending}
         onCancel={() => setOpen(false)}
         onOk={() => {

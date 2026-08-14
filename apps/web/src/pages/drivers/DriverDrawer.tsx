@@ -1,4 +1,5 @@
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   Alert,
@@ -83,6 +84,8 @@ function ExpiryTag({ date }: { date: string | null }) {
 }
 
 export function DriverDrawer({ driverId, onClose }: Props) {
+  const { t } = useTranslation();
+
   const { can } = useAuth();
   const [modal, setModal] = useState<'license' | 'permit' | 'medical' | null>(null);
   const [form] = Form.useForm();
@@ -121,7 +124,7 @@ export function DriverDrawer({ driverId, onClose }: Props) {
       });
       return data;
     },
-    { successMessage: 'Удостоверение добавлено', invalidate },
+    { successMessage: t("Удостоверение добавлено"), invalidate },
   );
 
   const addPermit = useApiMutation(
@@ -133,7 +136,7 @@ export function DriverDrawer({ driverId, onClose }: Props) {
       });
       return data;
     },
-    { successMessage: 'Допуск добавлен', invalidate },
+    { successMessage: t("Допуск добавлен"), invalidate },
   );
 
   const addMedical = useApiMutation(
@@ -147,16 +150,16 @@ export function DriverDrawer({ driverId, onClose }: Props) {
       });
       return data;
     },
-    { successMessage: 'Медосмотр зафиксирован', invalidate },
+    { successMessage: t("Медосмотр зафиксирован"), invalidate },
   );
 
   const removeLicense = useApiMutation(
     async (id: number) => (await api.delete(`/drivers/${driverId}/licenses/${id}`)).data,
-    { successMessage: 'Удалено', invalidate },
+    { successMessage: t("Удалено"), invalidate },
   );
   const removePermit = useApiMutation(
     async (id: number) => (await api.delete(`/drivers/${driverId}/permits/${id}`)).data,
-    { successMessage: 'Удалено', invalidate },
+    { successMessage: t("Удалено"), invalidate },
   );
 
   const submit = (): void => {
@@ -208,24 +211,24 @@ export function DriverDrawer({ driverId, onClose }: Props) {
             items={[
               {
                 key: 'info',
-                label: 'Общие сведения',
+                label: t("Общие сведения"),
                 children: (
                   <Descriptions bordered size="small" column={2}>
-                    <Descriptions.Item label="Табельный номер">{d.personnelNumber}</Descriptions.Item>
-                    <Descriptions.Item label="Подразделение">{d.department?.name ?? '—'}</Descriptions.Item>
-                    <Descriptions.Item label="Телефон">{d.phone ?? '—'}</Descriptions.Item>
-                    <Descriptions.Item label="Дата рождения">
+                    <Descriptions.Item label={t("Табельный номер")}>{d.personnelNumber}</Descriptions.Item>
+                    <Descriptions.Item label={t("Подразделение")}>{d.department?.name ?? '—'}</Descriptions.Item>
+                    <Descriptions.Item label={t("Телефон")}>{d.phone ?? '—'}</Descriptions.Item>
+                    <Descriptions.Item label={t("Дата рождения")}>
                       {d.birthDate ? dayjs(d.birthDate).format('DD.MM.YYYY') : '—'}
                     </Descriptions.Item>
-                    <Descriptions.Item label="Принят">
+                    <Descriptions.Item label={t("Принят")}>
                       {d.hireDate ? dayjs(d.hireDate).format('DD.MM.YYYY') : '—'}
                     </Descriptions.Item>
-                    <Descriptions.Item label="Статус">
+                    <Descriptions.Item label={t("Статус")}>
                       <Tag color={d.isActive ? 'green' : 'default'}>
                         {d.isActive ? 'Работает' : 'Уволен'}
                       </Tag>
                     </Descriptions.Item>
-                    <Descriptions.Item label="Примечание" span={2}>
+                    <Descriptions.Item label={t("Примечание")} span={2}>
                       {d.notes ?? '—'}
                     </Descriptions.Item>
                   </Descriptions>
@@ -233,7 +236,7 @@ export function DriverDrawer({ driverId, onClose }: Props) {
               },
               {
                 key: 'licenses',
-                label: 'Удостоверения',
+                label: t("Удостоверения"),
                 children: (
                   <>
                     {manage && (
@@ -246,7 +249,7 @@ export function DriverDrawer({ driverId, onClose }: Props) {
                           setModal('license');
                         }}
                       >
-                        Добавить
+                        {t("Добавить")}
                       </Button>
                     )}
                     <Table
@@ -255,14 +258,14 @@ export function DriverDrawer({ driverId, onClose }: Props) {
                       pagination={false}
                       dataSource={d.licenses}
                       columns={[
-                        { title: 'Номер', dataIndex: 'number' },
+                        { title: t("Номер"), dataIndex: 'number' },
                         {
-                          title: 'Категории',
+                          title: t("Категории"),
                           dataIndex: 'categories',
                           render: (list: string[]) => list.join(', '),
                         },
                         {
-                          title: 'Действует до',
+                          title: t("Действует до"),
                           dataIndex: 'expiresAt',
                           render: (date: string) => <ExpiryTag date={date} />,
                         },
@@ -273,9 +276,9 @@ export function DriverDrawer({ driverId, onClose }: Props) {
                                 width: 50,
                                 render: (_: unknown, row: { id: number }) => (
                                   <Popconfirm
-                                    title="Удалить удостоверение?"
-                                    okText="Удалить"
-                                    cancelText="Отмена"
+                                    title={t("Удалить удостоверение?")}
+                                    okText={t("Удалить")}
+                                    cancelText={t("Отмена")}
                                     onConfirm={() => removeLicense.mutate(row.id)}
                                   >
                                     <Button type="text" danger icon={<DeleteOutlined />} />
@@ -291,7 +294,7 @@ export function DriverDrawer({ driverId, onClose }: Props) {
               },
               {
                 key: 'permits',
-                label: 'Допуски',
+                label: t("Допуски"),
                 children: (
                   <>
                     {manage && (
@@ -304,7 +307,7 @@ export function DriverDrawer({ driverId, onClose }: Props) {
                           setModal('permit');
                         }}
                       >
-                        Добавить
+                        {t("Добавить")}
                       </Button>
                     )}
                     <Table
@@ -314,13 +317,13 @@ export function DriverDrawer({ driverId, onClose }: Props) {
                       dataSource={d.permits}
                       columns={[
                         {
-                          title: 'Зона',
+                          title: t("Зона"),
                           dataIndex: 'zone',
-                          render: (zone: string) => PERMIT_ZONE_LABEL[zone] ?? zone,
+                          render: (zone: string) => t(PERMIT_ZONE_LABEL[zone] ?? zone),
                         },
-                        { title: 'Номер', dataIndex: 'number' },
+                        { title: t("Номер"), dataIndex: 'number' },
                         {
-                          title: 'Действует до',
+                          title: t("Действует до"),
                           dataIndex: 'expiresAt',
                           render: (date: string) => <ExpiryTag date={date} />,
                         },
@@ -331,9 +334,9 @@ export function DriverDrawer({ driverId, onClose }: Props) {
                                 width: 50,
                                 render: (_: unknown, row: { id: number }) => (
                                   <Popconfirm
-                                    title="Удалить допуск?"
-                                    okText="Удалить"
-                                    cancelText="Отмена"
+                                    title={t("Удалить допуск?")}
+                                    okText={t("Удалить")}
+                                    cancelText={t("Отмена")}
                                     onConfirm={() => removePermit.mutate(row.id)}
                                   >
                                     <Button type="text" danger icon={<DeleteOutlined />} />
@@ -349,7 +352,7 @@ export function DriverDrawer({ driverId, onClose }: Props) {
               },
               {
                 key: 'medical',
-                label: 'Медосмотры',
+                label: t("Медосмотры"),
                 children: (
                   <>
                     {manage && (
@@ -362,7 +365,7 @@ export function DriverDrawer({ driverId, onClose }: Props) {
                           setModal('medical');
                         }}
                       >
-                        Зафиксировать осмотр
+                        {t("Зафиксировать осмотр")}
                       </Button>
                     )}
                     <Table
@@ -372,17 +375,17 @@ export function DriverDrawer({ driverId, onClose }: Props) {
                       dataSource={d.medicalChecks}
                       columns={[
                         {
-                          title: 'Дата',
+                          title: t("Дата"),
                           dataIndex: 'checkedAt',
                           render: (date: string) => dayjs(date).format('DD.MM.YYYY HH:mm'),
                         },
                         {
-                          title: 'Вид',
+                          title: t("Вид"),
                           dataIndex: 'isPreTrip',
                           render: (pre: boolean) => (pre ? 'Предрейсовый' : 'Периодический'),
                         },
                         {
-                          title: 'Результат',
+                          title: t("Результат"),
                           dataIndex: 'result',
                           render: (result: string) => (
                             <Tag color={result === 'PASSED' ? 'green' : 'red'}>
@@ -391,11 +394,11 @@ export function DriverDrawer({ driverId, onClose }: Props) {
                           ),
                         },
                         {
-                          title: 'Действует до',
+                          title: t("Действует до"),
                           dataIndex: 'validUntil',
                           render: (date: string | null) => <ExpiryTag date={date} />,
                         },
-                        { title: 'Врач', dataIndex: 'doctorName' },
+                        { title: t("Врач"), dataIndex: 'doctorName' },
                       ]}
                     />
                   </>
@@ -415,8 +418,8 @@ export function DriverDrawer({ driverId, onClose }: Props) {
               ? 'Допуск в зону аэродрома'
               : 'Медицинский осмотр'
         }
-        okText="Сохранить"
-        cancelText="Отмена"
+        okText={t("Сохранить")}
+        cancelText={t("Отмена")}
         onCancel={() => setModal(null)}
         onOk={submit}
         confirmLoading={addLicense.isPending || addPermit.isPending || addMedical.isPending}
@@ -424,20 +427,20 @@ export function DriverDrawer({ driverId, onClose }: Props) {
         <Form form={form} layout="vertical">
           {modal === 'license' && (
             <>
-              <Form.Item name="number" label="Номер" rules={[{ required: true }]}>
+              <Form.Item name="number" label={t("Номер")} rules={[{ required: true }]}>
                 <Input />
               </Form.Item>
-              <Form.Item name="categories" label="Категории" rules={[{ required: true }]}>
+              <Form.Item name="categories" label={t("Категории")} rules={[{ required: true }]}>
                 <Select
                   mode="multiple"
                   options={Object.values(LicenseCategory).map((c) => ({ value: c, label: c }))}
                 />
               </Form.Item>
               <Space>
-                <Form.Item name="issuedAt" label="Выдано" rules={[{ required: true }]}>
+                <Form.Item name="issuedAt" label={t("Выдано")} rules={[{ required: true }]}>
                   <DatePicker format="DD.MM.YYYY" />
                 </Form.Item>
-                <Form.Item name="expiresAt" label="Действует до" rules={[{ required: true }]}>
+                <Form.Item name="expiresAt" label={t("Действует до")} rules={[{ required: true }]}>
                   <DatePicker format="DD.MM.YYYY" />
                 </Form.Item>
               </Space>
@@ -448,25 +451,25 @@ export function DriverDrawer({ driverId, onClose }: Props) {
             <>
               <Form.Item
                 name="zone"
-                label="Зона"
+                label={t("Зона")}
                 rules={[{ required: true }]}
-                tooltip="Для работы на перроне нужен допуск APRON или выше"
+                tooltip={t("Для работы на перроне нужен допуск APRON или выше")}
               >
                 <Select
                   options={Object.values(PermitZone).map((z) => ({
                     value: z,
-                    label: PERMIT_ZONE_LABEL[z] ?? z,
+                    label: t(PERMIT_ZONE_LABEL[z] ?? z),
                   }))}
                 />
               </Form.Item>
-              <Form.Item name="number" label="Номер" rules={[{ required: true }]}>
+              <Form.Item name="number" label={t("Номер")} rules={[{ required: true }]}>
                 <Input />
               </Form.Item>
               <Space>
-                <Form.Item name="issuedAt" label="Выдан" rules={[{ required: true }]}>
+                <Form.Item name="issuedAt" label={t("Выдан")} rules={[{ required: true }]}>
                   <DatePicker format="DD.MM.YYYY" />
                 </Form.Item>
-                <Form.Item name="expiresAt" label="Действует до" rules={[{ required: true }]}>
+                <Form.Item name="expiresAt" label={t("Действует до")} rules={[{ required: true }]}>
                   <DatePicker format="DD.MM.YYYY" />
                 </Form.Item>
               </Space>
@@ -475,36 +478,36 @@ export function DriverDrawer({ driverId, onClose }: Props) {
 
           {modal === 'medical' && (
             <>
-              <Form.Item name="checkedAt" label="Дата и время" rules={[{ required: true }]}>
+              <Form.Item name="checkedAt" label={t("Дата и время")} rules={[{ required: true }]}>
                 <DatePicker showTime format="DD.MM.YYYY HH:mm" style={{ width: '100%' }} />
               </Form.Item>
-              <Form.Item name="result" label="Результат" rules={[{ required: true }]}>
+              <Form.Item name="result" label={t("Результат")} rules={[{ required: true }]}>
                 <Select
                   options={[
-                    { value: CheckResult.PASSED, label: 'Годен' },
-                    { value: CheckResult.FAILED, label: 'Не годен' },
-                    { value: CheckResult.CONDITIONAL, label: 'Годен с ограничениями' },
+                    { value: CheckResult.PASSED, label: t("Годен") },
+                    { value: CheckResult.FAILED, label: t("Не годен") },
+                    { value: CheckResult.CONDITIONAL, label: t("Годен с ограничениями") },
                   ]}
                 />
               </Form.Item>
               <Form.Item
                 name="validUntil"
-                label="Действует до"
-                tooltip="Только для периодического осмотра — предрейсовый действует одну смену"
+                label={t("Действует до")}
+                tooltip={t("Только для периодического осмотра — предрейсовый действует одну смену")}
               >
                 <DatePicker format="DD.MM.YYYY" style={{ width: '100%' }} />
               </Form.Item>
-              <Form.Item name="doctorName" label="Врач">
+              <Form.Item name="doctorName" label={t("Врач")}>
                 <Input />
               </Form.Item>
               <Space>
-                <Form.Item name="bloodPressure" label="Давление">
+                <Form.Item name="bloodPressure" label={t("Давление")}>
                   <Input placeholder="120/80" style={{ width: 120 }} />
                 </Form.Item>
-                <Form.Item name="temperature" label="Температура">
+                <Form.Item name="temperature" label={t("Температура")}>
                   <InputNumber min={30} max={45} step={0.1} />
                 </Form.Item>
-                <Form.Item name="alcoholPpm" label="Алкотестер, ‰">
+                <Form.Item name="alcoholPpm" label={t("Алкотестер, ‰")}>
                   <InputNumber min={0} max={10} step={0.001} />
                 </Form.Item>
               </Space>

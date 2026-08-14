@@ -9,6 +9,7 @@ import {
   Select,
   Switch,
 } from 'antd';
+import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import { useEffect } from 'react';
 import { MeterType, OwnershipType, VehicleCategory, VehicleStatus } from '@gsm/shared';
@@ -52,6 +53,8 @@ interface Props {
 }
 
 export function VehicleFormModal({ open, initial, onClose }: Props) {
+  const { t } = useTranslation();
+
   const [form] = Form.useForm();
   const dictionaries = useDictionaries();
   const isEdit = Boolean(initial?.id);
@@ -108,8 +111,8 @@ export function VehicleFormModal({ open, initial, onClose }: Props) {
     <Modal
       open={open}
       title={isEdit ? `Техника ${initial?.garageNumber}` : 'Постановка техники на учёт'}
-      okText="Сохранить"
-      cancelText="Отмена"
+      okText={t("Сохранить")}
+      cancelText={t("Отмена")}
       confirmLoading={save.isPending}
       width={760}
       onCancel={onClose}
@@ -124,20 +127,20 @@ export function VehicleFormModal({ open, initial, onClose }: Props) {
           <Col span={8}>
             <Form.Item
               name="garageNumber"
-              label="Гаражный номер"
-              rules={[{ required: true, message: 'Обязательное поле' }]}
+              label={t("Гаражный номер")}
+              rules={[{ required: true, message: t("Обязательное поле") }]}
             >
-              <Input placeholder="А-101" />
+              <Input placeholder={t("А-101")} />
             </Form.Item>
           </Col>
           <Col span={8}>
-            <Form.Item name="plateNumber" label="Госномер">
+            <Form.Item name="plateNumber" label={t("Госномер")}>
               <Input placeholder="01 A 123 AA" />
             </Form.Item>
           </Col>
           <Col span={8}>
-            <Form.Item name="inventoryNumber" label="Инвентарный номер">
-              <Input placeholder="ОС-12345" />
+            <Form.Item name="inventoryNumber" label={t("Инвентарный номер")}>
+              <Input placeholder={t("ОС-12345")} />
             </Form.Item>
           </Col>
         </Row>
@@ -146,8 +149,8 @@ export function VehicleFormModal({ open, initial, onClose }: Props) {
           <Col span={12}>
             <Form.Item
               name="modelId"
-              label="Модель"
-              rules={[{ required: true, message: 'Выберите модель' }]}
+              label={t("Модель")}
+              rules={[{ required: true, message: t("Выберите модель") }]}
             >
               <Select
                 showSearch
@@ -164,15 +167,15 @@ export function VehicleFormModal({ open, initial, onClose }: Props) {
           <Col span={12}>
             <Form.Item
               name="category"
-              label="Категория"
-              rules={[{ required: true, message: 'Выберите категорию' }]}
+              label={t("Категория")}
+              rules={[{ required: true, message: t("Выберите категорию") }]}
             >
               <Select
                 showSearch
                 optionFilterProp="label"
                 options={Object.values(VehicleCategory).map((c) => ({
                   value: c,
-                  label: CATEGORY_LABEL[c] ?? c,
+                  label: t(CATEGORY_LABEL[c] ?? c),
                 }))}
               />
             </Form.Item>
@@ -181,7 +184,7 @@ export function VehicleFormModal({ open, initial, onClose }: Props) {
 
         <Row gutter={16}>
           <Col span={8}>
-            <Form.Item name="departmentId" label="Подразделение">
+            <Form.Item name="departmentId" label={t("Подразделение")}>
               <Select
                 allowClear
                 options={dictionaries.data?.departments.map((d) => ({
@@ -192,7 +195,7 @@ export function VehicleFormModal({ open, initial, onClose }: Props) {
             </Form.Item>
           </Col>
           <Col span={8}>
-            <Form.Item name="fuelTypeId" label="Вид топлива">
+            <Form.Item name="fuelTypeId" label={t("Вид топлива")}>
               <Select
                 allowClear
                 options={dictionaries.data?.fuelTypes.map((f) => ({
@@ -205,13 +208,13 @@ export function VehicleFormModal({ open, initial, onClose }: Props) {
           <Col span={8}>
             <Form.Item
               name="meterType"
-              label="Счётчик"
-              tooltip="Определяет, по какой базе считается норма расхода"
+              label={t("Счётчик")}
+              tooltip={t("Определяет, по какой базе считается норма расхода")}
             >
               <Select
                 options={Object.values(MeterType).map((m) => ({
                   value: m,
-                  label: METER_LABEL[m] ?? m,
+                  label: t(METER_LABEL[m] ?? m),
                 }))}
               />
             </Form.Item>
@@ -220,27 +223,27 @@ export function VehicleFormModal({ open, initial, onClose }: Props) {
 
         <Row gutter={16}>
           <Col span={6}>
-            <Form.Item name="tankCapacity" label="Ёмкость бака, л">
+            <Form.Item name="tankCapacity" label={t("Ёмкость бака, л")}>
               <InputNumber min={0} max={100000} style={{ width: '100%' }} />
             </Form.Item>
           </Col>
           <Col span={6}>
-            <Form.Item name="ownership" label="Владение">
+            <Form.Item name="ownership" label={t("Владение")}>
               <Select
                 options={Object.values(OwnershipType).map((o) => ({
                   value: o,
-                  label: OWNERSHIP_LABEL[o] ?? o,
+                  label: t(OWNERSHIP_LABEL[o] ?? o),
                 }))}
               />
             </Form.Item>
           </Col>
           <Col span={6}>
-            <Form.Item name="manufactureYear" label="Год выпуска">
+            <Form.Item name="manufactureYear" label={t("Год выпуска")}>
               <InputNumber min={1950} max={2100} style={{ width: '100%' }} />
             </Form.Item>
           </Col>
           <Col span={6}>
-            <Form.Item name="commissionedAt" label="Дата ввода в эксплуатацию">
+            <Form.Item name="commissionedAt" label={t("Дата ввода в эксплуатацию")}>
               <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
             </Form.Item>
           </Col>
@@ -251,14 +254,14 @@ export function VehicleFormModal({ open, initial, onClose }: Props) {
             <Col span={8}>
               <Form.Item
                 name="currentOdometer"
-                label="Одометр при постановке, км"
-                tooltip="Позже изменяется только корректировкой с указанием основания"
+                label={t("Одометр при постановке, км")}
+                tooltip={t("Позже изменяется только корректировкой с указанием основания")}
               >
                 <InputNumber min={0} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="currentEngineHours" label="Моточасы при постановке">
+              <Form.Item name="currentEngineHours" label={t("Моточасы при постановке")}>
                 <InputNumber min={0} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
@@ -268,11 +271,11 @@ export function VehicleFormModal({ open, initial, onClose }: Props) {
         <Row gutter={16}>
           {isEdit && (
             <Col span={8}>
-              <Form.Item name="status" label="Статус">
+              <Form.Item name="status" label={t("Статус")}>
                 <Select
                   options={Object.values(VehicleStatus).map((s) => ({
                     value: s,
-                    label: STATUS_LABEL[s] ?? s,
+                    label: t(STATUS_LABEL[s] ?? s),
                   }))}
                 />
               </Form.Item>
@@ -281,9 +284,9 @@ export function VehicleFormModal({ open, initial, onClose }: Props) {
           <Col span={8}>
             <Form.Item
               name="requiresAirsidePermit"
-              label="Нужен допуск на перрон"
+              label={t("Нужен допуск на перрон")}
               valuePropName="checked"
-              tooltip="Если включено, водителя без действующего допуска система не выпустит в смену"
+              tooltip={t("Если включено, водителя без действующего допуска система не выпустит в смену")}
             >
               <Switch />
             </Form.Item>
@@ -295,7 +298,7 @@ export function VehicleFormModal({ open, initial, onClose }: Props) {
           </Col>
         </Row>
 
-        <Form.Item name="notes" label="Примечание">
+        <Form.Item name="notes" label={t("Примечание")}>
           <Input.TextArea rows={2} maxLength={2000} />
         </Form.Item>
       </Form>

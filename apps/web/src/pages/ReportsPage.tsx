@@ -1,4 +1,5 @@
 import { DownloadOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   Button,
@@ -91,6 +92,8 @@ interface ExpiryRow {
 }
 
 export function ReportsPage() {
+  const { t } = useTranslation();
+
   const { can } = useAuth();
   const download = useDownload();
   const dictionaries = useDictionaries();
@@ -152,7 +155,7 @@ export function ReportsPage() {
         icon={<DownloadOutlined />}
         onClick={() => void download(url, params, name)}
       >
-        Выгрузить в Excel
+        {t("Выгрузить в Excel")}
       </Button>
     ) : null;
 
@@ -166,32 +169,32 @@ export function ReportsPage() {
             allowClear={false}
             onChange={(value) => value && setRange(value as [dayjs.Dayjs, dayjs.Dayjs])}
             presets={[
-              { label: 'Текущий месяц', value: [dayjs().startOf('month'), dayjs()] },
+              { label: t("Текущий месяц"), value: [dayjs().startOf('month'), dayjs()] },
               {
-                label: 'Прошлый месяц',
+                label: t("Прошлый месяц"),
                 value: [
                   dayjs().subtract(1, 'month').startOf('month'),
                   dayjs().subtract(1, 'month').endOf('month'),
                 ],
               },
-              { label: 'Квартал', value: [dayjs().startOf('quarter'), dayjs()] },
-              { label: 'Год', value: [dayjs().startOf('year'), dayjs()] },
+              { label: t("Квартал"), value: [dayjs().startOf('quarter'), dayjs()] },
+              { label: t("Год"), value: [dayjs().startOf('year'), dayjs()] },
             ]}
           />
           <Select
             allowClear
-            placeholder="Категория техники"
+            placeholder={t("Категория техники")}
             style={{ width: 220 }}
             value={category}
             onChange={setCategory}
             options={Object.values(VehicleCategory).map((c) => ({
               value: c,
-              label: CATEGORY_LABEL[c] ?? c,
+              label: t(CATEGORY_LABEL[c] ?? c),
             }))}
           />
           <Select
             allowClear
-            placeholder="Подразделение"
+            placeholder={t("Подразделение")}
             style={{ width: 220 }}
             value={departmentId}
             onChange={setDepartmentId}
@@ -203,13 +206,13 @@ export function ReportsPage() {
       <Row gutter={[16, 16]}>
         <Col xs={12} md={6}>
           <Card>
-            <Statistic title="Закрытых листов" value={summary.data?.waybills ?? 0} loading={summary.isLoading} />
+            <Statistic title={t("Закрытых листов")} value={summary.data?.waybills ?? 0} loading={summary.isLoading} />
           </Card>
         </Col>
         <Col xs={12} md={6}>
           <Card>
             <Statistic
-              title="Пробег, км"
+              title={t("Пробег, км")}
               value={fmt(summary.data?.distanceKm)}
               loading={summary.isLoading}
             />
@@ -218,7 +221,7 @@ export function ReportsPage() {
         <Col xs={12} md={6}>
           <Card>
             <Statistic
-              title="Израсходовано, л"
+              title={t("Израсходовано, л")}
               value={fmt(summary.data?.actualLitres)}
               loading={summary.isLoading}
             />
@@ -227,7 +230,7 @@ export function ReportsPage() {
         <Col xs={12} md={6}>
           <Card>
             <Statistic
-              title="Отклонение от нормы"
+              title={t("Отклонение от нормы")}
               value={
                 summary.data?.deviationPct === null || summary.data?.deviationPct === undefined
                   ? '—'
@@ -245,7 +248,7 @@ export function ReportsPage() {
           items={[
             {
               key: 'consumption',
-              label: 'Расход по технике',
+              label: t("Расход по технике"),
               children: (
                 <>
                   <Space style={{ marginBottom: 12 }}>
@@ -259,44 +262,44 @@ export function ReportsPage() {
                     pagination={{ pageSize: 20, showTotal: (t) => `Единиц техники: ${t}` }}
                     scroll={{ x: 1100 }}
                     columns={[
-                      { title: 'Гаражный', dataIndex: 'garageNumber', width: 110, fixed: 'left' },
-                      { title: 'Модель', dataIndex: 'model' },
+                      { title: t("Гаражный"), dataIndex: 'garageNumber', width: 110, fixed: 'left' },
+                      { title: t("Модель"), dataIndex: 'model' },
                       {
-                        title: 'Категория',
+                        title: t("Категория"),
                         dataIndex: 'category',
-                        render: (c: string) => CATEGORY_LABEL[c] ?? c,
+                        render: (c: string) => t(CATEGORY_LABEL[c] ?? c),
                       },
-                      { title: 'Листов', dataIndex: 'waybills', width: 80, align: 'right' },
+                      { title: t("Листов"), dataIndex: 'waybills', width: 80, align: 'right' },
                       {
-                        title: 'Пробег, км',
+                        title: t("Пробег, км"),
                         dataIndex: 'distanceKm',
                         width: 110,
                         align: 'right',
                         render: (v: number) => fmt(v, 1),
                       },
                       {
-                        title: 'Моточасы',
+                        title: t("Моточасы"),
                         dataIndex: 'engineHours',
                         width: 100,
                         align: 'right',
                         render: (v: number) => fmt(v, 1),
                       },
                       {
-                        title: 'Норма, л',
+                        title: t("Норма, л"),
                         dataIndex: 'normLitres',
                         width: 100,
                         align: 'right',
                         render: (v: number) => fmt(v, 1),
                       },
                       {
-                        title: 'Факт, л',
+                        title: t("Факт, л"),
                         dataIndex: 'actualLitres',
                         width: 100,
                         align: 'right',
                         render: (v: number) => fmt(v, 1),
                       },
                       {
-                        title: 'Отклонение',
+                        title: t("Отклонение"),
                         dataIndex: 'deviationPct',
                         width: 120,
                         align: 'right',
@@ -311,21 +314,21 @@ export function ReportsPage() {
                           ),
                       },
                       {
-                        title: 'л/100 км',
+                        title: t("л/100 км"),
                         dataIndex: 'litresPer100Km',
                         width: 100,
                         align: 'right',
                         render: (v: number | null) => (v === null ? '—' : fmt(v, 1)),
                       },
                       {
-                        title: 'л/мч',
+                        title: t("л/мч"),
                         dataIndex: 'litresPerHour',
                         width: 90,
                         align: 'right',
                         render: (v: number | null) => (v === null ? '—' : fmt(v, 1)),
                       },
                       {
-                        title: 'Стоимость',
+                        title: t("Стоимость"),
                         dataIndex: 'fuelCost',
                         width: 130,
                         align: 'right',
@@ -338,7 +341,7 @@ export function ReportsPage() {
             },
             {
               key: 'drivers',
-              label: 'Наработка водителей',
+              label: t("Наработка водителей"),
               children: (
                 <>
                   <Space style={{ marginBottom: 12 }}>
@@ -351,32 +354,32 @@ export function ReportsPage() {
                     dataSource={drivers.data ?? []}
                     pagination={{ pageSize: 20 }}
                     columns={[
-                      { title: 'Табельный', dataIndex: 'personnelNumber', width: 120 },
-                      { title: 'Водитель', dataIndex: 'driver' },
-                      { title: 'Смен', dataIndex: 'shifts', width: 80, align: 'right' },
+                      { title: t("Табельный"), dataIndex: 'personnelNumber', width: 120 },
+                      { title: t("Водитель"), dataIndex: 'driver' },
+                      { title: t("Смен"), dataIndex: 'shifts', width: 80, align: 'right' },
                       {
-                        title: 'Пробег, км',
+                        title: t("Пробег, км"),
                         dataIndex: 'distanceKm',
                         width: 120,
                         align: 'right',
                         render: (v: number) => fmt(v, 1),
                       },
                       {
-                        title: 'Моточасы',
+                        title: t("Моточасы"),
                         dataIndex: 'engineHours',
                         width: 110,
                         align: 'right',
                         render: (v: number) => fmt(v, 1),
                       },
                       {
-                        title: 'Факт, л',
+                        title: t("Факт, л"),
                         dataIndex: 'actualLitres',
                         width: 110,
                         align: 'right',
                         render: (v: number) => fmt(v, 1),
                       },
                       {
-                        title: 'Отклонение',
+                        title: t("Отклонение"),
                         dataIndex: 'deviationPct',
                         width: 120,
                         align: 'right',
@@ -397,7 +400,7 @@ export function ReportsPage() {
             },
             {
               key: 'movement',
-              label: 'Движение ГСМ',
+              label: t("Движение ГСМ"),
               children: (
                 <>
                   <Space style={{ marginBottom: 12 }}>
@@ -410,35 +413,35 @@ export function ReportsPage() {
                     dataSource={movement.data ?? []}
                     pagination={false}
                     columns={[
-                      { title: 'Ёмкость', dataIndex: 'code', width: 100 },
-                      { title: 'Наименование', dataIndex: 'name' },
-                      { title: 'Топливо', dataIndex: 'fuelType', width: 160 },
+                      { title: t("Ёмкость"), dataIndex: 'code', width: 100 },
+                      { title: t("Наименование"), dataIndex: 'name' },
+                      { title: t("Топливо"), dataIndex: 'fuelType', width: 160 },
                       {
-                        title: 'На начало, л',
+                        title: t("На начало, л"),
                         dataIndex: 'openingVolume',
                         align: 'right',
                         render: (v: number) => fmt(v, 1),
                       },
                       {
-                        title: 'Приход, л',
+                        title: t("Приход, л"),
                         dataIndex: 'receivedLitres',
                         align: 'right',
                         render: (v: number) => fmt(v, 1),
                       },
                       {
-                        title: 'Расход, л',
+                        title: t("Расход, л"),
                         dataIndex: 'issuedLitres',
                         align: 'right',
                         render: (v: number) => fmt(v, 1),
                       },
                       {
-                        title: 'На конец, л',
+                        title: t("На конец, л"),
                         dataIndex: 'closingVolume',
                         align: 'right',
                         render: (v: number) => fmt(v, 1),
                       },
                       {
-                        title: 'Сумма прихода',
+                        title: t("Сумма прихода"),
                         dataIndex: 'receivedAmount',
                         align: 'right',
                         render: (v: number) => fmt(v),
@@ -460,27 +463,27 @@ export function ReportsPage() {
                   pagination={{ pageSize: 20 }}
                   columns={[
                     {
-                      title: 'Объект',
+                      title: t("Объект"),
                       dataIndex: 'entityType',
                       width: 130,
                       render: (t: string) =>
                         t === 'VEHICLE_DOCUMENT' ? <Tag>Техника</Tag> : <Tag color="blue">Водитель</Tag>,
                     },
-                    { title: 'Кто/что', dataIndex: 'subjectLabel' },
+                    { title: t("Кто/что"), dataIndex: 'subjectLabel' },
                     {
-                      title: 'Документ',
+                      title: t("Документ"),
                       dataIndex: 'documentType',
-                      render: (t: string) => DOCUMENT_TYPE_LABEL[t] ?? t,
+                      render: (code: string) => t(DOCUMENT_TYPE_LABEL[code] ?? code),
                     },
-                    { title: 'Номер', dataIndex: 'documentNumber', width: 140 },
+                    { title: t("Номер"), dataIndex: 'documentNumber', width: 140 },
                     {
-                      title: 'Действует до',
+                      title: t("Действует до"),
                       dataIndex: 'expiresAt',
                       width: 130,
                       render: (d: string) => dayjs(d).format('DD.MM.YYYY'),
                     },
                     {
-                      title: 'Осталось',
+                      title: t("Осталось"),
                       dataIndex: 'daysLeft',
                       width: 130,
                       render: (days: number) =>

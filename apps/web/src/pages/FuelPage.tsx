@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   Button,
@@ -76,6 +77,8 @@ interface InventoryRow {
 type ModalKind = 'issue' | 'receipt' | 'inventory' | null;
 
 export function FuelPage() {
+  const { t } = useTranslation();
+
   const { can } = useAuth();
   const dictionaries = useDictionaries();
   const [modal, setModal] = useState<ModalKind>(null);
@@ -136,7 +139,7 @@ export function FuelPage() {
           issuedAt: (values.issuedAt as dayjs.Dayjs).toISOString(),
         })
       ).data,
-    { successMessage: 'Топливо выдано', invalidate },
+    { successMessage: t("Топливо выдано"), invalidate },
   );
 
   const createReceipt = useApiMutation(
@@ -147,7 +150,7 @@ export function FuelPage() {
           receivedAt: (values.receivedAt as dayjs.Dayjs).toISOString(),
         })
       ).data,
-    { successMessage: 'Топливо оприходовано', invalidate },
+    { successMessage: t("Топливо оприходовано"), invalidate },
   );
 
   const createInventory = useApiMutation(
@@ -158,7 +161,7 @@ export function FuelPage() {
           countedAt: (values.countedAt as dayjs.Dayjs).toISOString(),
         })
       ).data,
-    { successMessage: 'Акт инвентаризации создан', invalidate },
+    { successMessage: t("Акт инвентаризации создан"), invalidate },
   );
 
   const submit = (): void => {
@@ -187,12 +190,12 @@ export function FuelPage() {
 
   return (
     <TableCard
-      title="Горюче-смазочные материалы"
+      title={t("Горюче-смазочные материалы")}
       extra={
         <Space wrap>
           {can(PERMISSIONS.FUEL_RECEIPT_MANAGE) && (
             <Button icon={<PlusOutlined />} onClick={() => openModal('receipt')}>
-              Приход
+              {t("Приход")}
             </Button>
           )}
           {can(PERMISSIONS.FUEL_INVENTORY_MANAGE) && (
@@ -200,7 +203,7 @@ export function FuelPage() {
           )}
           {can(PERMISSIONS.FUEL_ISSUE_CREATE) && (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal('issue')}>
-              Выдать топливо
+              {t("Выдать топливо")}
             </Button>
           )}
         </Space>
@@ -236,7 +239,7 @@ export function FuelPage() {
         items={[
           {
             key: 'issues',
-            label: 'Выдача',
+            label: t("Выдача"),
             children: (
               <StickyTable<IssueRow>
                 rowKey="id"
@@ -248,48 +251,48 @@ export function FuelPage() {
                   pageSize: 20,
                   total: issues.data?.meta.total ?? 0,
                   onChange: setIssuePage,
-                  showTotal: (total) => `Всего: ${total}`,
+                  showTotal: (total) => `${t('Всего:')} ${total}`,
                 }}
                 columns={[
-                  { title: 'Документ', dataIndex: 'documentNumber', width: 200 },
+                  { title: t("Документ"), dataIndex: 'documentNumber', width: 200 },
                   {
-                    title: 'Дата',
+                    title: t("Дата"),
                     dataIndex: 'issuedAt',
                     width: 150,
                     render: (d: string) => dayjs(d).format('DD.MM.YYYY HH:mm'),
                   },
                   {
-                    title: 'Техника',
+                    title: t("Техника"),
                     render: (_: unknown, row: IssueRow) => row.vehicle?.garageNumber ?? '—',
                   },
                   {
-                    title: 'Водитель',
+                    title: t("Водитель"),
                     render: (_: unknown, row: IssueRow) =>
                       row.driver ? `${row.driver.lastName} ${row.driver.firstName}` : '—',
                   },
                   {
-                    title: 'Источник',
+                    title: t("Источник"),
                     dataIndex: 'source',
                     width: 140,
                     render: (s: string, row: IssueRow) =>
-                      row.tank ? `${FUEL_SOURCE_LABEL[s]} ${row.tank.code}` : FUEL_SOURCE_LABEL[s] ?? s,
+                      row.tank ? `${FUEL_SOURCE_LABEL[s]} ${row.tank.code}` : t(FUEL_SOURCE_LABEL[s] ?? s),
                   },
                   {
-                    title: 'Объём, л',
+                    title: t("Объём, л"),
                     dataIndex: 'volume',
                     width: 100,
                     align: 'right',
                     render: (v: string) => fmt(v, 2),
                   },
                   {
-                    title: 'Сумма',
+                    title: t("Сумма"),
                     dataIndex: 'totalAmount',
                     width: 130,
                     align: 'right',
                     render: (v: string | null) => fmt(v),
                   },
                   {
-                    title: 'Путевой лист',
+                    title: t("Путевой лист"),
                     render: (_: unknown, row: IssueRow) => row.waybill?.number ?? '—',
                   },
                 ]}
@@ -298,7 +301,7 @@ export function FuelPage() {
           },
           {
             key: 'receipts',
-            label: 'Приход',
+            label: t("Приход"),
             children: (
               <StickyTable<ReceiptRow>
                 rowKey="id"
@@ -310,34 +313,34 @@ export function FuelPage() {
                   pageSize: 20,
                   total: receipts.data?.meta.total ?? 0,
                   onChange: setReceiptPage,
-                  showTotal: (total) => `Всего: ${total}`,
+                  showTotal: (total) => `${t('Всего:')} ${total}`,
                 }}
                 columns={[
-                  { title: 'Документ', dataIndex: 'documentNumber', width: 210 },
-                  { title: 'Накладная', dataIndex: 'externalNumber', width: 140 },
+                  { title: t("Документ"), dataIndex: 'documentNumber', width: 210 },
+                  { title: t("Накладная"), dataIndex: 'externalNumber', width: 140 },
                   {
-                    title: 'Дата',
+                    title: t("Дата"),
                     dataIndex: 'receivedAt',
                     width: 120,
                     render: (d: string) => dayjs(d).format('DD.MM.YYYY'),
                   },
                   {
-                    title: 'Ёмкость',
+                    title: t("Ёмкость"),
                     render: (_: unknown, row: ReceiptRow) => row.tank?.code ?? '—',
                   },
                   {
-                    title: 'Поставщик',
+                    title: t("Поставщик"),
                     render: (_: unknown, row: ReceiptRow) => row.supplier?.name ?? '—',
                   },
                   {
-                    title: 'Объём, л',
+                    title: t("Объём, л"),
                     dataIndex: 'volume',
                     align: 'right',
                     width: 110,
                     render: (v: string) => fmt(v, 2),
                   },
                   {
-                    title: 'Сумма',
+                    title: t("Сумма"),
                     dataIndex: 'totalAmount',
                     align: 'right',
                     width: 140,
@@ -349,7 +352,7 @@ export function FuelPage() {
           },
           {
             key: 'inventories',
-            label: 'Инвентаризация',
+            label: t("Инвентаризация"),
             children: (
               <StickyTable<InventoryRow>
                 rowKey="id"
@@ -358,28 +361,28 @@ export function FuelPage() {
                 dataSource={inventories.data?.items ?? []}
                 pagination={false}
                 columns={[
-                  { title: 'Акт', dataIndex: 'documentNumber', width: 210 },
+                  { title: t("Акт"), dataIndex: 'documentNumber', width: 210 },
                   {
-                    title: 'Дата',
+                    title: t("Дата"),
                     dataIndex: 'countedAt',
                     width: 120,
                     render: (d: string) => dayjs(d).format('DD.MM.YYYY'),
                   },
-                  { title: 'Ёмкость', render: (_: unknown, row: InventoryRow) => row.tank?.code ?? '—' },
+                  { title: t("Ёмкость"), render: (_: unknown, row: InventoryRow) => row.tank?.code ?? '—' },
                   {
-                    title: 'По учёту, л',
+                    title: t("По учёту, л"),
                     dataIndex: 'bookVolume',
                     align: 'right',
                     render: (v: string) => fmt(v, 2),
                   },
                   {
-                    title: 'Фактически, л',
+                    title: t("Фактически, л"),
                     dataIndex: 'actualVolume',
                     align: 'right',
                     render: (v: string) => fmt(v, 2),
                   },
                   {
-                    title: 'Разница, л',
+                    title: t("Разница, л"),
                     dataIndex: 'difference',
                     align: 'right',
                     render: (v: string) => {
@@ -410,8 +413,8 @@ export function FuelPage() {
               ? 'Приход топлива'
               : 'Акт инвентаризации'
         }
-        okText="Провести"
-        cancelText="Отмена"
+        okText={t("Провести")}
+        cancelText={t("Отмена")}
         confirmLoading={createIssue.isPending || createReceipt.isPending || createInventory.isPending}
         onCancel={() => setModal(null)}
         onOk={submit}
@@ -419,7 +422,7 @@ export function FuelPage() {
         <Form form={form} layout="vertical">
           {modal === 'issue' && (
             <>
-              <Form.Item name="vehicleId" label="Техника" rules={[{ required: true }]}>
+              <Form.Item name="vehicleId" label={t("Техника")} rules={[{ required: true }]}>
                 <Select
                   showSearch
                   optionFilterProp="label"
@@ -429,7 +432,7 @@ export function FuelPage() {
                   }))}
                 />
               </Form.Item>
-              <Form.Item name="driverId" label="Водитель">
+              <Form.Item name="driverId" label={t("Водитель")}>
                 <Select
                   allowClear
                   showSearch
@@ -442,11 +445,11 @@ export function FuelPage() {
               </Form.Item>
               <Row gutter={16}>
                 <Col span={12}>
-                  <Form.Item name="source" label="Источник" rules={[{ required: true }]}>
+                  <Form.Item name="source" label={t("Источник")} rules={[{ required: true }]}>
                     <Select
                       options={Object.values(FuelSource).map((s) => ({
                         value: s,
-                        label: FUEL_SOURCE_LABEL[s] ?? s,
+                        label: t(FUEL_SOURCE_LABEL[s] ?? s),
                       }))}
                     />
                   </Form.Item>
@@ -458,7 +461,7 @@ export function FuelPage() {
                   >
                     {({ getFieldValue }) =>
                       getFieldValue('source') === FuelSource.TANK ? (
-                        <Form.Item name="tankId" label="Ёмкость" rules={[{ required: true }]}>
+                        <Form.Item name="tankId" label={t("Ёмкость")} rules={[{ required: true }]}>
                           <Select
                             options={tanks.data?.map((t) => ({
                               value: t.id,
@@ -473,17 +476,17 @@ export function FuelPage() {
               </Row>
               <Row gutter={16}>
                 <Col span={8}>
-                  <Form.Item name="issuedAt" label="Дата и время" rules={[{ required: true }]}>
+                  <Form.Item name="issuedAt" label={t("Дата и время")} rules={[{ required: true }]}>
                     <DatePicker showTime format="DD.MM.YYYY HH:mm" style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item name="volume" label="Объём, л" rules={[{ required: true }]}>
+                  <Form.Item name="volume" label={t("Объём, л")} rules={[{ required: true }]}>
                     <InputNumber min={0.01} step={1} style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item name="pricePerLitre" label="Цена за литр">
+                  <Form.Item name="pricePerLitre" label={t("Цена за литр")}>
                     <InputNumber min={0} style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
@@ -492,14 +495,14 @@ export function FuelPage() {
                 <Col span={12}>
                   <Form.Item
                     name="odometerAtIssue"
-                    label="Одометр при заправке"
-                    tooltip="Нужен для сверки с путевым листом"
+                    label={t("Одометр при заправке")}
+                    tooltip={t("Нужен для сверки с путевым листом")}
                   >
                     <InputNumber min={0} style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
-                  <Form.Item name="engineHoursAtIssue" label="Моточасы при заправке">
+                  <Form.Item name="engineHoursAtIssue" label={t("Моточасы при заправке")}>
                     <InputNumber min={0} style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
@@ -509,7 +512,7 @@ export function FuelPage() {
 
           {modal === 'receipt' && (
             <>
-              <Form.Item name="tankId" label="Ёмкость" rules={[{ required: true }]}>
+              <Form.Item name="tankId" label={t("Ёмкость")} rules={[{ required: true }]}>
                 <Select
                   options={tanks.data?.map((t) => ({
                     value: t.id,
@@ -519,7 +522,7 @@ export function FuelPage() {
                   }))}
                 />
               </Form.Item>
-              <Form.Item name="supplierId" label="Поставщик">
+              <Form.Item name="supplierId" label={t("Поставщик")}>
                 <Select
                   allowClear
                   showSearch
@@ -532,34 +535,34 @@ export function FuelPage() {
               </Form.Item>
               <Row gutter={16}>
                 <Col span={12}>
-                  <Form.Item name="externalNumber" label="Номер накладной">
-                    <Input placeholder="ТТН-123456" />
+                  <Form.Item name="externalNumber" label={t("Номер накладной")}>
+                    <Input placeholder={t("ТТН-123456")} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
-                  <Form.Item name="receivedAt" label="Дата приёмки" rules={[{ required: true }]}>
+                  <Form.Item name="receivedAt" label={t("Дата приёмки")} rules={[{ required: true }]}>
                     <DatePicker showTime format="DD.MM.YYYY HH:mm" style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
               </Row>
               <Row gutter={16}>
                 <Col span={8}>
-                  <Form.Item name="volume" label="Объём, л" rules={[{ required: true }]}>
+                  <Form.Item name="volume" label={t("Объём, л")} rules={[{ required: true }]}>
                     <InputNumber min={0.01} style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item name="density" label="Плотность, кг/л">
+                  <Form.Item name="density" label={t("Плотность, кг/л")}>
                     <InputNumber min={0.5} max={1.2} step={0.001} style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item name="pricePerLitre" label="Цена за литр">
+                  <Form.Item name="pricePerLitre" label={t("Цена за литр")}>
                     <InputNumber min={0} style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
               </Row>
-              <Form.Item name="notes" label="Примечание">
+              <Form.Item name="notes" label={t("Примечание")}>
                 <Input.TextArea rows={2} />
               </Form.Item>
             </>
@@ -568,9 +571,9 @@ export function FuelPage() {
           {modal === 'inventory' && (
             <>
               <Typography.Paragraph type="secondary">
-                Расхождение свыше 0,5 % от объёма ёмкости автоматически поднимет алерт.
+                {t("Расхождение свыше 0,5 % от объёма ёмкости автоматически поднимет алерт.")}
               </Typography.Paragraph>
-              <Form.Item name="tankId" label="Ёмкость" rules={[{ required: true }]}>
+              <Form.Item name="tankId" label={t("Ёмкость")} rules={[{ required: true }]}>
                 <Select
                   options={tanks.data?.map((t) => ({
                     value: t.id,
@@ -580,21 +583,21 @@ export function FuelPage() {
               </Form.Item>
               <Row gutter={16}>
                 <Col span={12}>
-                  <Form.Item name="countedAt" label="Дата замера" rules={[{ required: true }]}>
+                  <Form.Item name="countedAt" label={t("Дата замера")} rules={[{ required: true }]}>
                     <DatePicker showTime format="DD.MM.YYYY HH:mm" style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item
                     name="actualVolume"
-                    label="Фактический остаток, л"
+                    label={t("Фактический остаток, л")}
                     rules={[{ required: true }]}
                   >
                     <InputNumber min={0} style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
               </Row>
-              <Form.Item name="commission" label="Состав комиссии">
+              <Form.Item name="commission" label={t("Состав комиссии")}>
                 <Input.TextArea rows={2} />
               </Form.Item>
             </>

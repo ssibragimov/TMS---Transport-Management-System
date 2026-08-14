@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
   DatePicker,
   Descriptions,
@@ -92,6 +93,8 @@ function renderValue(value: unknown): string {
 }
 
 export function AuditPage() {
+  const { t } = useTranslation();
+
   const { can } = useAuth();
 
   const [page, setPage] = useState(1);
@@ -129,7 +132,7 @@ export function AuditPage() {
 
   return (
     <TableCard
-      title="Журнал действий"
+      title={t("Журнал действий")}
       extra={
         <Space wrap>
           <DatePicker.RangePicker
@@ -141,7 +144,7 @@ export function AuditPage() {
           />
           <Select
             allowClear
-            placeholder="Объект"
+            placeholder={t("Объект")}
             style={{ width: 190 }}
             value={entity}
             onChange={(value) => {
@@ -150,12 +153,12 @@ export function AuditPage() {
             }}
             options={(entities.data ?? []).map((item) => ({
               value: item.entity,
-              label: `${ENTITY_LABEL[item.entity] ?? item.entity} (${item.count})`,
+              label: `${t(ENTITY_LABEL[item.entity] ?? item.entity)} (${item.count})`,
             }))}
           />
           <Select
             allowClear
-            placeholder="Действие"
+            placeholder={t("Действие")}
             style={{ width: 170 }}
             value={action}
             onChange={(value) => {
@@ -166,7 +169,7 @@ export function AuditPage() {
           />
           <Input
             allowClear
-            placeholder="ID объекта"
+            placeholder={t("ID объекта")}
             style={{ width: 130 }}
             value={entityId}
             onChange={(event) => {
@@ -178,9 +181,7 @@ export function AuditPage() {
       }
     >
       <Typography.Paragraph type="secondary">
-        Журнал только для чтения — записи нельзя изменить или удалить ни через интерфейс,
-        ни через API. Для изменений сохраняются лишь те поля, которые действительно
-        поменялись.
+        {t("Журнал только для чтения — записи нельзя изменить или удалить ни через интерфейс, ни через API. Для изменений сохраняются лишь те поля, которые действительно поменялись.")}
       </Typography.Paragraph>
 
       <StickyTable<AuditRow>
@@ -194,7 +195,7 @@ export function AuditPage() {
           pageSize,
           total: query.data?.meta.total ?? 0,
           showSizeChanger: true,
-          showTotal: (total) => `Записей: ${total}`,
+          showTotal: (total) => `${t('Записей:')} ${total}`,
           onChange: (nextPage, nextSize) => {
             setPage(nextPage);
             setPageSize(nextSize);
@@ -202,13 +203,13 @@ export function AuditPage() {
         }}
         columns={[
           {
-            title: 'Дата и время',
+            title: t("Дата и время"),
             dataIndex: 'createdAt',
             width: 160,
             render: (value: string) => dayjs(value).format('DD.MM.YYYY HH:mm:ss'),
           },
           {
-            title: 'Пользователь',
+            title: t("Пользователь"),
             width: 220,
             render: (_: unknown, row: AuditRow) =>
               row.user ? (
@@ -223,22 +224,22 @@ export function AuditPage() {
               ),
           },
           {
-            title: 'Действие',
+            title: t("Действие"),
             dataIndex: 'action',
             width: 140,
             render: (value: string) => (
-              <Tag color={ACTION_COLOR[value] ?? 'default'}>{ACTION_LABEL[value] ?? value}</Tag>
+              <Tag color={ACTION_COLOR[value] ?? 'default'}>{t(ACTION_LABEL[value] ?? value)}</Tag>
             ),
           },
           {
-            title: 'Объект',
+            title: t("Объект"),
             dataIndex: 'entity',
             width: 170,
-            render: (value: string) => ENTITY_LABEL[value] ?? value,
+            render: (value: string) => t(ENTITY_LABEL[value] ?? value),
           },
           { title: 'ID', dataIndex: 'entityId', width: 80 },
           {
-            title: 'Изменённые поля',
+            title: t("Изменённые поля"),
             render: (_: unknown, row: AuditRow) => {
               const keys = [
                 ...new Set([...Object.keys(row.before ?? {}), ...Object.keys(row.after ?? {})]),
@@ -264,25 +265,25 @@ export function AuditPage() {
         width={720}
         title={
           selected
-            ? `${ACTION_LABEL[selected.action] ?? selected.action}: ${ENTITY_LABEL[selected.entity] ?? selected.entity}${selected.entityId ? ` #${selected.entityId}` : ''}`
+            ? `${t(ACTION_LABEL[selected.action] ?? selected.action)}: ${t(ENTITY_LABEL[selected.entity] ?? selected.entity)}${selected.entityId ? ` #${selected.entityId}` : ''}`
             : 'Запись журнала'
         }
       >
         {selected && (
           <>
             <Descriptions bordered size="small" column={1}>
-              <Descriptions.Item label="Когда">
+              <Descriptions.Item label={t("Когда")}>
                 {dayjs(selected.createdAt).format('DD.MM.YYYY HH:mm:ss')}
               </Descriptions.Item>
-              <Descriptions.Item label="Кто">
+              <Descriptions.Item label={t("Кто")}>
                 {selected.user
                   ? `${selected.user.fullName} (${selected.user.email})`
                   : 'система'}
               </Descriptions.Item>
-              <Descriptions.Item label="IP-адрес">
+              <Descriptions.Item label={t("IP-адрес")}>
                 {selected.ipAddress ?? '—'}
               </Descriptions.Item>
-              <Descriptions.Item label="Идентификатор запроса">
+              <Descriptions.Item label={t("Идентификатор запроса")}>
                 <Typography.Text code copyable>
                   {selected.requestId ?? '—'}
                 </Typography.Text>
@@ -291,7 +292,7 @@ export function AuditPage() {
 
             <h4 style={{ marginTop: 24 }}>Что изменилось</h4>
             {changedKeys.length === 0 ? (
-              <Empty description="Изменённых полей не зафиксировано" />
+              <Empty description={t("Изменённых полей не зафиксировано")} />
             ) : (
               <Table
                 size="small"
@@ -303,9 +304,9 @@ export function AuditPage() {
                   after: selected.after?.[key],
                 }))}
                 columns={[
-                  { title: 'Поле', dataIndex: 'field', width: 200 },
+                  { title: t("Поле"), dataIndex: 'field', width: 200 },
                   {
-                    title: 'Было',
+                    title: t("Было"),
                     dataIndex: 'before',
                     render: (value: unknown) => (
                       <Typography.Text type="secondary" delete={value !== undefined}>
@@ -314,7 +315,7 @@ export function AuditPage() {
                     ),
                   },
                   {
-                    title: 'Стало',
+                    title: t("Стало"),
                     dataIndex: 'after',
                     render: (value: unknown) => (
                       <Typography.Text strong>{renderValue(value)}</Typography.Text>

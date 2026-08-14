@@ -1,4 +1,5 @@
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   Alert,
@@ -46,6 +47,8 @@ interface Props {
 }
 
 export function UserFormModal({ open, initial, onClose }: Props) {
+  const { t } = useTranslation();
+
   const [form] = Form.useForm();
   const { user } = useAuth();
   const isEdit = Boolean(initial?.id);
@@ -128,8 +131,8 @@ export function UserFormModal({ open, initial, onClose }: Props) {
       open={open}
       width={780}
       title={isEdit ? `Пользователь: ${initial?.fullName}` : 'Новый пользователь'}
-      okText="Сохранить"
-      cancelText="Отмена"
+      okText={t("Сохранить")}
+      cancelText={t("Отмена")}
       confirmLoading={save.isPending}
       onCancel={onClose}
       onOk={() => {
@@ -144,7 +147,7 @@ export function UserFormModal({ open, initial, onClose }: Props) {
           showIcon
           style={{ marginBottom: 16 }}
           message="Техническая учётная запись"
-          description="У этого пользователя включён обход изоляции офисов. Он видит данные всех аэропортов. Признак не редактируется через интерфейс."
+          description={t("У этого пользователя включён обход изоляции офисов. Он видит данные всех аэропортов. Признак не редактируется через интерфейс.")}
         />
       )}
 
@@ -153,24 +156,24 @@ export function UserFormModal({ open, initial, onClose }: Props) {
           <Col span={12}>
             <Form.Item
               name="fullName"
-              label="ФИО"
-              rules={[{ required: true, message: 'Обязательное поле' }]}
+              label={t("ФИО")}
+              rules={[{ required: true, message: t("Обязательное поле") }]}
             >
-              <Input placeholder="Иванов Иван Иванович" />
+              <Input placeholder={t("Иванов Иван Иванович")} />
             </Form.Item>
           </Col>
           <Col span={12}>
             {isEdit ? (
-              <Form.Item label="Электронная почта">
+              <Form.Item label={t("Электронная почта")}>
                 <Input value={initial?.email} disabled />
               </Form.Item>
             ) : (
               <Form.Item
                 name="email"
-                label="Электронная почта"
+                label={t("Электронная почта")}
                 rules={[
-                  { required: true, message: 'Обязательное поле' },
-                  { type: 'email', message: 'Некорректный адрес' },
+                  { required: true, message: t("Обязательное поле") },
+                  { type: 'email', message: t("Некорректный адрес") },
                 ]}
               >
                 <Input autoComplete="off" />
@@ -184,10 +187,10 @@ export function UserFormModal({ open, initial, onClose }: Props) {
             <Col span={8}>
               <Form.Item
                 name="password"
-                label="Пароль"
+                label={t("Пароль")}
                 rules={[
-                  { required: true, message: 'Обязательное поле' },
-                  { min: 8, message: 'Не короче 8 символов' },
+                  { required: true, message: t("Обязательное поле") },
+                  { min: 8, message: t("Не короче 8 символов") },
                 ]}
               >
                 <Input.Password autoComplete="new-password" />
@@ -195,29 +198,29 @@ export function UserFormModal({ open, initial, onClose }: Props) {
             </Col>
           )}
           <Col span={8}>
-            <Form.Item name="phone" label="Телефон">
+            <Form.Item name="phone" label={t("Телефон")}>
               <Input placeholder="+998 90 123-45-67" />
             </Form.Item>
           </Col>
           <Col span={4}>
-            <Form.Item name="locale" label="Язык">
+            <Form.Item name="locale" label={t("Язык")}>
               <Select
                 options={[
-                  { value: 'ru', label: 'Русский' },
+                  { value: 'ru', label: t("Русский") },
                   { value: 'uz', label: 'O‘zbekcha' },
-                  { value: 'uz-Cyrl', label: 'Ўзбекча' },
+                  { value: 'uz-Cyrl', label: t("Ўзбекча") },
                   { value: 'en', label: 'English' },
                 ]}
               />
             </Form.Item>
           </Col>
           <Col span={4}>
-            <Form.Item name="status" label="Статус">
+            <Form.Item name="status" label={t("Статус")}>
               <Select
                 options={[
-                  { value: 'ACTIVE', label: 'Активен' },
-                  { value: 'INVITED', label: 'Приглашён' },
-                  { value: 'SUSPENDED', label: 'Заблокирован' },
+                  { value: 'ACTIVE', label: t("Активен") },
+                  { value: 'INVITED', label: t("Приглашён") },
+                  { value: 'SUSPENDED', label: t("Заблокирован") },
                 ]}
               />
             </Form.Item>
@@ -225,11 +228,10 @@ export function UserFormModal({ open, initial, onClose }: Props) {
         </Row>
 
         <Divider orientation="left" plain>
-          Доступ к офисам и роли
+          {t("Доступ к офисам и роли")}
         </Divider>
         <Typography.Paragraph type="secondary" style={{ marginTop: -8 }}>
-          Роль действует в конкретном офисе. Один человек может быть диспетчером
-          в Ташкенте и наблюдателем в Самарканде — это две отдельные строки.
+          {t("Роль действует в конкретном офисе. Один человек может быть диспетчером в Ташкенте и наблюдателем в Самарканде — это две отдельные строки.")}
         </Typography.Paragraph>
 
         <Form.List
@@ -251,13 +253,13 @@ export function UserFormModal({ open, initial, onClose }: Props) {
                   <Col span={9}>
                     <Form.Item
                       name={[field.name, 'officeId']}
-                      rules={[{ required: true, message: 'Выберите офис' }]}
+                      rules={[{ required: true, message: t("Выберите офис") }]}
                       noStyle
                     >
                       <Select
                         showSearch
                         optionFilterProp="label"
-                        placeholder="Офис"
+                        placeholder={t("Офис")}
                         options={officeOptions}
                       />
                     </Form.Item>
@@ -265,13 +267,13 @@ export function UserFormModal({ open, initial, onClose }: Props) {
                   <Col span={13}>
                     <Form.Item
                       name={[field.name, 'roleCodes']}
-                      rules={[{ required: true, message: 'Выберите роли' }]}
+                      rules={[{ required: true, message: t("Выберите роли") }]}
                       noStyle
                     >
                       <Select
                         mode="multiple"
                         allowClear
-                        placeholder="Роли в этом офисе"
+                        placeholder={t("Роли в этом офисе")}
                         loading={roles.isLoading}
                         options={roleOptions}
                       />
@@ -293,7 +295,7 @@ export function UserFormModal({ open, initial, onClose }: Props) {
                 style={{ width: '100%' }}
                 onClick={() => add({ roleCodes: [] })}
               >
-                Добавить офис
+                {t("Добавить офис")}
               </Button>
               <Form.ErrorList errors={errors} />
             </>
@@ -314,13 +316,13 @@ export function UserFormModal({ open, initial, onClose }: Props) {
             return (
               <Form.Item
                 name="defaultOfficeId"
-                label="Офис по умолчанию"
-                tooltip="В него пользователь попадает сразу после входа"
+                label={t("Офис по умолчанию")}
+                tooltip={t("В него пользователь попадает сразу после входа")}
                 style={{ marginTop: 16 }}
               >
                 <Select
                   allowClear
-                  placeholder="Первый из назначенных"
+                  placeholder={t("Первый из назначенных")}
                   options={officeOptions.filter((option) => assigned.includes(option.value))}
                 />
               </Form.Item>

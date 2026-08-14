@@ -1,10 +1,12 @@
-import { Alert, Button, Card, Form, Input, Typography } from 'antd';
+import { Alert, Button, Card, Form, Input, Select, Space, Typography } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
 
 import { errorMessage } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
+import { LocaleFlag } from '@/components/LocaleFlag';
+import i18n, { SUPPORTED_LOCALES, localeDescriptor } from '@/i18n';
 
 interface LoginForm {
   email: string;
@@ -18,6 +20,13 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   if (user) return <Navigate to="/" replace />;
+
+  // Выбор запоминается тем же ключом, что и в основном интерфейсе: язык,
+  // выбранный на входе, должен остаться после него.
+  const changeLocale = (locale: string): void => {
+    localStorage.setItem('gsm.locale', locale);
+    void i18n.changeLanguage(locale);
+  };
 
   const onFinish = async (values: LoginForm): Promise<void> => {
     setError(null);
@@ -34,15 +43,30 @@ export function LoginPage() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        background: 'linear-gradient(135deg, #0b3d6b 0%, #14507f 100%)',
-      }}
-    >
-      <Card style={{ width: 400 }} styles={{ body: { padding: 32 } }}>
+    <div className="gsm-login">
+      {/*
+        Язык выбирается до входа намеренно: сотрудник, которому русский
+        интерфейс незнаком, иначе не понял бы даже подписи полей формы.
+      */}
+      <div className="gsm-login-lang">
+        <Select
+          value={localeDescriptor(i18n.language).code}
+          style={{ width: 150 }}
+          optionLabelProp="label"
+          onChange={changeLocale}
+          options={SUPPORTED_LOCALES.map((locale) => ({
+            value: locale.code,
+            label: (
+              <Space size={8}>
+                <LocaleFlag code={locale.flag} />
+                {locale.label}
+              </Space>
+            ),
+          }))}
+        />
+      </div>
+
+      <Card className="gsm-login-card" styles={{ body: { padding: 32 } }}>
         <Typography.Title level={3} style={{ marginBottom: 4 }}>
           {t('Вход в систему')}
         </Typography.Title>

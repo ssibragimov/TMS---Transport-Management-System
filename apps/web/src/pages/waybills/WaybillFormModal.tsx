@@ -1,4 +1,5 @@
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   Alert,
@@ -48,6 +49,8 @@ interface NormsResponse {
 }
 
 export function WaybillFormModal({ open, onClose }: Props) {
+  const { t } = useTranslation();
+
   const [form] = Form.useForm();
   const [vehicleId, setVehicleId] = useState<number | null>(null);
 
@@ -111,7 +114,7 @@ export function WaybillFormModal({ open, onClose }: Props) {
       return data;
     },
     {
-      successMessage: 'Путевой лист создан',
+      successMessage: t("Путевой лист создан"),
       invalidate: [['waybills'], ['office-summary']],
     },
   );
@@ -149,9 +152,9 @@ export function WaybillFormModal({ open, onClose }: Props) {
   return (
     <Modal
       open={open}
-      title="Создание путевого листа"
-      okText="Создать"
-      cancelText="Отмена"
+      title={t("Создание путевого листа")}
+      okText={t("Создать")}
+      cancelText={t("Отмена")}
       width={900}
       confirmLoading={create.isPending}
       onCancel={onClose}
@@ -164,17 +167,17 @@ export function WaybillFormModal({ open, onClose }: Props) {
       <Form form={form} layout="vertical" onValuesChange={() => undefined}>
         <Row gutter={16}>
           <Col span={6}>
-            <Form.Item name="type" label="Тип" rules={[{ required: true }]}>
+            <Form.Item name="type" label={t("Тип")} rules={[{ required: true }]}>
               <Select
                 options={[
-                  { value: WaybillType.SHIFT, label: 'На смену' },
-                  { value: WaybillType.PERIOD, label: 'На период' },
+                  { value: WaybillType.SHIFT, label: t("На смену") },
+                  { value: WaybillType.PERIOD, label: t("На период") },
                 ]}
               />
             </Form.Item>
           </Col>
           <Col span={9}>
-            <Form.Item name="vehicleId" label="Техника" rules={[{ required: true }]}>
+            <Form.Item name="vehicleId" label={t("Техника")} rules={[{ required: true }]}>
               <Select
                 showSearch
                 optionFilterProp="label"
@@ -199,7 +202,7 @@ export function WaybillFormModal({ open, onClose }: Props) {
             </Form.Item>
           </Col>
           <Col span={9}>
-            <Form.Item name="driverId" label="Водитель" rules={[{ required: true }]}>
+            <Form.Item name="driverId" label={t("Водитель")} rules={[{ required: true }]}>
               <Select
                 showSearch
                 optionFilterProp="label"
@@ -215,10 +218,10 @@ export function WaybillFormModal({ open, onClose }: Props) {
 
         {vehicle && (
           <Descriptions size="small" column={4} style={{ marginBottom: 16 }} bordered>
-            <Descriptions.Item label="Одометр">{fmt(vehicle.currentOdometer)} км</Descriptions.Item>
-            <Descriptions.Item label="Моточасы">{fmt(vehicle.currentEngineHours)}</Descriptions.Item>
-            <Descriptions.Item label="В баке">{fmt(vehicle.currentFuelLevel, 1)} л</Descriptions.Item>
-            <Descriptions.Item label="Допуск на перрон">
+            <Descriptions.Item label={t("Одометр")}>{fmt(vehicle.currentOdometer)} км</Descriptions.Item>
+            <Descriptions.Item label={t("Моточасы")}>{fmt(vehicle.currentEngineHours)}</Descriptions.Item>
+            <Descriptions.Item label={t("В баке")}>{fmt(vehicle.currentFuelLevel, 1)} л</Descriptions.Item>
+            <Descriptions.Item label={t("Допуск на перрон")}>
               {vehicle.requiresAirsidePermit ? 'нужен' : 'не нужен'}
             </Descriptions.Item>
           </Descriptions>
@@ -226,24 +229,24 @@ export function WaybillFormModal({ open, onClose }: Props) {
 
         <Row gutter={16}>
           <Col span={10}>
-            <Form.Item name="period" label="Период" rules={[{ required: true }]}>
+            <Form.Item name="period" label={t("Период")} rules={[{ required: true }]}>
               <DatePicker.RangePicker showTime format="DD.MM.YYYY HH:mm" style={{ width: '100%' }} />
             </Form.Item>
           </Col>
           <Col span={7}>
-            <Form.Item name="odometerStart" label="Одометр на выезд">
+            <Form.Item name="odometerStart" label={t("Одометр на выезд")}>
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
           </Col>
           <Col span={7}>
-            <Form.Item name="engineHoursStart" label="Моточасы на выезд">
+            <Form.Item name="engineHoursStart" label={t("Моточасы на выезд")}>
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
           </Col>
         </Row>
 
         <Divider orientation="left" plain>
-          Задания
+          {t("Задания")}
         </Divider>
 
         <Form.List name="tasks">
@@ -253,32 +256,32 @@ export function WaybillFormModal({ open, onClose }: Props) {
                 <Row key={field.key} gutter={8} align="middle" style={{ marginBottom: 4 }}>
                   <Col span={4}>
                     <Form.Item {...field} name={[field.name, 'flightNumber']} noStyle>
-                      <Input placeholder="Рейс" />
+                      <Input placeholder={t("Рейс")} />
                     </Form.Item>
                   </Col>
                   <Col span={4}>
                     <Form.Item {...field} name={[field.name, 'aircraftReg']} noStyle>
-                      <Input placeholder="Борт" />
+                      <Input placeholder={t("Борт")} />
                     </Form.Item>
                   </Col>
                   <Col span={3}>
                     <Form.Item {...field} name={[field.name, 'standNumber']} noStyle>
-                      <Input placeholder="Стоянка" />
+                      <Input placeholder={t("Стоянка")} />
                     </Form.Item>
                   </Col>
                   <Col span={5}>
                     <Form.Item {...field} name={[field.name, 'toPoint']} noStyle>
-                      <Input placeholder="Куда" />
+                      <Input placeholder={t("Куда")} />
                     </Form.Item>
                   </Col>
                   <Col span={3}>
                     <Form.Item {...field} name={[field.name, 'distanceKm']} noStyle>
-                      <InputNumber placeholder="км" min={0} style={{ width: '100%' }} />
+                      <InputNumber placeholder={t("км")} min={0} style={{ width: '100%' }} />
                     </Form.Item>
                   </Col>
                   <Col span={3}>
                     <Form.Item {...field} name={[field.name, 'engineHours']} noStyle>
-                      <InputNumber placeholder="мч" min={0} style={{ width: '100%' }} />
+                      <InputNumber placeholder={t("мч")} min={0} style={{ width: '100%' }} />
                     </Form.Item>
                   </Col>
                   <Col span={2}>
@@ -297,7 +300,7 @@ export function WaybillFormModal({ open, onClose }: Props) {
                 onClick={() => add({})}
                 style={{ width: '100%', marginTop: 8 }}
               >
-                Добавить задание
+                {t("Добавить задание")}
               </Button>
             </>
           )}
@@ -308,12 +311,12 @@ export function WaybillFormModal({ open, onClose }: Props) {
           клавиши: пересчёт по каждому символу в поле «км» мешает вводу.
         */}
         <Divider orientation="left" plain>
-          Расчёт нормы
+          {t("Расчёт нормы")}
         </Divider>
 
         <Space direction="vertical" style={{ width: '100%' }}>
           <Button onClick={() => form.setFieldsValue({ tasks: form.getFieldValue('tasks') })}>
-            Пересчитать по введённым заданиям
+            {t("Пересчитать по введённым заданиям")}
           </Button>
 
           {!vehicleId && <Typography.Text type="secondary">Выберите технику</Typography.Text>}
@@ -330,7 +333,7 @@ export function WaybillFormModal({ open, onClose }: Props) {
             <Typography.Text type="secondary">
               Действующие ставки:{' '}
               {norms.data.rules
-                .map((r) => `${r.baseRate} ${NORM_TYPE_LABEL[r.normType] ?? r.normType}`)
+                .map((r) => `${r.baseRate} ${t(NORM_TYPE_LABEL[r.normType] ?? r.normType)}`)
                 .join(' · ')}
               {norms.data.adjustments.length > 0 &&
                 ` · надбавки: ${norms.data.adjustments
@@ -351,7 +354,7 @@ export function WaybillFormModal({ open, onClose }: Props) {
           )}
         </Space>
 
-        <Form.Item name="notes" label="Примечание" style={{ marginTop: 16 }}>
+        <Form.Item name="notes" label={t("Примечание")} style={{ marginTop: 16 }}>
           <Input.TextArea rows={2} />
         </Form.Item>
       </Form>

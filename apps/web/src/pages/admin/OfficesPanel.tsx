@@ -6,6 +6,7 @@ import {
   StopOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   App,
@@ -65,6 +66,8 @@ const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 
 /** Логотип офиса в таблице: он же кнопка загрузки и замены. */
 function OfficeLogoCell({ office, manage }: { office: OfficeRow; manage: boolean }) {
+  const { t } = useTranslation();
+
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   // Ключ входит в URL, поэтому после замены картинка перезапрашивается сама,
@@ -148,7 +151,7 @@ function OfficeLogoCell({ office, manage }: { office: OfficeRow; manage: boolean
         </Tooltip>
       </Upload>
       {office.logoKey && (
-        <Popconfirm title="Удалить логотип?" okText="Удалить" cancelText="Отмена" onConfirm={remove}>
+        <Popconfirm title={t("Удалить логотип?")} okText={t("Удалить")} cancelText={t("Отмена")} onConfirm={remove}>
           <Button type="text" size="small" danger icon={<DeleteOutlined />} />
         </Popconfirm>
       )}
@@ -163,6 +166,8 @@ function OfficeLogoCell({ office, manage }: { office: OfficeRow; manage: boolean
  * аэропорта увидит здесь только свой офис, суперадминистратор — все.
  */
 export function OfficesPanel() {
+  const { t } = useTranslation();
+
   const { can } = useAuth();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<OfficeRow | null>(null);
@@ -182,7 +187,7 @@ export function OfficesPanel() {
     async (office: OfficeRow) =>
       (await api.patch(`/offices/${office.id}`, { isActive: !office.isActive })).data,
     {
-      successMessage: 'Состояние офиса изменено',
+      successMessage: t("Состояние офиса изменено"),
       invalidate: [['offices-admin'], ['offices']],
     },
   );
@@ -243,10 +248,7 @@ export function OfficesPanel() {
       </Typography.Paragraph>
 
       <Typography.Paragraph type="secondary">
-        Офис не удаляется — он отключается. Отключённый исчезает из переключателя и из
-        рабочих списков, но техника, путевые листы и вся история остаются на месте, и
-        включить его обратно можно в любой момент. Здесь, в администрировании,
-        отключённые офисы видны всегда — иначе вернуть их было бы нечем.
+        {t("Офис не удаляется — он отключается. Отключённый исчезает из переключателя и из рабочих списков, но техника, путевые листы и вся история остаются на месте, и включить его обратно можно в любой момент. Здесь, в администрировании, отключённые офисы видны всегда — иначе вернуть их было бы нечем.")}
       </Typography.Paragraph>
 
       {manage && (
@@ -259,7 +261,7 @@ export function OfficesPanel() {
             setOpen(true);
           }}
         >
-          Подключить аэропорт
+          {t("Подключить аэропорт")}
         </Button>
       )}
 
@@ -272,31 +274,31 @@ export function OfficesPanel() {
         pagination={false}
         columns={[
           {
-            title: 'Логотип',
+            title: t("Логотип"),
             key: 'logo',
             width: 130,
             render: (_: unknown, row: OfficeRow) => (
               <OfficeLogoCell office={row} manage={manage} />
             ),
           },
-          { title: 'Код', dataIndex: 'code', width: 90 },
-          { title: 'Наименование', dataIndex: 'nameRu' },
+          { title: t("Код"), dataIndex: 'code', width: 90 },
+          { title: t("Наименование"), dataIndex: 'nameRu' },
           {
-            title: 'Тип',
+            title: t("Тип"),
             dataIndex: 'kind',
             width: 150,
             render: (value: string) => (
               <Tag color={value === 'HEADQUARTERS' ? 'purple' : 'blue'}>
-                {KIND_LABEL[value] ?? value}
+                {t(KIND_LABEL[value] ?? value)}
               </Tag>
             ),
           },
           { title: 'IATA', dataIndex: 'iataCode', width: 80 },
           { title: 'ICAO', dataIndex: 'icaoCode', width: 80 },
-          { title: 'Город', dataIndex: 'city', width: 140 },
-          { title: 'Часовой пояс', dataIndex: 'timezone', width: 160 },
+          { title: t("Город"), dataIndex: 'city', width: 140 },
+          { title: t("Часовой пояс"), dataIndex: 'timezone', width: 160 },
           {
-            title: 'Состояние',
+            title: t("Состояние"),
             dataIndex: 'isActive',
             width: 130,
             render: (isActive: boolean) =>
@@ -313,7 +315,7 @@ export function OfficesPanel() {
                   width: 100,
                   render: (_: unknown, row: OfficeRow) => (
                     <Space size={0}>
-                      <Tooltip title="Изменить">
+                      <Tooltip title={t("Изменить")}>
                         <Button
                           type="text"
                           icon={<EditOutlined />}
@@ -331,7 +333,7 @@ export function OfficesPanel() {
                             : 'Офис вернётся в переключатель и станет доступен сотрудникам.'
                         }
                         okText={row.isActive ? 'Отключить' : 'Включить'}
-                        cancelText="Отмена"
+                        cancelText={t("Отмена")}
                         onConfirm={() => toggleActive.mutate(row)}
                       >
                         <Tooltip title={row.isActive ? 'Отключить' : 'Включить'}>
@@ -354,8 +356,8 @@ export function OfficesPanel() {
         open={open}
         width={760}
         title={editing ? `Офис ${editing.code}` : 'Подключение аэропорта'}
-        okText="Сохранить"
-        cancelText="Отмена"
+        okText={t("Сохранить")}
+        cancelText={t("Отмена")}
         confirmLoading={save.isPending}
         onCancel={() => setOpen(false)}
         onOk={() => {
@@ -369,29 +371,29 @@ export function OfficesPanel() {
             <Col span={6}>
               <Form.Item
                 name="code"
-                label="Код"
-                tooltip="2–8 заглавных латинских букв. После создания не меняется."
+                label={t("Код")}
+                tooltip={t("2–8 заглавных латинских букв. После создания не меняется.")}
                 rules={[
-                  { required: true, message: 'Обязательное поле' },
-                  { pattern: /^[A-Z]{2,8}$/, message: '2–8 заглавных латинских букв' },
+                  { required: true, message: t("Обязательное поле") },
+                  { pattern: /^[A-Z]{2,8}$/, message: t("2–8 заглавных латинских букв") },
                 ]}
               >
                 <Input disabled={Boolean(editing)} placeholder="JIZ" />
               </Form.Item>
             </Col>
             <Col span={9}>
-              <Form.Item name="kind" label="Тип" rules={[{ required: true }]}>
+              <Form.Item name="kind" label={t("Тип")} rules={[{ required: true }]}>
                 <Select
                   disabled={Boolean(editing)}
                   options={Object.values(OfficeKind).map((value) => ({
                     value,
-                    label: KIND_LABEL[value] ?? value,
+                    label: t(KIND_LABEL[value] ?? value),
                   }))}
                 />
               </Form.Item>
             </Col>
             <Col span={9}>
-              <Form.Item name="parentId" label="Головной офис">
+              <Form.Item name="parentId" label={t("Головной офис")}>
                 <Select
                   allowClear
                   disabled={Boolean(editing)}
@@ -405,17 +407,17 @@ export function OfficesPanel() {
 
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="nameRu" label="Название (рус)" rules={[{ required: true }]}>
+              <Form.Item name="nameRu" label={t("Название (рус)")} rules={[{ required: true }]}>
                 <Input />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="nameUz" label="Название (узб)" rules={[{ required: true }]}>
+              <Form.Item name="nameUz" label={t("Название (узб)")} rules={[{ required: true }]}>
                 <Input />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="nameEn" label="Название (англ)" rules={[{ required: true }]}>
+              <Form.Item name="nameEn" label={t("Название (англ)")} rules={[{ required: true }]}>
                 <Input />
               </Form.Item>
             </Col>
@@ -433,12 +435,12 @@ export function OfficesPanel() {
               </Form.Item>
             </Col>
             <Col span={7}>
-              <Form.Item name="city" label="Город">
+              <Form.Item name="city" label={t("Город")}>
                 <Input />
               </Form.Item>
             </Col>
             <Col span={7}>
-              <Form.Item name="timezone" label="Часовой пояс">
+              <Form.Item name="timezone" label={t("Часовой пояс")}>
                 <Select
                   options={[
                     { value: 'Asia/Tashkent', label: 'Asia/Tashkent' },
@@ -454,21 +456,21 @@ export function OfficesPanel() {
             <Col span={8}>
               <Form.Item
                 name="winterSurchargePct"
-                label="Надбавка, %"
-                tooltip="Применяется ко всей технике офиса в указанный период"
+                label={t("Надбавка, %")}
+                tooltip={t("Применяется ко всей технике офиса в указанный период")}
               >
                 <InputNumber min={0} max={100} step={0.5} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="winterFromMonth" label="С месяца">
+              <Form.Item name="winterFromMonth" label={t("С месяца")}>
                 <Select
                   options={MONTHS.map((label, index) => ({ value: index + 1, label }))}
                 />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="winterToMonth" label="По месяц">
+              <Form.Item name="winterToMonth" label={t("По месяц")}>
                 <Select
                   options={MONTHS.map((label, index) => ({ value: index + 1, label }))}
                 />
@@ -477,16 +479,16 @@ export function OfficesPanel() {
           </Row>
 
           <Space>
-            <Form.Item name="phone" label="Телефон">
+            <Form.Item name="phone" label={t("Телефон")}>
               <Input style={{ width: 220 }} />
             </Form.Item>
             {editing && (
-              <Form.Item name="isActive" label="Активен" valuePropName="checked">
+              <Form.Item name="isActive" label={t("Активен")} valuePropName="checked">
                 <Switch />
               </Form.Item>
             )}
           </Space>
-          <Form.Item name="address" label="Адрес">
+          <Form.Item name="address" label={t("Адрес")}>
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>
