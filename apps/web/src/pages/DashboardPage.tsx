@@ -53,7 +53,7 @@ export function DashboardPage() {
         <Col xs={12} md={6}>
           <Card>
             <Statistic
-              title={t('dashboard.vehicles')}
+              title={t('Единиц техники')}
               value={summary.data?.vehicles.total ?? 0}
               loading={summary.isLoading}
             />
@@ -62,7 +62,7 @@ export function DashboardPage() {
         <Col xs={12} md={6}>
           <Card>
             <Statistic
-              title={t('dashboard.activeVehicles')}
+              title={t('В строю')}
               value={summary.data?.vehicles.active ?? 0}
               loading={summary.isLoading}
             />
@@ -71,7 +71,7 @@ export function DashboardPage() {
         <Col xs={12} md={6}>
           <Card>
             <Statistic
-              title={t('dashboard.drivers')}
+              title={t('Водителей')}
               value={summary.data?.drivers ?? 0}
               loading={summary.isLoading}
             />
@@ -80,7 +80,7 @@ export function DashboardPage() {
         <Col xs={12} md={6}>
           <Card>
             <Statistic
-              title={t('dashboard.openWaybills')}
+              title={t('Открытых путевых листов')}
               value={summary.data?.openWaybills ?? 0}
               loading={summary.isLoading}
             />
@@ -90,7 +90,7 @@ export function DashboardPage() {
 
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} lg={10}>
-          <Card title={t('dashboard.tanks')} loading={summary.isLoading}>
+          <Card title={t('Остатки в ёмкостях')} loading={summary.isLoading}>
             {summary.data?.tanks.map((tank) => {
               const percent = Math.round(
                 (Number(tank.currentVolume) / Number(tank.capacity)) * 100,
@@ -118,7 +118,7 @@ export function DashboardPage() {
             Виджет истекающих сроков — самый ценный экран системы:
             просроченный допуск на перрон означает недопуск техники к рейсу.
           */}
-          <Card title={t('dashboard.expiring')}>
+          <Card title={t('Истекающие документы')}>
             <StickyTable<ExpiryAlertDto>
               size="small"
               rowKey={(row) => `${row.entityType}-${row.entityId}`}
@@ -129,12 +129,12 @@ export function DashboardPage() {
                 { title: 'Сотрудник', dataIndex: 'subjectLabel' },
                 { title: 'Документ', dataIndex: 'documentType', width: 160 },
                 {
-                  title: t('dashboard.daysLeft'),
+                  title: t('Осталось дней'),
                   dataIndex: 'daysLeft',
                   width: 130,
                   render: (days: number) =>
                     days < 0 ? (
-                      <Tag color="red">{t('dashboard.expired')}</Tag>
+                      <Tag color="red">{t('Просрочено')}</Tag>
                     ) : (
                       <Tag color={days <= 7 ? 'orange' : 'blue'}>{days}</Tag>
                     ),

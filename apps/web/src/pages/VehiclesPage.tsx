@@ -20,6 +20,7 @@ import {
 } from 'antd';
 import dayjs from 'dayjs';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { PERMISSIONS, VehicleCategory, VehicleStatus } from '@gsm/shared';
 
 import { api } from '@/api/client';
@@ -62,6 +63,7 @@ interface VehicleRow {
 
 export function VehiclesPage() {
   const { can, user } = useAuth();
+  const { t } = useTranslation();
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -87,7 +89,7 @@ export function VehiclesPage() {
       const { data } = await api.delete(`/vehicles/${id}`);
       return data;
     },
-    { successMessage: 'Техника списана с учёта', invalidate: [['vehicles'], ['office-summary']] },
+    { successMessage: t('Техника списана с учёта'), invalidate: [['vehicles'], ['office-summary']] },
   );
 
   const transfer = useApiMutation(
@@ -99,21 +101,21 @@ export function VehiclesPage() {
       });
       return data;
     },
-    { successMessage: 'Техника передана', invalidate: [['vehicles'], ['office-summary']] },
+    { successMessage: t('Техника передана'), invalidate: [['vehicles'], ['office-summary']] },
   );
 
   if (!can(PERMISSIONS.VEHICLE_READ)) {
-    return <Typography.Text type="danger">Нет прав на просмотр транспорта</Typography.Text>;
+    return <Typography.Text type="danger">{t('Нет прав на просмотр транспорта')}</Typography.Text>;
   }
 
   return (
     <TableCard
-      title="Транспорт и спецтехника"
+      title={t('Транспорт и спецтехника')}
       extra={
         <Space wrap>
           <Input.Search
             allowClear
-            placeholder="Гаражный номер, госномер, VIN"
+            placeholder={t('Гаражный номер, госномер, VIN')}
             style={{ width: 260 }}
             onSearch={(value) => {
               setSearch(value);
@@ -122,7 +124,7 @@ export function VehiclesPage() {
           />
           <Select
             allowClear
-            placeholder="Категория"
+            placeholder={t('Категория')}
             style={{ width: 200 }}
             value={category}
             onChange={(value) => {
@@ -131,12 +133,12 @@ export function VehiclesPage() {
             }}
             options={Object.values(VehicleCategory).map((c) => ({
               value: c,
-              label: CATEGORY_LABEL[c] ?? c,
+              label: t(CATEGORY_LABEL[c] ?? c),
             }))}
           />
           <Select
             allowClear
-            placeholder="Статус"
+            placeholder={t('Статус')}
             style={{ width: 150 }}
             value={status}
             onChange={(value) => {
@@ -145,7 +147,7 @@ export function VehiclesPage() {
             }}
             options={Object.values(VehicleStatus).map((s) => ({
               value: s,
-              label: STATUS_LABEL[s] ?? s,
+              label: t(STATUS_LABEL[s] ?? s),
             }))}
           />
           {can(PERMISSIONS.VEHICLE_CREATE) && (
@@ -157,7 +159,7 @@ export function VehiclesPage() {
                 setFormOpen(true);
               }}
             >
-              Поставить на учёт
+              {t('Поставить на учёт')}
             </Button>
           )}
         </Space>
@@ -176,7 +178,7 @@ export function VehiclesPage() {
           pageSize,
           total: query.data?.meta.total ?? 0,
           showSizeChanger: true,
-          showTotal: (total) => `Всего: ${total}`,
+          showTotal: (total) => `${t('Всего:')} ${total}`,
           onChange: (nextPage, nextSize) => {
             setPage(nextPage);
             setPageSize(nextSize);
@@ -184,7 +186,7 @@ export function VehiclesPage() {
         }}
         columns={[
           {
-            title: 'Фото',
+            title: t('Фото'),
             key: 'photo',
             width: 70,
             align: 'center',
@@ -196,7 +198,7 @@ export function VehiclesPage() {
                 return null;
               }
               return (
-                <Tooltip title="Показать фото">
+                <Tooltip title={t('Показать фото')}>
                   <Button
                     type="text"
                     size="small"
@@ -210,43 +212,43 @@ export function VehiclesPage() {
               );
             },
           },
-          { title: 'Гаражный', dataIndex: 'garageNumber', width: 120 },
-          { title: 'Госномер', dataIndex: 'plateNumber', width: 140 },
+          { title: t('Гаражный'), dataIndex: 'garageNumber', width: 120 },
+          { title: t('Госномер'), dataIndex: 'plateNumber', width: 140 },
           {
-            title: 'Категория',
+            title: t('Категория'),
             dataIndex: 'category',
-            render: (value: string) => CATEGORY_LABEL[value] ?? value,
+            render: (value: string) => t(CATEGORY_LABEL[value] ?? value),
           },
           {
-            title: 'Модель',
+            title: t('Модель'),
             dataIndex: 'model',
             render: (model: VehicleRow['model']) =>
               model ? `${model.manufacturer} ${model.model}` : '—',
           },
           {
-            title: 'Статус',
+            title: t('Статус'),
             dataIndex: 'status',
             width: 120,
             render: (value: string) => (
-              <Tag color={STATUS_COLOR[value] ?? 'default'}>{STATUS_LABEL[value] ?? value}</Tag>
+              <Tag color={STATUS_COLOR[value] ?? 'default'}>{t(STATUS_LABEL[value] ?? value)}</Tag>
             ),
           },
           {
-            title: 'Одометр, км',
+            title: t('Одометр, км'),
             dataIndex: 'currentOdometer',
             width: 120,
             align: 'right',
             render: (value: string | null) => fmt(value),
           },
           {
-            title: 'Моточасы',
+            title: t('Моточасы'),
             dataIndex: 'currentEngineHours',
             width: 110,
             align: 'right',
             render: (value: string | null) => fmt(value),
           },
           {
-            title: 'В баке, л',
+            title: t('В баке, л'),
             dataIndex: 'currentFuelLevel',
             width: 100,
             align: 'right',
@@ -258,7 +260,7 @@ export function VehiclesPage() {
             render: (_: unknown, row: VehicleRow) => (
               <Space size={0} onClick={(event) => event.stopPropagation()}>
                 {can(PERMISSIONS.VEHICLE_UPDATE) && (
-                  <Tooltip title="Изменить">
+                  <Tooltip title={t('Изменить')}>
                     <Button
                       type="text"
                       icon={<EditOutlined />}
@@ -288,7 +290,7 @@ export function VehiclesPage() {
                   </Tooltip>
                 )}
                 {can(PERMISSIONS.VEHICLE_TRANSFER) && (
-                  <Tooltip title="Передать в другой аэропорт">
+                  <Tooltip title={t('Передать в другой аэропорт')}>
                     <Button
                       type="text"
                       icon={<SwapOutlined />}
@@ -301,13 +303,13 @@ export function VehiclesPage() {
                 )}
                 {can(PERMISSIONS.VEHICLE_DELETE) && (
                   <Popconfirm
-                    title="Списать технику с учёта?"
-                    description="Документы за прошлые периоды сохранятся."
-                    okText="Списать"
-                    cancelText="Отмена"
+                    title={t('Списать технику с учёта?')}
+                    description={t('Документы за прошлые периоды сохранятся.')}
+                    okText={t('Списать')}
+                    cancelText={t('Отмена')}
                     onConfirm={() => remove.mutate(row.id)}
                   >
-                    <Tooltip title="Списать">
+                    <Tooltip title={t('Списать')}>
                       <Button type="text" danger icon={<DeleteOutlined />} />
                     </Tooltip>
                   </Popconfirm>
@@ -333,8 +335,8 @@ export function VehiclesPage() {
       <Modal
         open={transferFor !== null}
         title={`Передача техники ${transferFor?.garageNumber ?? ''}`}
-        okText="Передать"
-        cancelText="Отмена"
+        okText={t('Передать')}
+        cancelText={t('Отмена')}
         confirmLoading={transfer.isPending}
         onCancel={() => setTransferFor(null)}
         onOk={() => {
@@ -344,14 +346,14 @@ export function VehiclesPage() {
         }}
       >
         <Typography.Paragraph type="secondary">
-          Текущий период приписки будет закрыт, откроется новый. Отчёты за прошлые периоды
+          {t('Текущий период приписки будет закрыт, откроется новый. Отчёты за прошлые периоды')}
           останутся за нынешним офисом.
         </Typography.Paragraph>
         <Form form={transferForm} layout="vertical">
           <Form.Item
             name="targetOfficeId"
-            label="Офис назначения"
-            rules={[{ required: true, message: 'Выберите офис' }]}
+            label={t('Офис назначения')}
+            rules={[{ required: true, message: t('Выберите офис') }]}
           >
             <Select
               showSearch
@@ -363,13 +365,13 @@ export function VehiclesPage() {
           </Form.Item>
           <Form.Item
             name="effectiveFrom"
-            label="Дата передачи"
-            rules={[{ required: true, message: 'Укажите дату' }]}
+            label={t('Дата передачи')}
+            rules={[{ required: true, message: t('Укажите дату') }]}
           >
             <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
           </Form.Item>
-          <Form.Item name="reason" label="Основание">
-            <Input placeholder="Приказ № ... от ..." />
+          <Form.Item name="reason" label={t('Основание')}>
+            <Input placeholder={t('Приказ № ... от ...')} />
           </Form.Item>
         </Form>
       </Modal>

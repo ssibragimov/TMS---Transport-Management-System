@@ -56,53 +56,53 @@ export function AppLayout() {
     label: string;
     permission?: Permission;
   }> = [
-    { key: '/', icon: <DashboardOutlined />, label: t('nav.dashboard') },
+    { key: '/', icon: <DashboardOutlined />, label: t('Главная') },
     {
       key: '/vehicles',
       icon: <CarOutlined />,
-      label: t('nav.vehicles'),
+      label: t('Транспорт'),
       permission: PERMISSIONS.VEHICLE_READ,
     },
     {
       key: '/drivers',
       icon: <TeamOutlined />,
-      label: t('nav.drivers'),
+      label: t('Водители'),
       permission: PERMISSIONS.DRIVER_READ,
     },
     {
       key: '/fuel',
       icon: <ToolOutlined />,
-      label: t('nav.fuel'),
+      label: t('ГСМ'),
       permission: PERMISSIONS.FUEL_READ,
     },
     {
       key: '/waybills',
       icon: <FileTextOutlined />,
-      label: t('nav.waybills'),
+      label: t('Путевые листы'),
       permission: PERMISSIONS.WAYBILL_READ,
     },
     {
       key: '/reports',
       icon: <BarChartOutlined />,
-      label: t('nav.reports'),
+      label: t('Отчёты'),
       permission: PERMISSIONS.REPORT_READ,
     },
     {
       key: '/users',
       icon: <SafetyOutlined />,
-      label: t('nav.users'),
+      label: t('Пользователи'),
       permission: PERMISSIONS.USER_READ,
     },
     {
       key: '/admin',
       icon: <DatabaseOutlined />,
-      label: t('nav.admin'),
+      label: t('Администрирование'),
       permission: PERMISSIONS.DICTIONARY_READ,
     },
     {
       key: '/audit',
       icon: <HistoryOutlined />,
-      label: t('nav.audit'),
+      label: t('Журнал действий'),
       permission: PERMISSIONS.AUDIT_READ,
     },
   ];
@@ -187,7 +187,7 @@ export function AppLayout() {
                 {
                   key: 'logout',
                   icon: <LogoutOutlined />,
-                  label: t('auth.signOut'),
+                  label: t('Выйти'),
                   onClick: () => void logout(),
                 },
               ],
@@ -229,17 +229,17 @@ export function AppLayout() {
             кнопка оказывается под ним независимо от числа пунктов.
           */}
           <Tooltip
-            title={collapsed ? t('nav.expandMenu') : t('nav.collapseMenu')}
+            title={collapsed ? t('Развернуть меню') : t('Свернуть меню')}
             placement="right"
           >
             <button
               type="button"
               className="gsm-sider-toggle"
-              aria-label={collapsed ? t('nav.expandMenu') : t('nav.collapseMenu')}
+              aria-label={collapsed ? t('Развернуть меню') : t('Свернуть меню')}
               onClick={toggleCollapsed}
             >
               {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              {!collapsed && <span>{t('nav.collapseMenu')}</span>}
+              {!collapsed && <span>{t('Свернуть меню')}</span>}
             </button>
           </Tooltip>
         </Sider>

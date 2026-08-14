@@ -17,6 +17,7 @@ import {
 } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { PERMISSIONS } from '@gsm/shared';
 
 import { api } from '@/api/client';
@@ -53,6 +54,7 @@ function nearestExpiry(row: DriverRow): string | null {
 
 export function DriversPage() {
   const { can } = useAuth();
+  const { t } = useTranslation();
   const dictionaries = useDictionaries();
 
   const [page, setPage] = useState(1);
@@ -100,28 +102,28 @@ export function DriversPage() {
       return data;
     },
     {
-      successMessage: editing ? 'Карточка обновлена' : 'Водитель принят',
+      successMessage: editing ? t('Карточка обновлена') : t('Водитель принят'),
       invalidate: [['drivers'], ['office-summary']],
     },
   );
 
   const remove = useApiMutation(
     async (id: number) => (await api.delete(`/drivers/${id}`)).data,
-    { successMessage: 'Водитель удалён', invalidate: [['drivers'], ['office-summary']] },
+    { successMessage: t('Водитель удалён'), invalidate: [['drivers'], ['office-summary']] },
   );
 
   if (!can(PERMISSIONS.DRIVER_READ)) {
-    return <Typography.Text type="danger">Нет прав на просмотр водителей</Typography.Text>;
+    return <Typography.Text type="danger">{t('Нет прав на просмотр водителей')}</Typography.Text>;
   }
 
   return (
     <TableCard
-      title="Водители"
+      title={t('Водители')}
       extra={
         <Space wrap>
           <Input.Search
             allowClear
-            placeholder="Фамилия или табельный номер"
+            placeholder={t('Фамилия или табельный номер')}
             style={{ width: 260 }}
             onSearch={(value) => {
               setSearch(value);
@@ -137,7 +139,7 @@ export function DriversPage() {
                 setFormOpen(true);
               }}
             >
-              Принять водителя
+              {t('Принять водителя')}
             </Button>
           )}
         </Space>
@@ -154,47 +156,47 @@ export function DriversPage() {
           pageSize,
           total: query.data?.meta.total ?? 0,
           showSizeChanger: true,
-          showTotal: (total) => `Всего: ${total}`,
+          showTotal: (total) => `${t('Всего:')} ${total}`,
           onChange: (nextPage, nextSize) => {
             setPage(nextPage);
             setPageSize(nextSize);
           },
         }}
         columns={[
-          { title: 'Табельный', dataIndex: 'personnelNumber', width: 120 },
+          { title: t('Табельный'), dataIndex: 'personnelNumber', width: 120 },
           {
-            title: 'ФИО',
+            title: t('ФИО'),
             render: (_: unknown, row: DriverRow) =>
               `${row.lastName} ${row.firstName} ${row.middleName ?? ''}`.trim(),
           },
           {
-            title: 'Подразделение',
+            title: t('Подразделение'),
             dataIndex: 'department',
             render: (department: DriverRow['department']) => department?.name ?? '—',
           },
-          { title: 'Телефон', dataIndex: 'phone', width: 160 },
+          { title: t('Телефон'), dataIndex: 'phone', width: 160 },
           {
-            title: 'Ближайший срок',
+            title: t('Ближайший срок'),
             width: 170,
             render: (_: unknown, row: DriverRow) => {
               const date = nearestExpiry(row);
-              if (!date) return <Tag color="red">нет документов</Tag>;
+              if (!date) return <Tag color="red">{t('нет документов')}</Tag>;
               const daysLeft = dayjs(date).diff(dayjs(), 'day');
               const color = daysLeft < 0 ? 'red' : daysLeft <= 30 ? 'orange' : 'green';
               return (
                 <Tag color={color}>
                   {dayjs(date).format('DD.MM.YYYY')}
-                  {daysLeft < 0 ? ' (просрочен)' : ''}
+                  {daysLeft < 0 ? ` ${t('(просрочен)')}` : ''}
                 </Tag>
               );
             },
           },
           {
-            title: 'Статус',
+            title: t('Статус'),
             dataIndex: 'isActive',
             width: 110,
             render: (active: boolean) => (
-              <Tag color={active ? 'green' : 'default'}>{active ? 'Работает' : 'Уволен'}</Tag>
+              <Tag color={active ? 'green' : 'default'}>{active ? t('Работает') : t('Уволен')}</Tag>
             ),
           },
           {
@@ -203,7 +205,7 @@ export function DriversPage() {
             render: (_: unknown, row: DriverRow) => (
               <Space size={0} onClick={(event) => event.stopPropagation()}>
                 {can(PERMISSIONS.DRIVER_UPDATE) && (
-                  <Tooltip title="Изменить">
+                  <Tooltip title={t('Изменить')}>
                     <Button
                       type="text"
                       icon={<EditOutlined />}
@@ -216,12 +218,12 @@ export function DriversPage() {
                 )}
                 {can(PERMISSIONS.DRIVER_DELETE) && (
                   <Popconfirm
-                    title="Удалить водителя?"
-                    okText="Удалить"
-                    cancelText="Отмена"
+                    title={t('Удалить водителя?')}
+                    okText={t('Удалить')}
+                    cancelText={t('Отмена')}
                     onConfirm={() => remove.mutate(row.id)}
                   >
-                    <Tooltip title="Удалить">
+                    <Tooltip title={t('Удалить')}>
                       <Button type="text" danger icon={<DeleteOutlined />} />
                     </Tooltip>
                   </Popconfirm>
@@ -237,8 +239,8 @@ export function DriversPage() {
       <Modal
         open={formOpen}
         title={editing ? 'Карточка водителя' : 'Приём водителя'}
-        okText="Сохранить"
-        cancelText="Отмена"
+        okText={t('Сохранить')}
+        cancelText={t('Отмена')}
         width={680}
         confirmLoading={save.isPending}
         onCancel={() => setFormOpen(false)}
@@ -253,36 +255,36 @@ export function DriversPage() {
             <Col span={8}>
               <Form.Item
                 name="personnelNumber"
-                label="Табельный номер"
-                rules={[{ required: true, message: 'Обязательное поле' }]}
+                label={t('Табельный номер')}
+                rules={[{ required: true, message: t('Обязательное поле') }]}
               >
                 <Input disabled={Boolean(editing)} />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="lastName" label="Фамилия" rules={[{ required: true }]}>
+              <Form.Item name="lastName" label={t('Фамилия')} rules={[{ required: true }]}>
                 <Input />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="firstName" label="Имя" rules={[{ required: true }]}>
+              <Form.Item name="firstName" label={t('Имя')} rules={[{ required: true }]}>
                 <Input />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="middleName" label="Отчество">
+              <Form.Item name="middleName" label={t('Отчество')}>
                 <Input />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="phone" label="Телефон">
+              <Form.Item name="phone" label={t('Телефон')}>
                 <Input placeholder="+998 90 123-45-67" />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="departmentId" label="Подразделение">
+              <Form.Item name="departmentId" label={t('Подразделение')}>
                 <Select
                   allowClear
                   options={dictionaries.data?.departments.map((d) => ({
@@ -295,12 +297,12 @@ export function DriversPage() {
           </Row>
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="birthDate" label="Дата рождения">
+              <Form.Item name="birthDate" label={t('Дата рождения')}>
                 <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="hireDate" label="Дата приёма">
+              <Form.Item name="hireDate" label={t('Дата приёма')}>
                 <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
               </Form.Item>
             </Col>
@@ -308,8 +310,8 @@ export function DriversPage() {
               <Col span={8}>
                 <Form.Item
                   name="dismissDate"
-                  label="Дата увольнения"
-                  tooltip="После заполнения водитель исчезнет из списка выдачи путевых листов"
+                  label={t('Дата увольнения')}
+                  tooltip={t('После заполнения водитель исчезнет из списка выдачи путевых листов')}
                 >
                   <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
                 </Form.Item>
@@ -317,11 +319,11 @@ export function DriversPage() {
             )}
           </Row>
           {editing && (
-            <Form.Item name="isActive" label="Работает" valuePropName="checked">
+            <Form.Item name="isActive" label={t('Работает')} valuePropName="checked">
               <Switch />
             </Form.Item>
           )}
-          <Form.Item name="notes" label="Примечание">
+          <Form.Item name="notes" label={t('Примечание')}>
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>

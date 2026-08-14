@@ -2,6 +2,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import { Button, DatePicker, Input, Select, Space, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { PERMISSIONS, WaybillStatus } from '@gsm/shared';
 
 import { usePaged } from '@/api/hooks';
@@ -34,6 +35,7 @@ interface WaybillRow {
 
 export function WaybillsPage() {
   const { can } = useAuth();
+  const { t } = useTranslation();
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -56,17 +58,17 @@ export function WaybillsPage() {
   });
 
   if (!can(PERMISSIONS.WAYBILL_READ)) {
-    return <Typography.Text type="danger">Нет прав на просмотр путевых листов</Typography.Text>;
+    return <Typography.Text type="danger">{t('Нет прав на просмотр путевых листов')}</Typography.Text>;
   }
 
   return (
     <TableCard
-      title="Путевые листы"
+      title={t('Путевые листы')}
       extra={
         <Space wrap>
           <Input.Search
             allowClear
-            placeholder="Номер листа"
+            placeholder={t('Номер листа')}
             style={{ width: 200 }}
             onSearch={(value) => {
               setSearch(value);
@@ -82,7 +84,7 @@ export function WaybillsPage() {
           />
           <Select
             allowClear
-            placeholder="Статус"
+            placeholder={t('Статус')}
             style={{ width: 160 }}
             value={status}
             onChange={(value) => {
@@ -91,7 +93,7 @@ export function WaybillsPage() {
             }}
             options={Object.values(WaybillStatus).map((s) => ({
               value: s,
-              label: WAYBILL_STATUS_LABEL[s] ?? s,
+              label: t(WAYBILL_STATUS_LABEL[s] ?? s),
             }))}
           />
           {/* Быстрый фильтр «где перерасход» — главный сценарий работы с журналом. */}
@@ -103,11 +105,11 @@ export function WaybillsPage() {
               setPage(1);
             }}
           >
-            Только перерасход
+            {t('Только перерасход')}
           </Button>
           {can(PERMISSIONS.WAYBILL_CREATE) && (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setFormOpen(true)}>
-              Создать
+              {t('Создать')}
             </Button>
           )}
         </Space>
@@ -123,62 +125,62 @@ export function WaybillsPage() {
           pageSize,
           total: query.data?.meta.total ?? 0,
           showSizeChanger: true,
-          showTotal: (total) => `Всего: ${total}`,
+          showTotal: (total) => `${t('Всего:')} ${total}`,
           onChange: (nextPage, nextSize) => {
             setPage(nextPage);
             setPageSize(nextSize);
           },
         }}
         columns={[
-          { title: 'Номер', dataIndex: 'number', width: 185 },
+          { title: t('Номер'), dataIndex: 'number', width: 185 },
           {
-            title: 'Период',
+            title: t('Период'),
             width: 200,
             render: (_: unknown, row: WaybillRow) =>
               `${dayjs(row.validFrom).format('DD.MM.YYYY HH:mm')} — ${dayjs(row.validTo).format('HH:mm')}`,
           },
           {
-            title: 'Техника',
+            title: t('Техника'),
             render: (_: unknown, row: WaybillRow) => row.vehicle?.garageNumber ?? '—',
           },
           {
-            title: 'Водитель',
+            title: t('Водитель'),
             render: (_: unknown, row: WaybillRow) =>
               row.driver ? `${row.driver.lastName} ${row.driver.firstName}` : '—',
           },
           {
-            title: 'Статус',
+            title: t('Статус'),
             dataIndex: 'status',
             width: 130,
             render: (value: string) => (
               <Tag color={WAYBILL_STATUS_COLOR[value] ?? 'default'}>
-                {WAYBILL_STATUS_LABEL[value] ?? value}
+                {t(WAYBILL_STATUS_LABEL[value] ?? value)}
               </Tag>
             ),
           },
           {
-            title: 'Пробег, км',
+            title: t('Пробег, км'),
             dataIndex: 'distanceKm',
             width: 110,
             align: 'right',
             render: (value: string | null) => fmt(value, 1),
           },
           {
-            title: 'Норма, л',
+            title: t('Норма, л'),
             dataIndex: 'fuelNorm',
             width: 100,
             align: 'right',
             render: (value: string | null) => fmt(value, 2),
           },
           {
-            title: 'Факт, л',
+            title: t('Факт, л'),
             dataIndex: 'fuelConsumed',
             width: 100,
             align: 'right',
             render: (value: string | null) => fmt(value, 2),
           },
           {
-            title: 'Отклонение',
+            title: t('Отклонение'),
             dataIndex: 'fuelDeviationPct',
             width: 120,
             align: 'right',

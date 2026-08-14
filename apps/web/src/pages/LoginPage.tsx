@@ -44,9 +44,9 @@ export function LoginPage() {
     >
       <Card style={{ width: 400 }} styles={{ body: { padding: 32 } }}>
         <Typography.Title level={3} style={{ marginBottom: 4 }}>
-          {t('auth.title')}
+          {t('Вход в систему')}
         </Typography.Title>
-        <Typography.Text type="secondary">{t('auth.subtitle')}</Typography.Text>
+        <Typography.Text type="secondary">{t('Учёт спецтранспорта и ГСМ')}</Typography.Text>
 
         {error && (
           <Alert type="error" message={error} showIcon style={{ margin: '16px 0' }} />
@@ -55,7 +55,7 @@ export function LoginPage() {
         <Form<LoginForm> layout="vertical" onFinish={onFinish} style={{ marginTop: 24 }}>
           <Form.Item
             name="email"
-            label={t('auth.email')}
+            label={t('Электронная почта')}
             rules={[{ required: true, type: 'email' }]}
           >
             <Input size="large" autoComplete="username" autoFocus />
@@ -63,14 +63,14 @@ export function LoginPage() {
 
           <Form.Item
             name="password"
-            label={t('auth.password')}
+            label={t('Пароль')}
             rules={[{ required: true, min: 8 }]}
           >
             <Input.Password size="large" autoComplete="current-password" />
           </Form.Item>
 
           <Button type="primary" htmlType="submit" size="large" block loading={submitting}>
-            {t('auth.signIn')}
+            {t('Войти')}
           </Button>
         </Form>
       </Card>
