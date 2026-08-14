@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { Card, Col, Progress, Row, Statistic, Table, Tag, Typography } from 'antd';
+import { Card, Col, Progress, Row, Statistic, Tag, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import type { ExpiryAlertDto } from '@gsm/shared';
 
 import { api } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
+import { StickyTable } from '@/components/StickyTable';
 
 interface OfficeSummary {
   vehicles: { total: number; active: number };
@@ -118,7 +119,7 @@ export function DashboardPage() {
             просроченный допуск на перрон означает недопуск техники к рейсу.
           */}
           <Card title={t('dashboard.expiring')}>
-            <Table<ExpiryAlertDto>
+            <StickyTable<ExpiryAlertDto>
               size="small"
               rowKey={(row) => `${row.entityType}-${row.entityId}`}
               loading={expiring.isLoading}

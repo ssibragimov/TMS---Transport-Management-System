@@ -184,9 +184,9 @@ export function VehiclesPage() {
         }}
         columns={[
           {
-            title: '',
+            title: 'Фото',
             key: 'photo',
-            width: 44,
+            width: 70,
             align: 'center',
             render: (_: unknown, row: VehicleRow) => {
               const photo = row.photos?.[0];

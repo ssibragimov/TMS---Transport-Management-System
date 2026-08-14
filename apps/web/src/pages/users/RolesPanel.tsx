@@ -9,7 +9,6 @@ import {
   Modal,
   Popconfirm,
   Space,
-  Table,
   Tag,
   Tooltip,
   Typography,
@@ -20,6 +19,7 @@ import { PERMISSIONS } from '@gsm/shared';
 import { api } from '@/api/client';
 import { useApiMutation } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { StickyTable } from '@/components/StickyTable';
 
 interface RoleRow {
   id: number;
@@ -112,7 +112,7 @@ export function RolesPanel() {
         </Typography.Text>
       </Space>
 
-      <Table<RoleRow>
+      <StickyTable<RoleRow>
         rowKey="id"
         size="small"
         loading={roles.isLoading}

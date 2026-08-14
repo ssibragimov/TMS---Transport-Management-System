@@ -9,7 +9,6 @@ import {
   Select,
   Space,
   Statistic,
-  Table,
   Tabs,
   Tag,
   Typography,
@@ -21,6 +20,7 @@ import { PERMISSIONS, VehicleCategory } from '@gsm/shared';
 import { api } from '@/api/client';
 import { useDictionaries, useDownload } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { StickyTable } from '@/components/StickyTable';
 import { CATEGORY_LABEL, DOCUMENT_TYPE_LABEL, deviationColor, fmt } from '@/lib/labels';
 
 interface Summary {
@@ -251,7 +251,7 @@ export function ReportsPage() {
                   <Space style={{ marginBottom: 12 }}>
                     {exportButton('/reports/fuel-consumption.csv', 'rashod-gsm.csv')}
                   </Space>
-                  <Table<ConsumptionRow>
+                  <StickyTable<ConsumptionRow>
                     rowKey="vehicleId"
                     size="small"
                     loading={consumption.isLoading}
@@ -344,7 +344,7 @@ export function ReportsPage() {
                   <Space style={{ marginBottom: 12 }}>
                     {exportButton('/reports/driver-activity.csv', 'voditeli.csv')}
                   </Space>
-                  <Table<DriverRow>
+                  <StickyTable<DriverRow>
                     rowKey="driverId"
                     size="small"
                     loading={drivers.isLoading}
@@ -403,7 +403,7 @@ export function ReportsPage() {
                   <Space style={{ marginBottom: 12 }}>
                     {exportButton('/reports/fuel-movement.csv', 'dvizhenie-gsm.csv')}
                   </Space>
-                  <Table<MovementRow>
+                  <StickyTable<MovementRow>
                     rowKey="tankId"
                     size="small"
                     loading={movement.isLoading}
@@ -452,7 +452,7 @@ export function ReportsPage() {
               key: 'expiring',
               label: `Истекающие документы (${expiring.data?.length ?? 0})`,
               children: (
-                <Table<ExpiryRow>
+                <StickyTable<ExpiryRow>
                   rowKey={(row) => `${row.entityType}-${row.entityId}`}
                   size="small"
                   loading={expiring.isLoading}

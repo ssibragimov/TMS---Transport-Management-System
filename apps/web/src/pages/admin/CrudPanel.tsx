@@ -7,7 +7,6 @@ import {
   Modal,
   Popconfirm,
   Space,
-  Table,
   Tooltip,
   Typography,
 } from 'antd';
@@ -18,6 +17,7 @@ import type { ReactNode } from 'react';
 
 import { api } from '@/api/client';
 import { useApiMutation } from '@/api/hooks';
+import { StickyTable } from '@/components/StickyTable';
 
 export interface CrudPanelProps<T extends { id: number; isActive?: boolean }> {
   /** Базовый путь ресурса, например `/dictionaries/fuel-types` */
@@ -152,7 +152,7 @@ export function CrudPanel<T extends { id: number; isActive?: boolean }>({
         </Checkbox>
       </Space>
 
-      <Table<T>
+      <StickyTable<T>
         rowKey="id"
         size="small"
         loading={query.isLoading}

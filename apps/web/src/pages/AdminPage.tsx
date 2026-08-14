@@ -6,7 +6,6 @@ import {
   InputNumber,
   Select,
   Switch,
-  Table,
   Tabs,
   Tag,
   Typography,
@@ -16,6 +15,7 @@ import { MeterType, PERMISSIONS, VehicleCategory } from '@gsm/shared';
 import { api } from '@/api/client';
 import { useDictionaries } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { StickyTable } from '@/components/StickyTable';
 import { TableCard } from '@/components/TableCard';
 import { CATEGORY_LABEL, METER_LABEL, fmt } from '@/lib/labels';
 
@@ -425,7 +425,7 @@ export function AdminPage() {
                   и форму стоит делать после того, как согласован состав надбавок.
                   Действующие нормы конкретной техники видны в её карточке.
                 </Typography.Paragraph>
-                <Table
+                <StickyTable
                   size="small"
                   pagination={false}
                   dataSource={dictionaries.data?.vehicleModels.slice(0, 5) ?? []}

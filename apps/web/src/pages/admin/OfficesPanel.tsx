@@ -13,7 +13,6 @@ import {
   Select,
   Space,
   Switch,
-  Table,
   Tag,
   Tooltip,
   Typography,
@@ -26,6 +25,7 @@ import { OfficeKind, PERMISSIONS } from '@gsm/shared';
 import { api, errorMessage } from '@/api/client';
 import { useApiMutation, useAuthedImage } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { StickyTable } from '@/components/StickyTable';
 
 interface OfficeRow {
   id: number;
@@ -96,19 +96,21 @@ function OfficeLogoCell({ office, manage }: { office: OfficeRow; manage: boolean
     }
   };
 
+  // Высота задана, ширина — по пропорциям файла: логотип показывается таким,
+  // каким загружен, а не вписанным в квадрат с пустыми полями.
   const preview = src ? (
     <img
       src={src}
       alt=""
-      style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: 4 }}
+      style={{ height: 28, width: 'auto', maxWidth: 96, objectFit: 'contain', display: 'block' }}
     />
   ) : (
     <div
       style={{
-        width: 32,
-        height: 32,
-        display: 'grid',
-        placeItems: 'center',
+        height: 28,
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 8px',
         borderRadius: 4,
         background: '#f0f0f0',
         color: '#8c8c8c',
@@ -234,7 +236,7 @@ export function OfficesPanel() {
         </Button>
       )}
 
-      <Table<OfficeRow>
+      <StickyTable<OfficeRow>
         rowKey="id"
         size="small"
         loading={offices.isLoading}

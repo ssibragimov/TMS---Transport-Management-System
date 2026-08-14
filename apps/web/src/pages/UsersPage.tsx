@@ -8,7 +8,6 @@ import {
   Popconfirm,
   Select,
   Space,
-  Table,
   Tabs,
   Tag,
   Tooltip,
@@ -21,6 +20,7 @@ import { PERMISSIONS } from '@gsm/shared';
 import { api } from '@/api/client';
 import { useApiMutation, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { StickyTable } from '@/components/StickyTable';
 import { TableCard } from '@/components/TableCard';
 
 import { RolesPanel } from './users/RolesPanel';
@@ -140,7 +140,7 @@ export function UsersPage() {
                   )}
                 </Space>
 
-                <Table<UserDetail & { lastLoginAt: string | null }>
+                <StickyTable<UserDetail & { lastLoginAt: string | null }>
                   rowKey="id"
                   loading={query.isLoading}
                   dataSource={query.data?.items ?? []}
