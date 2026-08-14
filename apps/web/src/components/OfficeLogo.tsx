@@ -12,7 +12,8 @@ interface OfficeLogoProps {
   officeId: number | undefined;
   /** Код офиса — запасной вариант, когда логотип не загружен. */
   code: string;
-  size?: number;
+  /** Высота логотипа. Ширина считается по пропорциям самого файла. */
+  height?: number;
   /**
    * Фон, на котором стоит логотип. От него зависит только запасной вариант:
    * на светлой шапке белые буквы на прозрачном фоне были бы не видны.
@@ -20,24 +21,31 @@ interface OfficeLogoProps {
   variant?: 'light' | 'dark';
 }
 
-export function OfficeLogo({ officeId, code, size = 32, variant = 'dark' }: OfficeLogoProps) {
+/**
+ * Ширина ограничена, чтобы вытянутый логотип не выдавил из шапки
+ * переключатель офиса. Внутри этого предела картинка масштабируется целиком,
+ * без обрезки.
+ */
+const MAX_WIDTH = 200;
+
+export function OfficeLogo({ officeId, code, height = 40, variant = 'dark' }: OfficeLogoProps) {
   const src = useAuthedImage(officeId ? `/offices/${officeId}/logo` : null);
+  const onLight = variant === 'light';
 
   if (!src) {
-    const onLight = variant === 'light';
     return (
       <div
         aria-hidden
         style={{
-          width: size,
-          height: size,
+          height,
           flex: 'none',
-          display: 'grid',
-          placeItems: 'center',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 10px',
           borderRadius: 6,
           background: onLight ? '#f0f2f5' : 'rgba(255, 255, 255, 0.14)',
           color: onLight ? '#0b3d6b' : '#fff',
-          fontSize: size * 0.36,
+          fontSize: Math.round(height * 0.4),
           fontWeight: 700,
           letterSpacing: 0.5,
         }}
@@ -52,12 +60,15 @@ export function OfficeLogo({ officeId, code, size = 32, variant = 'dark' }: Offi
       src={src}
       alt=""
       style={{
-        width: size,
-        height: size,
+        // Задана только высота: ширина следует из пропорций загруженного
+        // файла. Квадратная рамка обрезала бы вытянутый логотип полями и
+        // визуально уменьшала его.
+        height,
+        width: 'auto',
+        maxWidth: MAX_WIDTH,
         flex: 'none',
-        borderRadius: 6,
         objectFit: 'contain',
-        background: '#fff',
+        display: 'block',
       }}
     />
   );

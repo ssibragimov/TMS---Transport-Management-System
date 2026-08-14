@@ -39,6 +39,36 @@
   overflow-x: hidden;
 }
 
+/* Кнопка сворачивания внизу меню. Обычный button, а не antd Button:
+   нужна полоса во всю ширину панели, а не элемент с внешними отступами. */
+.gsm-sider-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex: none;
+  width: 100%;
+  height: 48px;
+  padding: 0 16px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.gsm-sider-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.gsm-sider-toggle:focus-visible {
+  outline: 2px solid #4096ff;
+  outline-offset: -2px;
+}
+
 /* Ant Card по умолчанию обрезает содержимое, а обрезка ломает position:
    sticky у вложенных элементов — шапка карточки просто перестала бы
    закрепляться. */

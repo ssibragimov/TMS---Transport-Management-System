@@ -14,7 +14,7 @@ import {
 } from '@ant-design/icons';
 import type { Permission } from '@gsm/shared';
 import { PERMISSIONS } from '@gsm/shared';
-import { Button, Dropdown, Layout, Menu, Select, Space, Tag, Tooltip, Typography } from 'antd';
+import { Dropdown, Layout, Menu, Select, Space, Tag, Tooltip, Typography } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -142,21 +142,12 @@ export function AppLayout() {
           Ошибка «внёс путевой лист не в тот офис» стоит дорого.
         */}
         <Space size="middle">
-          <Tooltip title={collapsed ? t('nav.expandMenu') : t('nav.collapseMenu')}>
-            <Button
-              type="text"
-              aria-label={collapsed ? t('nav.expandMenu') : t('nav.collapseMenu')}
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={toggleCollapsed}
-            />
-          </Tooltip>
-
           {/* Логотип рядом с названием офиса: связка «эмблема — название»
               читается как одно целое и не теряется при сворачивании меню. */}
           <OfficeLogo
             officeId={activeOffice?.id}
             code={activeOffice?.iataCode ?? activeOffice?.code ?? 'ГСМ'}
-            size={34}
+            height={40}
             variant="light"
           />
 
@@ -231,6 +222,26 @@ export function AppLayout() {
             items={menuItems}
             onClick={({ key }) => navigate(key)}
           />
+
+          {/*
+            Кнопка сворачивания прижата к низу меню: список разделов
+            растягивается на всю доступную высоту (см. styles.css), поэтому
+            кнопка оказывается под ним независимо от числа пунктов.
+          */}
+          <Tooltip
+            title={collapsed ? t('nav.expandMenu') : t('nav.collapseMenu')}
+            placement="right"
+          >
+            <button
+              type="button"
+              className="gsm-sider-toggle"
+              aria-label={collapsed ? t('nav.expandMenu') : t('nav.collapseMenu')}
+              onClick={toggleCollapsed}
+            >
+              {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              {!collapsed && <span>{t('nav.collapseMenu')}</span>}
+            </button>
+          </Tooltip>
         </Sider>
 
         {/* minWidth: 0 обязателен: без него флекс-элемент не даёт широкой
