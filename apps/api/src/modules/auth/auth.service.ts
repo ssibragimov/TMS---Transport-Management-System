@@ -306,7 +306,9 @@ export class AuthService {
     }
 
     const links = await this.prisma.db.userOffice.findMany({
-      where: { userId },
+      // Отключённый офис недоступен и по явной записи: отключение означает,
+      // что аэропорт больше не работает, а не что его просто скрыли из списка.
+      where: { userId, office: { deletedAt: null, isActive: true } },
       include: { office: true },
       orderBy: [{ office: { kind: 'asc' } }, { office: { code: 'asc' } }],
     });

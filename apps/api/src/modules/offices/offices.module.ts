@@ -12,6 +12,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Res,
   StreamableFile,
   UploadedFile,
@@ -24,6 +25,7 @@ import {
   ApiOperation,
   ApiProperty,
   ApiPropertyOptional,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { AuditAction, OfficeKind } from '@prisma/client';
@@ -176,9 +178,12 @@ export class OfficesService {
    * сотрудник Бухары увидит здесь только Бухару, сотрудник головного
    * офиса — все аэропорты страны. Дополнительного WHERE не требуется.
    */
-  list() {
+  list(includeInactive = false) {
     return this.prisma.db.office.findMany({
-      where: { deletedAt: null, isActive: true },
+      // Отключённые нужны только в администрировании: без них офис,
+      // однажды отключённый, исчезал бы из списка навсегда и включить
+      // его обратно было бы нечем.
+      where: { deletedAt: null, ...(includeInactive ? {} : { isActive: true }) },
       orderBy: [{ kind: 'asc' }, { code: 'asc' }],
       select: {
         id: true,
@@ -192,6 +197,7 @@ export class OfficesService {
         city: true,
         timezone: true,
         parentId: true,
+        isActive: true,
         // Ключ нужен фронтенду только чтобы понять, есть ли логотип: сам файл
         // отдаётся отдельным эндпоинтом с проверкой прав.
         logoKey: true,
@@ -412,9 +418,14 @@ export class OfficesController {
 
   @Get()
   @RequirePermissions(PERMISSIONS.OFFICE_READ)
+  @ApiQuery({
+    name: 'includeInactive',
+    required: false,
+    description: 'Показывать отключённые офисы. Нужно администрированию, чтобы их можно было включить обратно.',
+  })
   @ApiOperation({ summary: 'Офисы, доступные текущему пользователю' })
-  list() {
-    return this.offices.list();
+  list(@Query('includeInactive') includeInactive?: string) {
+    return this.offices.list(includeInactive === 'true');
   }
 
   @Get(':id')

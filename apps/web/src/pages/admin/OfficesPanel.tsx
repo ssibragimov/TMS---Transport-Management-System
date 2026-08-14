@@ -1,4 +1,11 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
+import {
+  CheckCircleOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  StopOutlined,
+  UploadOutlined,
+} from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   App,
@@ -40,6 +47,7 @@ interface OfficeRow {
   city: string | null;
   timezone: string;
   logoKey: string | null;
+  isActive: boolean;
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -162,10 +170,22 @@ export function OfficesPanel() {
 
   const manage = can(PERMISSIONS.OFFICE_MANAGE);
 
+  // Отключённые запрашиваются намеренно: иначе офис, однажды отключённый,
+  // пропал бы и отсюда, и включить его обратно было бы нечем.
   const offices = useQuery({
     queryKey: ['offices-admin'],
-    queryFn: async () => (await api.get<OfficeRow[]>('/offices')).data,
+    queryFn: async () =>
+      (await api.get<OfficeRow[]>('/offices', { params: { includeInactive: true } })).data,
   });
+
+  const toggleActive = useApiMutation(
+    async (office: OfficeRow) =>
+      (await api.patch(`/offices/${office.id}`, { isActive: !office.isActive })).data,
+    {
+      successMessage: 'Состояние офиса изменено',
+      invalidate: [['offices-admin'], ['offices']],
+    },
+  );
 
   // Полная карточка нужна ради зимней надбавки: в списке её нет.
   const detail = useQuery({
@@ -222,6 +242,13 @@ export function OfficesPanel() {
         меню: при переключении офиса видно, где вы работаете, без чтения названия.
       </Typography.Paragraph>
 
+      <Typography.Paragraph type="secondary">
+        Офис не удаляется — он отключается. Отключённый исчезает из переключателя и из
+        рабочих списков, но техника, путевые листы и вся история остаются на месте, и
+        включить его обратно можно в любой момент. Здесь, в администрировании,
+        отключённые офисы видны всегда — иначе вернуть их было бы нечем.
+      </Typography.Paragraph>
+
       {manage && (
         <Button
           type="primary"
@@ -268,22 +295,54 @@ export function OfficesPanel() {
           { title: 'ICAO', dataIndex: 'icaoCode', width: 80 },
           { title: 'Город', dataIndex: 'city', width: 140 },
           { title: 'Часовой пояс', dataIndex: 'timezone', width: 160 },
+          {
+            title: 'Состояние',
+            dataIndex: 'isActive',
+            width: 130,
+            render: (isActive: boolean) =>
+              isActive ? (
+                <Tag color="green">В работе</Tag>
+              ) : (
+                <Tag color="default">Отключён</Tag>
+              ),
+          },
           ...(manage
             ? [
                 {
                   title: '',
-                  width: 60,
+                  width: 100,
                   render: (_: unknown, row: OfficeRow) => (
-                    <Tooltip title="Изменить">
-                      <Button
-                        type="text"
-                        icon={<EditOutlined />}
-                        onClick={() => {
-                          setEditing(row);
-                          setOpen(true);
-                        }}
-                      />
-                    </Tooltip>
+                    <Space size={0}>
+                      <Tooltip title="Изменить">
+                        <Button
+                          type="text"
+                          icon={<EditOutlined />}
+                          onClick={() => {
+                            setEditing(row);
+                            setOpen(true);
+                          }}
+                        />
+                      </Tooltip>
+                      <Popconfirm
+                        title={row.isActive ? 'Отключить офис?' : 'Включить офис?'}
+                        description={
+                          row.isActive
+                            ? 'Офис исчезнет из переключателя и списков. Данные и история сохранятся, включить можно в любой момент. Сотрудники этого офиса войти не смогут.'
+                            : 'Офис вернётся в переключатель и станет доступен сотрудникам.'
+                        }
+                        okText={row.isActive ? 'Отключить' : 'Включить'}
+                        cancelText="Отмена"
+                        onConfirm={() => toggleActive.mutate(row)}
+                      >
+                        <Tooltip title={row.isActive ? 'Отключить' : 'Включить'}>
+                          <Button
+                            type="text"
+                            danger={row.isActive}
+                            icon={row.isActive ? <StopOutlined /> : <CheckCircleOutlined />}
+                          />
+                        </Tooltip>
+                      </Popconfirm>
+                    </Space>
                   ),
                 },
               ]
