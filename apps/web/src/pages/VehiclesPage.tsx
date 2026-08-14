@@ -1,7 +1,12 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined, SwapOutlined } from '@ant-design/icons';
+import {
+  DeleteOutlined,
+  EditOutlined,
+  PictureOutlined,
+  PlusOutlined,
+  SwapOutlined,
+} from '@ant-design/icons';
 import {
   Button,
-  Card,
   DatePicker,
   Form,
   Input,
@@ -9,7 +14,6 @@ import {
   Popconfirm,
   Select,
   Space,
-  Table,
   Tag,
   Tooltip,
   Typography,
@@ -21,10 +25,13 @@ import { PERMISSIONS, VehicleCategory, VehicleStatus } from '@gsm/shared';
 import { api } from '@/api/client';
 import { useApiMutation, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { StickyTable } from '@/components/StickyTable';
+import { TableCard } from '@/components/TableCard';
 import { CATEGORY_LABEL, STATUS_COLOR, STATUS_LABEL, fmt } from '@/lib/labels';
 
 import { VehicleDrawer } from './vehicles/VehicleDrawer';
 import { VehicleFormModal, type VehicleFormValues } from './vehicles/VehicleFormModal';
+import { VehiclePhotoPreview, usePhotoPreview } from './vehicles/VehiclePhotoPreview';
 
 interface VehicleRow {
   id: number;
@@ -49,6 +56,8 @@ interface VehicleRow {
   currentFuelLevel: string;
   model: { manufacturer: string; model: string } | null;
   department: { name: string } | null;
+  /** Главное фото, если оно загружено. Список отдаёт только его идентификатор. */
+  photos: Array<{ id: number }>;
 }
 
 export function VehiclesPage() {
@@ -65,6 +74,7 @@ export function VehiclesPage() {
   const [detailId, setDetailId] = useState<number | null>(null);
   const [transferFor, setTransferFor] = useState<VehicleRow | null>(null);
   const [transferForm] = Form.useForm();
+  const preview = usePhotoPreview();
 
   const query = usePaged<VehicleRow>(
     ['vehicles'],
@@ -97,7 +107,7 @@ export function VehiclesPage() {
   }
 
   return (
-    <Card
+    <TableCard
       title="Транспорт и спецтехника"
       extra={
         <Space wrap>
@@ -153,7 +163,7 @@ export function VehiclesPage() {
         </Space>
       }
     >
-      <Table<VehicleRow>
+      <StickyTable<VehicleRow>
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items ?? []}
@@ -173,6 +183,33 @@ export function VehiclesPage() {
           },
         }}
         columns={[
+          {
+            title: '',
+            key: 'photo',
+            width: 44,
+            align: 'center',
+            render: (_: unknown, row: VehicleRow) => {
+              const photo = row.photos?.[0];
+              if (!photo) {
+                // Пустая ячейка, а не серая иконка: колонка должна с одного
+                // взгляда показывать, у какой техники снимок есть.
+                return null;
+              }
+              return (
+                <Tooltip title="Показать фото">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<PictureOutlined />}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      preview.open(row.id, photo.id);
+                    }}
+                  />
+                </Tooltip>
+              );
+            },
+          },
           { title: 'Гаражный', dataIndex: 'garageNumber', width: 120 },
           { title: 'Госномер', dataIndex: 'plateNumber', width: 140 },
           {
@@ -284,6 +321,15 @@ export function VehiclesPage() {
       <VehicleFormModal open={formOpen} initial={editing} onClose={() => setFormOpen(false)} />
       <VehicleDrawer vehicleId={detailId} onClose={() => setDetailId(null)} />
 
+      {preview.target && (
+        <VehiclePhotoPreview
+          open
+          vehicleId={preview.target.vehicleId}
+          photoId={preview.target.photoId}
+          onClose={preview.close}
+        />
+      )}
+
       <Modal
         open={transferFor !== null}
         title={`Передача техники ${transferFor?.garageNumber ?? ''}`}
@@ -327,6 +373,6 @@ export function VehiclesPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </Card>
+    </TableCard>
   );
 }

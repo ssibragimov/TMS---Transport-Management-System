@@ -4,29 +4,48 @@ import {
   DashboardOutlined,
   DatabaseOutlined,
   FileTextOutlined,
-  GlobalOutlined,
   HistoryOutlined,
   LogoutOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
   SafetyOutlined,
   TeamOutlined,
   ToolOutlined,
 } from '@ant-design/icons';
 import type { Permission } from '@gsm/shared';
 import { PERMISSIONS } from '@gsm/shared';
-import { Dropdown, Layout, Menu, Select, Space, Tag, Typography } from 'antd';
+import { Button, Dropdown, Layout, Menu, Select, Space, Tag, Tooltip, Typography } from 'antd';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/auth/AuthContext';
-import i18n, { SUPPORTED_LOCALES } from '@/i18n';
+import { LocaleFlag } from '@/components/LocaleFlag';
+import { OfficeLogo } from '@/components/OfficeLogo';
+import i18n, { SUPPORTED_LOCALES, localeDescriptor } from '@/i18n';
 
 const { Header, Sider, Content } = Layout;
+
+const COLLAPSED_KEY = 'gsm.sidebarCollapsed';
 
 export function AppLayout() {
   const { t } = useTranslation();
   const { user, logout, switchOffice, can } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Состояние меню запоминается: диспетчер, свернувший меню ради ширины
+  // таблицы, не должен разворачивать его заново после каждого входа.
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem(COLLAPSED_KEY) === '1',
+  );
+
+  const toggleCollapsed = (): void => {
+    setCollapsed((previous) => {
+      localStorage.setItem(COLLAPSED_KEY, previous ? '0' : '1');
+      return !previous;
+    });
+  };
 
   // Разделы, на которые нет прав, из меню убираются: пункт, ведущий
   // на экран «нет прав», только раздражает. Права всё равно проверяются
@@ -97,21 +116,42 @@ export function AppLayout() {
     void i18n.changeLanguage(locale);
   };
 
+  const activeOffice = user?.activeOffice;
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="dark" breakpoint="lg" collapsedWidth={64} width={220}>
-        <div
-          style={{
-            height: 56,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontWeight: 600,
-            letterSpacing: 1,
-          }}
-        >
-          ГСМ · UZ
+      <Sider
+        theme="dark"
+        breakpoint="lg"
+        collapsedWidth={64}
+        width={220}
+        collapsed={collapsed}
+        onCollapse={(value) => {
+          // Срабатывает и при переходе через контрольную точку ширины:
+          // сохраняем, чтобы состояние не разошлось с кнопкой.
+          localStorage.setItem(COLLAPSED_KEY, value ? '1' : '0');
+          setCollapsed(value);
+        }}
+      >
+        {/*
+          Логотип аэропорта в свёрнутом виде остаётся единственным
+          указанием на офис — поэтому он, а не название, стоит первым.
+        */}
+        <div className={`gsm-sider-brand${collapsed ? ' gsm-sider-brand--collapsed' : ''}`}>
+          <OfficeLogo
+            officeId={activeOffice?.id}
+            code={activeOffice?.iataCode ?? activeOffice?.code ?? 'ГСМ'}
+            size={collapsed ? 32 : 30}
+          />
+          {!collapsed && (
+            <Typography.Text
+              ellipsis
+              style={{ color: '#fff', fontWeight: 600, letterSpacing: 0.4 }}
+              title={activeOffice?.name}
+            >
+              {activeOffice?.name ?? 'ГСМ · UZ'}
+            </Typography.Text>
+          )}
         </div>
         <Menu
           theme="dark"
@@ -124,12 +164,14 @@ export function AppLayout() {
 
       <Layout>
         <Header
+          className="gsm-header"
           style={{
             background: '#fff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            paddingInline: 24,
+            paddingInline: 16,
+            gap: 12,
           }}
         >
           {/*
@@ -138,9 +180,18 @@ export function AppLayout() {
             Ошибка «внёс путевой лист не в тот офис» стоит дорого.
           */}
           <Space size="middle">
+            <Tooltip title={collapsed ? t('nav.expandMenu') : t('nav.collapseMenu')}>
+              <Button
+                type="text"
+                aria-label={collapsed ? t('nav.expandMenu') : t('nav.collapseMenu')}
+                icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                onClick={toggleCollapsed}
+              />
+            </Tooltip>
+
             <Select
               value={user?.activeOffice.id}
-              style={{ minWidth: 260 }}
+              style={{ minWidth: 240 }}
               onChange={(officeId) => void switchOffice(officeId)}
               options={user?.availableOffices.map((office) => ({
                 value: office.id,
@@ -153,11 +204,19 @@ export function AppLayout() {
 
           <Space size="middle">
             <Select
-              value={i18n.language}
-              style={{ width: 130 }}
-              suffixIcon={<GlobalOutlined />}
+              value={localeDescriptor(i18n.language).code}
+              style={{ width: 140 }}
               onChange={changeLocale}
-              options={SUPPORTED_LOCALES.map((l) => ({ value: l.code, label: l.label }))}
+              optionLabelProp="label"
+              options={SUPPORTED_LOCALES.map((locale) => ({
+                value: locale.code,
+                label: (
+                  <Space size={8}>
+                    <LocaleFlag code={locale.flag} />
+                    {locale.label}
+                  </Space>
+                ),
+              }))}
             />
 
             <Dropdown

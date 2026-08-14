@@ -1,3 +1,11 @@
+import enUS from 'antd/locale/en_US';
+import ruRU from 'antd/locale/ru_RU';
+import uzUZ from 'antd/locale/uz_UZ';
+import type { Locale as AntdLocale } from 'antd/es/locale';
+import dayjs from 'dayjs';
+import 'dayjs/locale/en';
+import 'dayjs/locale/ru';
+import 'dayjs/locale/uz-latn';
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
@@ -8,8 +16,12 @@ import { initReactI18next } from 'react-i18next';
  * узбекского интерфейса возникнет обязательно. Дописывать i18n в готовый
  * продукт втрое дороже, чем заложить его в каркас.
  *
- * Узбекский представлен двумя вариантами письменности: латиница (uz)
- * и кириллица (uz-Cyrl) — обе в активном обиходе.
+ * Смена языка меняет три вещи сразу, и все три обязательны:
+ *   1) строки интерфейса — react-i18next перерисовывает дерево сам;
+ *   2) локаль Ant Design — иначе календари, пагинация и «Нет данных»
+ *      останутся русскими независимо от выбранного языка;
+ *   3) локаль dayjs — иначе названия месяцев и первый день недели
+ *      не совпадут с интерфейсом.
  */
 
 const ru = {
@@ -37,6 +49,8 @@ const ru = {
     admin: 'Администрирование',
     audit: 'Журнал действий',
     settings: 'Настройки',
+    collapseMenu: 'Свернуть меню',
+    expandMenu: 'Развернуть меню',
   },
   auth: {
     title: 'Вход в систему',
@@ -110,6 +124,8 @@ const uz = {
     admin: 'Ma’muriyat',
     audit: 'Amallar jurnali',
     settings: 'Sozlamalar',
+    collapseMenu: 'Menyuni yig‘ish',
+    expandMenu: 'Menyuni ochish',
   },
   auth: {
     title: 'Tizimga kirish',
@@ -147,6 +163,8 @@ const en = {
     admin: 'Administration',
     audit: 'Audit log',
     settings: 'Settings',
+    collapseMenu: 'Collapse menu',
+    expandMenu: 'Expand menu',
   },
   auth: {
     title: 'Sign in',
@@ -159,23 +177,66 @@ const en = {
   },
 };
 
-export const SUPPORTED_LOCALES = [
-  { code: 'ru', label: 'Русский' },
-  { code: 'uz', label: 'O‘zbekcha' },
-  { code: 'uz-Cyrl', label: 'Ўзбекча' },
-  { code: 'en', label: 'English' },
-] as const;
+export interface LocaleDescriptor {
+  code: string;
+  /** Название языка на нём самом — так его узнают быстрее всего. */
+  label: string;
+  /** Локаль Ant Design: календари, пагинация, стандартные подписи. */
+  antd: AntdLocale;
+  /** Локаль dayjs: названия месяцев, первый день недели. */
+  dayjs: string;
+  /** Код страны для флага. */
+  flag: 'uz' | 'gb' | 'ru';
+}
+
+/**
+ * Кириллический узбекский убран: он был заведён отдельным кодом, но показывал
+ * те же латинские строки, что и `uz`, — то есть выбор языка ничего не менял.
+ * Вернуть его стоит вместе с настоящим переводом, а не раньше.
+ */
+export const SUPPORTED_LOCALES: LocaleDescriptor[] = [
+  { code: 'uz', label: 'O‘zbek', antd: uzUZ, dayjs: 'uz-latn', flag: 'uz' },
+  { code: 'en', label: 'English', antd: enUS, dayjs: 'en', flag: 'gb' },
+  { code: 'ru', label: 'Русский', antd: ruRU, dayjs: 'ru', flag: 'ru' },
+];
+
+export const DEFAULT_LOCALE = 'ru';
+
+export function localeDescriptor(code: string | undefined): LocaleDescriptor {
+  return (
+    SUPPORTED_LOCALES.find((locale) => locale.code === code) ??
+    SUPPORTED_LOCALES.find((locale) => locale.code === DEFAULT_LOCALE)!
+  );
+}
+
+/**
+ * Побочные эффекты смены языка, которые React сам не сделает.
+ * Вызывается и при старте, и при каждом переключении.
+ */
+export function applyLocaleSideEffects(code: string): void {
+  const locale = localeDescriptor(code);
+  dayjs.locale(locale.dayjs);
+  // Влияет на переносы, подбор шрифта и работу программ чтения с экрана.
+  document.documentElement.lang = locale.code;
+}
+
+const storedLocale = localStorage.getItem('gsm.locale');
+const initialLocale = localeDescriptor(
+  storedLocale ?? (import.meta.env.VITE_DEFAULT_LOCALE as string | undefined) ?? DEFAULT_LOCALE,
+).code;
 
 void i18n.use(initReactI18next).init({
   resources: {
     ru: { translation: ru },
     uz: { translation: uz },
-    'uz-Cyrl': { translation: uz },
     en: { translation: en },
   },
-  lng: localStorage.getItem('gsm.locale') ?? import.meta.env.VITE_DEFAULT_LOCALE ?? 'ru',
-  fallbackLng: 'ru',
+  lng: initialLocale,
+  fallbackLng: DEFAULT_LOCALE,
   interpolation: { escapeValue: false },
 });
+
+applyLocaleSideEffects(initialLocale);
+i18n.on('languageChanged', applyLocaleSideEffects);
 
 export default i18n;

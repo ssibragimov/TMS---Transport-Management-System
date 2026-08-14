@@ -1,7 +1,6 @@
 import { DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined } from '@ant-design/icons';
 import {
   Button,
-  Card,
   Checkbox,
   Form,
   Input,
@@ -22,6 +21,7 @@ import { PERMISSIONS } from '@gsm/shared';
 import { api } from '@/api/client';
 import { useApiMutation, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { TableCard } from '@/components/TableCard';
 
 import { RolesPanel } from './users/RolesPanel';
 import { UserFormModal, type UserDetail } from './users/UserFormModal';
@@ -83,7 +83,7 @@ export function UsersPage() {
   const multiOffice = (me?.availableOffices.length ?? 0) > 1;
 
   return (
-    <Card title="Управление пользователями">
+    <TableCard title="Управление пользователями">
       <Tabs
         items={[
           {
@@ -295,6 +295,6 @@ export function UsersPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </Card>
+    </TableCard>
   );
 }

@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import {
-  Card,
   DatePicker,
   Descriptions,
   Drawer,
@@ -19,6 +18,8 @@ import { PERMISSIONS } from '@gsm/shared';
 import { api } from '@/api/client';
 import { usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { StickyTable } from '@/components/StickyTable';
+import { TableCard } from '@/components/TableCard';
 
 interface AuditRow {
   id: string;
@@ -127,7 +128,7 @@ export function AuditPage() {
     : [];
 
   return (
-    <Card
+    <TableCard
       title="Журнал действий"
       extra={
         <Space wrap>
@@ -182,7 +183,7 @@ export function AuditPage() {
         поменялись.
       </Typography.Paragraph>
 
-      <Table<AuditRow>
+      <StickyTable<AuditRow>
         rowKey="id"
         size="small"
         loading={query.isLoading}
@@ -325,6 +326,6 @@ export function AuditPage() {
           </>
         )}
       </Drawer>
-    </Card>
+    </TableCard>
   );
 }

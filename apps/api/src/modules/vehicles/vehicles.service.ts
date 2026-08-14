@@ -85,6 +85,11 @@ export class VehiclesService {
           model: { select: { id: true, manufacturer: true, model: true } },
           department: { select: { id: true, name: true } },
           fuelType: { select: { id: true, code: true, name: true } },
+          // Только главное фото и только его идентификатор: списку нужно
+          // лишь понять, есть ли снимок и какой открывать. Тянуть сюда все
+          // фотографии значило бы утяжелить каждую страницу списка ради
+          // колонки шириной в одну иконку.
+          photos: { where: { isPrimary: true }, select: { id: true }, take: 1 },
         },
       }),
       this.prisma.db.vehicle.count({ where }),

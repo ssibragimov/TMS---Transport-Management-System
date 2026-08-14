@@ -61,6 +61,11 @@ model Office {
   latitude  Decimal? @db.Decimal(10, 7)
   longitude Decimal? @db.Decimal(10, 7)
 
+  /// Логотип аэропорта: ключ файла в хранилище. Показывается в шапке, чтобы
+  /// пользователь видел, в каком офисе работает, не читая текст.
+  logoKey      String? @map("logo_key") @db.VarChar(400)
+  logoMimeType String? @map("logo_mime_type") @db.VarChar(60)
+
   /// Зимняя надбавка к норме расхода, %. У каждого региона своя.
   winterSurchargePct Decimal @default(0) @map("winter_surcharge_pct") @db.Decimal(5, 2)
   winterFromMonth    Int     @default(11) @map("winter_from_month") @db.SmallInt

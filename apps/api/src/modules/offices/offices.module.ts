@@ -1,17 +1,33 @@
 import {
+  BadRequestException,
   Body,
   ConflictException,
   Controller,
+  Delete,
   Get,
   Injectable,
   Module,
+  NotFoundException,
   Param,
   ParseIntPipe,
   Patch,
   Post,
+  Res,
+  StreamableFile,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiOperation, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
-import { OfficeKind } from '@prisma/client';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiProperty,
+  ApiPropertyOptional,
+  ApiTags,
+} from '@nestjs/swagger';
+import { AuditAction, OfficeKind } from '@prisma/client';
+import type { Response } from 'express';
 import {
   IsBoolean,
   IsEnum,
@@ -27,9 +43,10 @@ import {
 } from 'class-validator';
 import { PERMISSIONS } from '@gsm/shared';
 
-import { Audited } from '@/common/audit/audit.interceptor';
+import { AuditAs, Audited } from '@/common/audit/audit.interceptor';
 import { RequirePermissions } from '@/common/decorators';
 import { PrismaService } from '@/common/prisma/prisma.service';
+import { StorageService } from '@/common/storage/storage.service';
 
 class CreateOfficeDto {
   @ApiProperty({ example: 'JIZ', description: 'Код участвует в номерах документов' })
@@ -149,7 +166,10 @@ class UpdateOfficeDto {
 
 @Injectable()
 export class OfficesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   /**
    * Список офисов возвращается уже отфильтрованным политикой RLS:
@@ -172,6 +192,9 @@ export class OfficesService {
         city: true,
         timezone: true,
         parentId: true,
+        // Ключ нужен фронтенду только чтобы понять, есть ли логотип: сам файл
+        // отдаётся отдельным эндпоинтом с проверкой прав.
+        logoKey: true,
       },
     });
   }
@@ -287,6 +310,79 @@ export class OfficesService {
       });
     });
   }
+
+  // ─── Логотип ──────────────────────────────────────────────────────────────
+
+  /**
+   * Логотип заменяет предыдущий, а не копится историей: у офиса он один.
+   * Старый файл удаляется с диска, иначе хранилище растёт при каждой замене.
+   */
+  async setLogo(id: number, file: Express.Multer.File) {
+    const office = await this.prisma.db.office.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, logoKey: true },
+    });
+    if (!office) {
+      throw new NotFoundException({ code: 'office.not_found', message: 'Офис не найден' });
+    }
+
+    const stored = await this.storage.saveImage(`offices/${id}`, file);
+
+    const updated = await this.prisma.systemTransaction((tx) =>
+      tx.office.update({
+        where: { id },
+        data: { logoKey: stored.key, logoMimeType: stored.mimeType },
+        select: { id: true, code: true, logoKey: true },
+      }),
+    );
+
+    // Только после успешной записи в БД: если удалить раньше и упасть на
+    // update, офис остался бы со ссылкой на несуществующий файл.
+    if (office.logoKey) {
+      await this.storage.remove(office.logoKey);
+    }
+
+    return updated;
+  }
+
+  async readLogo(id: number) {
+    const office = await this.prisma.db.office.findFirst({
+      where: { id, deletedAt: null },
+      select: { logoKey: true, logoMimeType: true },
+    });
+    if (!office?.logoKey) {
+      throw new NotFoundException({
+        code: 'office.logo_not_found',
+        message: 'У офиса нет логотипа',
+      });
+    }
+
+    const { stream } = this.storage.createReadStream(office.logoKey);
+    return { stream, mimeType: office.logoMimeType ?? 'image/png' };
+  }
+
+  async removeLogo(id: number) {
+    const office = await this.prisma.db.office.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, logoKey: true },
+    });
+    if (!office) {
+      throw new NotFoundException({ code: 'office.not_found', message: 'Офис не найден' });
+    }
+
+    await this.prisma.systemTransaction((tx) =>
+      tx.office.update({
+        where: { id },
+        data: { logoKey: null, logoMimeType: null },
+      }),
+    );
+
+    if (office.logoKey) {
+      await this.storage.remove(office.logoKey);
+    }
+
+    return { id, logoKey: null };
+  }
 }
 
 @ApiTags('offices')
@@ -333,6 +429,59 @@ export class OfficesController {
   @ApiOperation({ summary: 'Сводка для главного экрана' })
   summary(@Param('id', ParseIntPipe) id: number) {
     return this.offices.summary(id);
+  }
+
+  // ─── Логотип ──────────────────────────────────────────────────────────────
+
+  /**
+   * Логотип отдаётся через API, а не статикой — по той же причине, что и
+   * фотографии техники: прямая ссылка на файл обошла бы проверку прав.
+   */
+  @Get(':id/logo')
+  @RequirePermissions(PERMISSIONS.OFFICE_READ)
+  @ApiOperation({ summary: 'Логотип офиса' })
+  async logo(
+    @Param('id', ParseIntPipe) id: number,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { stream, mimeType } = await this.offices.readLogo(id);
+
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+
+    return new StreamableFile(stream);
+  }
+
+  @Post(':id/logo')
+  @AuditAs(AuditAction.UPDATE)
+  @RequirePermissions(PERMISSIONS.OFFICE_MANAGE)
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: StorageService.MAX_IMAGE_BYTES } }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
+  })
+  @ApiOperation({ summary: 'Загрузка логотипа (JPEG, PNG, WebP, HEIC, до 10 МБ)' })
+  uploadLogo(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    if (!file) {
+      throw new BadRequestException({
+        code: 'storage.file_required',
+        message: 'Файл не передан',
+      });
+    }
+    return this.offices.setLogo(id, file);
+  }
+
+  @Delete(':id/logo')
+  @AuditAs(AuditAction.UPDATE)
+  @RequirePermissions(PERMISSIONS.OFFICE_MANAGE)
+  @ApiOperation({ summary: 'Удаление логотипа' })
+  deleteLogo(@Param('id', ParseIntPipe) id: number) {
+    return this.offices.removeLogo(id);
   }
 }
 

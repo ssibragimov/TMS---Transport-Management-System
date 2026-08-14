@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import {
-  Card,
   Checkbox,
   Form,
   Input,
@@ -17,6 +16,7 @@ import { MeterType, PERMISSIONS, VehicleCategory } from '@gsm/shared';
 import { api } from '@/api/client';
 import { useDictionaries } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { TableCard } from '@/components/TableCard';
 import { CATEGORY_LABEL, METER_LABEL, fmt } from '@/lib/labels';
 
 import { CrudPanel } from './admin/CrudPanel';
@@ -91,7 +91,7 @@ export function AdminPage() {
   const canManage = can(PERMISSIONS.DICTIONARY_MANAGE);
 
   return (
-    <Card title="Администрирование">
+    <TableCard title="Администрирование">
       <Tabs
         items={[
           {
@@ -448,6 +448,6 @@ export function AdminPage() {
           },
         ]}
       />
-    </Card>
+    </TableCard>
   );
 }

@@ -1,7 +1,6 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import {
   Button,
-  Card,
   Col,
   DatePicker,
   Form,
@@ -12,7 +11,6 @@ import {
   Select,
   Space,
   Switch,
-  Table,
   Tag,
   Tooltip,
   Typography,
@@ -24,6 +22,8 @@ import { PERMISSIONS } from '@gsm/shared';
 import { api } from '@/api/client';
 import { useApiMutation, useDictionaries, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { StickyTable } from '@/components/StickyTable';
+import { TableCard } from '@/components/TableCard';
 
 import { DriverDrawer } from './drivers/DriverDrawer';
 
@@ -115,7 +115,7 @@ export function DriversPage() {
   }
 
   return (
-    <Card
+    <TableCard
       title="Водители"
       extra={
         <Space wrap>
@@ -143,7 +143,7 @@ export function DriversPage() {
         </Space>
       }
     >
-      <Table<DriverRow>
+      <StickyTable<DriverRow>
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items ?? []}
@@ -325,6 +325,6 @@ export function DriversPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </Card>
+    </TableCard>
   );
 }

@@ -1,12 +1,14 @@
-import { EditOutlined, PlusOutlined } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
+import { DeleteOutlined, EditOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  App,
   Button,
   Col,
   Form,
   Input,
   InputNumber,
   Modal,
+  Popconfirm,
   Row,
   Select,
   Space,
@@ -15,12 +17,14 @@ import {
   Tag,
   Tooltip,
   Typography,
+  Upload,
 } from 'antd';
+import type { RcFile } from 'antd/es/upload';
 import { useEffect, useState } from 'react';
 import { OfficeKind, PERMISSIONS } from '@gsm/shared';
 
-import { api } from '@/api/client';
-import { useApiMutation } from '@/api/hooks';
+import { api, errorMessage } from '@/api/client';
+import { useApiMutation, useAuthedImage } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
 
 interface OfficeRow {
@@ -35,6 +39,7 @@ interface OfficeRow {
   icaoCode: string | null;
   city: string | null;
   timezone: string;
+  logoKey: string | null;
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -47,6 +52,99 @@ const MONTHS = [
   'январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
   'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь',
 ];
+
+const MAX_LOGO_BYTES = 10 * 1024 * 1024;
+
+/** Логотип офиса в таблице: он же кнопка загрузки и замены. */
+function OfficeLogoCell({ office, manage }: { office: OfficeRow; manage: boolean }) {
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
+  // Ключ входит в URL, поэтому после замены картинка перезапрашивается сама,
+  // а не берётся из кэша браузера как старая.
+  const src = useAuthedImage(office.logoKey ? `/offices/${office.id}/logo` : null);
+
+  const refresh = async (): Promise<void> => {
+    await queryClient.invalidateQueries({ queryKey: ['offices-admin'] });
+    await queryClient.invalidateQueries({ queryKey: ['offices'] });
+  };
+
+  const upload = async (file: RcFile): Promise<void> => {
+    if (file.size > MAX_LOGO_BYTES) {
+      void message.error('Файл больше 10 МБ');
+      return;
+    }
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      await api.post(`/offices/${office.id}/logo`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      void message.success('Логотип обновлён');
+      await refresh();
+    } catch (error) {
+      void message.error(errorMessage(error));
+    }
+  };
+
+  const remove = async (): Promise<void> => {
+    try {
+      await api.delete(`/offices/${office.id}/logo`);
+      void message.success('Логотип удалён');
+      await refresh();
+    } catch (error) {
+      void message.error(errorMessage(error));
+    }
+  };
+
+  const preview = src ? (
+    <img
+      src={src}
+      alt=""
+      style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: 4 }}
+    />
+  ) : (
+    <div
+      style={{
+        width: 32,
+        height: 32,
+        display: 'grid',
+        placeItems: 'center',
+        borderRadius: 4,
+        background: '#f0f0f0',
+        color: '#8c8c8c',
+        fontSize: 11,
+        fontWeight: 600,
+      }}
+    >
+      {office.code.slice(0, 3)}
+    </div>
+  );
+
+  if (!manage) return preview;
+
+  return (
+    <Space size={4}>
+      {preview}
+      <Upload
+        accept="image/jpeg,image/png,image/webp"
+        showUploadList={false}
+        beforeUpload={(file) => {
+          void upload(file);
+          return false;
+        }}
+      >
+        <Tooltip title={office.logoKey ? 'Заменить логотип' : 'Загрузить логотип'}>
+          <Button type="text" size="small" icon={<UploadOutlined />} />
+        </Tooltip>
+      </Upload>
+      {office.logoKey && (
+        <Popconfirm title="Удалить логотип?" okText="Удалить" cancelText="Отмена" onConfirm={remove}>
+          <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+        </Popconfirm>
+      )}
+    </Space>
+  );
+}
 
 /**
  * Офисы — это масштабирование платформы на новые аэропорты.
@@ -118,7 +216,8 @@ export function OfficesPanel() {
       <Typography.Paragraph type="secondary">
         Код офиса участвует в номерах документов (<Typography.Text code>PL-TAS-2026-000123</Typography.Text>)
         и после создания не меняется. Зимняя надбавка задаётся здесь и применяется ко всей
-        технике офиса — у каждого региона она своя.
+        технике офиса — у каждого региона она своя. Логотип показывается в шапке бокового
+        меню: при переключении офиса видно, где вы работаете, без чтения названия.
       </Typography.Paragraph>
 
       {manage && (
@@ -142,6 +241,14 @@ export function OfficesPanel() {
         dataSource={offices.data ?? []}
         pagination={false}
         columns={[
+          {
+            title: 'Логотип',
+            key: 'logo',
+            width: 130,
+            render: (_: unknown, row: OfficeRow) => (
+              <OfficeLogoCell office={row} manage={manage} />
+            ),
+          },
           { title: 'Код', dataIndex: 'code', width: 90 },
           { title: 'Наименование', dataIndex: 'nameRu' },
           {

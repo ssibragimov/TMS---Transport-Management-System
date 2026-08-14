@@ -1,0 +1,53 @@
+/*
+ * Глобальные стили. Ant Design v5 работает через CSS-in-JS, поэтому сюда
+ * попадает только то, что нельзя выразить пропсами компонентов, — прежде
+ * всего закрепление шапок при прокрутке.
+ */
+
+/* Шапка с переключателем офиса остаётся видимой всегда: пользователь должен
+   постоянно понимать, данные какого аэропорта перед ним. */
+.gsm-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+/* Ant Card по умолчанию обрезает содержимое, а обрезка ломает position:
+   sticky у вложенных элементов — шапка карточки просто перестала бы
+   закрепляться. */
+.gsm-table-card > .ant-card {
+  overflow: visible;
+}
+
+.gsm-table-card > .ant-card > .ant-card-head {
+  position: sticky;
+  top: 64px;
+  z-index: 6;
+  /* Фон обязателен: по умолчанию шапка карточки прозрачная, и строки
+     таблицы просвечивали бы сквозь неё при прокрутке. */
+  background: #fff;
+  border-radius: 8px 8px 0 0;
+}
+
+/* Заголовки колонок прилипают под панелью фильтров. Отступ задаётся
+   таблице через проп sticky (см. StickyTable), здесь только слой: без
+   этого строки при прокрутке видны поверх заголовков. */
+.gsm-table-card .ant-table-sticky-holder {
+  z-index: 4;
+}
+
+/* Свёрнутое меню: логотип офиса и название не должны разъезжать колонку. */
+.gsm-sider-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 56px;
+  padding: 0 16px;
+  overflow: hidden;
+  color: #fff;
+}
+
+.gsm-sider-brand--collapsed {
+  justify-content: center;
+  padding: 0;
+}

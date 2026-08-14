@@ -13,7 +13,6 @@ import {
   Row,
   Select,
   Space,
-  Table,
   Tabs,
   Tag,
   Typography,
@@ -25,6 +24,8 @@ import { FuelSource, PERMISSIONS } from '@gsm/shared';
 import { api } from '@/api/client';
 import { useApiMutation, useDictionaries, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { StickyTable } from '@/components/StickyTable';
+import { TableCard } from '@/components/TableCard';
 import { FUEL_SOURCE_LABEL, fmt } from '@/lib/labels';
 
 interface Tank {
@@ -185,7 +186,7 @@ export function FuelPage() {
   }
 
   return (
-    <Card
+    <TableCard
       title="Горюче-смазочные материалы"
       extra={
         <Space wrap>
@@ -237,7 +238,7 @@ export function FuelPage() {
             key: 'issues',
             label: 'Выдача',
             children: (
-              <Table<IssueRow>
+              <StickyTable<IssueRow>
                 rowKey="id"
                 size="small"
                 loading={issues.isLoading}
@@ -299,7 +300,7 @@ export function FuelPage() {
             key: 'receipts',
             label: 'Приход',
             children: (
-              <Table<ReceiptRow>
+              <StickyTable<ReceiptRow>
                 rowKey="id"
                 size="small"
                 loading={receipts.isLoading}
@@ -350,7 +351,7 @@ export function FuelPage() {
             key: 'inventories',
             label: 'Инвентаризация',
             children: (
-              <Table<InventoryRow>
+              <StickyTable<InventoryRow>
                 rowKey="id"
                 size="small"
                 loading={inventories.isLoading}
@@ -600,6 +601,6 @@ export function FuelPage() {
           )}
         </Form>
       </Modal>
-    </Card>
+    </TableCard>
   );
 }

@@ -1,11 +1,13 @@
 import { PlusOutlined } from '@ant-design/icons';
-import { Button, Card, DatePicker, Input, Select, Space, Table, Tag, Typography } from 'antd';
+import { Button, DatePicker, Input, Select, Space, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useState } from 'react';
 import { PERMISSIONS, WaybillStatus } from '@gsm/shared';
 
 import { usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { StickyTable } from '@/components/StickyTable';
+import { TableCard } from '@/components/TableCard';
 import {
   WAYBILL_STATUS_COLOR,
   WAYBILL_STATUS_LABEL,
@@ -58,7 +60,7 @@ export function WaybillsPage() {
   }
 
   return (
-    <Card
+    <TableCard
       title="Путевые листы"
       extra={
         <Space wrap>
@@ -111,7 +113,7 @@ export function WaybillsPage() {
         </Space>
       }
     >
-      <Table<WaybillRow>
+      <StickyTable<WaybillRow>
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items ?? []}
@@ -196,6 +198,6 @@ export function WaybillsPage() {
 
       <WaybillFormModal open={formOpen} onClose={() => setFormOpen(false)} />
       <WaybillDrawer waybillId={detailId} onClose={() => setDetailId(null)} />
-    </Card>
+    </TableCard>
   );
 }
