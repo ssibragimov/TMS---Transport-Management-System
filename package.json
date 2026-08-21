@@ -29,7 +29,12 @@
     "db:generate": "npm run db:generate -w @gsm/api",
     "db:seed": "npm run db:seed -w @gsm/api",
     "db:seed:demo": "npm run db:seed:demo -w @gsm/api",
+    "db:seed:telemetry": "npm run db:seed:telemetry -w @gsm/api",
     "db:studio": "npm run db:studio -w @gsm/api",
+    "_comment:i18n": "Ревизия покрытия перевода. Пропущенный t() не ломает сборку и виден только тому, кто переключил язык на этом экране, — поэтому проверка отдельной командой. --strict завершается ошибкой и годится для CI.",
+    "i18n:audit": "node scripts/i18n-audit.js",
+    "_comment:map": "Подложка карты аэродрома из открытых данных OpenStreetMap. Файл в репозитории не хранится — соберите его этой командой.",
+    "map:tiles": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/map-tiles.ps1",
     "bootstrap": "npm install && npm run build -w @gsm/shared && npm run db:generate && npm run db:migrate && npm run db:seed"
   },
   "devDependencies": {

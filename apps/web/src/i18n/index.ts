@@ -52,6 +52,15 @@ export const SUPPORTED_LOCALES: LocaleDescriptor[] = [
 
 export const DEFAULT_LOCALE = 'ru';
 
+/**
+ * Ключ явного выбора языка на этом устройстве.
+ *
+ * Именно «явного»: его наличие означает, что человек переключал язык сам,
+ * и профильная настройка со стороны сервера этот выбор не перебивает
+ * (см. applyProfileLocale в AuthContext).
+ */
+export const LOCALE_STORAGE_KEY = 'gsm.locale';
+
 export function localeDescriptor(code: string | undefined): LocaleDescriptor {
   return (
     SUPPORTED_LOCALES.find((locale) => locale.code === code) ??
@@ -70,7 +79,7 @@ export function applyLocaleSideEffects(code: string): void {
   document.documentElement.lang = locale.code;
 }
 
-const storedLocale = localStorage.getItem('gsm.locale');
+const storedLocale = localStorage.getItem(LOCALE_STORAGE_KEY);
 const initialLocale = localeDescriptor(
   storedLocale ?? (import.meta.env.VITE_DEFAULT_LOCALE as string | undefined) ?? DEFAULT_LOCALE,
 ).code;

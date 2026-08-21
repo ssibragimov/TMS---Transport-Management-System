@@ -5,6 +5,8 @@ import {
   WaybillStatus,
   PermitZone,
   NormType,
+  ROLE_LABELS,
+  type SystemRole,
 } from '@gsm/shared';
 
 /**
@@ -132,6 +134,83 @@ export const FUEL_SOURCE_LABEL: Record<string, string> = {
   CASH: 'Наличные',
   EXTERNAL: 'Сторонний поставщик',
 };
+
+/*
+ * ─── Журнал действий ────────────────────────────────────────────────────────
+ * Словари вынесены сюда, а не оставлены в AuditPage: те же подписи нужны
+ * вкладке журнала в карточке сущности, и две копии рано или поздно разошлись бы.
+ */
+
+export const ACTION_LABEL: Record<string, string> = {
+  CREATE: 'Создание',
+  UPDATE: 'Изменение',
+  DELETE: 'Удаление',
+  RESTORE: 'Восстановление',
+  LOGIN: 'Вход',
+  LOGIN_FAILED: 'Неудачный вход',
+  LOGOUT: 'Выход',
+  EXPORT: 'Выгрузка',
+  PRINT: 'Печать',
+  APPROVE: 'Утверждение',
+  REJECT: 'Отклонение',
+};
+
+export const ACTION_COLOR: Record<string, string> = {
+  CREATE: 'green',
+  UPDATE: 'blue',
+  DELETE: 'red',
+  APPROVE: 'cyan',
+  REJECT: 'orange',
+  EXPORT: 'purple',
+  LOGIN: 'default',
+  LOGIN_FAILED: 'red',
+};
+
+export const AUDIT_ENTITY_LABEL: Record<string, string> = {
+  Vehicle: 'Транспорт',
+  Driver: 'Водитель',
+  Waybill: 'Путевой лист',
+  Fuel: 'ГСМ',
+  User: 'Пользователь',
+  Role: 'Роль',
+  Office: 'Офис',
+  Report: 'Отчёт',
+  FuelType: 'Вид топлива',
+  VehicleModel: 'Модель техники',
+  Department: 'Подразделение',
+  Counterparty: 'Контрагент',
+  SparePart: 'Номенклатура ТМЦ',
+  Stock: 'Склад ТМЦ',
+  Warehouse: 'Склад',
+  VehiclePhoto: 'Фото техники',
+  VehicleDocument: 'Документ техники',
+  VehicleMeterReading: 'Показания счётчика',
+  DriverLicense: 'Удостоверение',
+  DriverPermit: 'Допуск водителя',
+  MedicalCheck: 'Медосмотр',
+  UserPassword: 'Пароль пользователя',
+  UserPhoto: 'Фото сотрудника',
+};
+
+/**
+ * Название роли на языке интерфейса.
+ *
+ * Здесь единственное место, где перевод берётся НЕ из словаря i18next:
+ * ROLE_LABELS в общем пакете уже содержит все три языка, потому что
+ * названия ролей нужны и серверу (в seed'е). Гонять их через русский ключ
+ * значило бы хранить одно и то же дважды и однажды разойтись.
+ *
+ * Роли, созданные администратором, в ROLE_LABELS отсутствуют — для них
+ * возвращается код как есть; их собственное название хранится в БД
+ * одной строкой и по языкам не разделено.
+ */
+export function roleLabel(code: string, language: string): string {
+  const labels = ROLE_LABELS[code as SystemRole];
+  if (!labels) return code;
+  if (language.startsWith('uz')) return labels.uz;
+  if (language.startsWith('en')) return labels.en;
+  return labels.ru;
+}
 
 /** Число с разделителями разрядов; null отображается прочерком. */
 export function fmt(value: string | number | null | undefined, digits = 0): string {

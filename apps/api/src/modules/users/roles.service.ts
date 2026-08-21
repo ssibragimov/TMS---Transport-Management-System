@@ -1,7 +1,14 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { ALL_PERMISSIONS, type Permission } from '@gsm/shared';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { ALL_PERMISSIONS, SYSTEM_ROLES, type Permission } from '@gsm/shared';
 
 import { PrismaService } from '@/common/prisma/prisma.service';
+
+import { actorIsSuperAdmin } from './super-admin';
 
 /** Человекочитаемые названия групп прав — для экрана настройки ролей. */
 const GROUP_LABELS: Record<string, string> = {
@@ -26,6 +33,13 @@ const GROUP_LABELS: Record<string, string> = {
 const PERMISSION_HINTS: Record<string, string> = {
   'vehicle.transfer': 'Передача техники в другой аэропорт',
   'vehicle.meter.adjust': 'Корректировка показаний счётчиков',
+  'driver.update': 'Правка карточки водителя, включая табельный номер',
+  'driver.medical.manage': 'Проведение предрейсовых медосмотров — право медработника',
+  'vehicle.technical.inspect': 'Предрейсовый контроль техсостояния — право механика',
+  'waybill.override_technical':
+    'Выпуск без заключения механика под запись причины. Отказ механика не снимает',
+  'waybill.override_medical':
+    'Выдача листа без медосмотра под запись причины. Отказ врача не снимает',
   'fuel.norm.manage': 'Правка норм расхода — влияет на все расчёты',
   'waybill.reopen': 'Изменение уже закрытого путевого листа',
   'report.cross_office': 'Сводные отчёты по всем аэропортам страны',
@@ -39,9 +53,16 @@ export class RolesService {
    * Роли — общие для всей страны, RLS на них не действует.
    * Это осознанно: единый набор ролей делает сравнимыми права сотрудников
    * разных аэропортов, а привязка роли к офису живёт в user_roles.
+   *
+   * Исключение — роль суперадминистратора: остальным она не показывается.
+   * Этот же список наполняет выбор ролей в карточке пользователя, а право
+   * раздавать полный доступ ко всем аэропортам есть только у суперадминистратора.
    */
-  list() {
+  async list() {
+    const superAdmin = await actorIsSuperAdmin(this.prisma);
+
     return this.prisma.db.role.findMany({
+      where: superAdmin ? {} : { code: { not: SYSTEM_ROLES.SUPER_ADMIN } },
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
       select: {
         id: true,
@@ -101,6 +122,15 @@ export class RolesService {
     const role = await this.prisma.db.role.findUnique({ where: { id } });
     if (!role) {
       throw new NotFoundException({ code: 'role.not_found', message: 'Роль не найдена' });
+    }
+
+    // Роль скрыта от остальных в списке — значит, и правку её набора прав
+    // им закрываем. Иначе запрет обходился бы подстановкой id в запрос.
+    if (role.code === SYSTEM_ROLES.SUPER_ADMIN && !(await actorIsSuperAdmin(this.prisma))) {
+      throw new ForbiddenException({
+        code: 'role.superadmin_restricted',
+        message: 'Роль суперадминистратора доступна только суперадминистратору',
+      });
     }
 
     return this.prisma.transaction(async (tx) => {

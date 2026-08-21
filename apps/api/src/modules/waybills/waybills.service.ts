@@ -13,7 +13,12 @@ import {
   WaybillStatus,
 } from '@prisma/client';
 import {
+  CLEARANCE_LABEL,
   DocumentKind,
+  PERMISSIONS,
+  TECHNICAL_LABEL,
+  VehicleCondition,
+  needsConditionAct,
   calculateClosingFuel,
   calculateDeviation,
   type PaginatedResult,
@@ -26,6 +31,7 @@ import { DocumentNumberService } from '@/common/services/document-number.service
 import { TenantStore } from '@/common/tenancy/tenant-context';
 import { DriversService } from '@/modules/drivers/drivers.service';
 import { FuelNormsService } from '@/modules/fuel/fuel-norms.service';
+import { VehiclesService } from '@/modules/vehicles/vehicles.service';
 
 import type {
   CloseWaybillDto,
@@ -58,6 +64,7 @@ export class WaybillsService {
     private readonly numbers: DocumentNumberService,
     private readonly norms: FuelNormsService,
     private readonly drivers: DriversService,
+    private readonly vehicles: VehiclesService,
   ) {}
 
   async list(officeId: number, query: WaybillQueryDto): Promise<PaginatedResult<unknown>> {
@@ -93,6 +100,33 @@ export class WaybillsService {
         },
       }),
       this.prisma.db.waybill.count({ where }),
+    ]);
+
+    return paginate(items, total, query);
+  }
+
+  /** Акты о повреждении техники — журнал для разбора и удержаний. */
+  async listConditionActs(
+    officeId: number,
+    query: { skip: number; take: number; page: number; pageSize: number },
+  ): Promise<PaginatedResult<unknown>> {
+    const where = { officeId };
+
+    const [items, total] = await Promise.all([
+      this.prisma.db.vehicleConditionAct.findMany({
+        where,
+        skip: query.skip,
+        take: query.take,
+        orderBy: { reportedAt: 'desc' },
+        include: {
+          vehicle: { select: { id: true, garageNumber: true, plateNumber: true } },
+          driver: {
+            select: { id: true, lastName: true, firstName: true, personnelNumber: true },
+          },
+          waybill: { select: { id: true, number: true, validFrom: true, validTo: true } },
+        },
+      }),
+      this.prisma.db.vehicleConditionAct.count({ where }),
     ]);
 
     return paginate(items, total, query);
@@ -138,6 +172,45 @@ export class WaybillsService {
         code: 'waybill.invalid_period',
         message: 'Окончание периода должно быть позже начала',
       });
+    }
+
+    /*
+     * Медицинский допуск проверяется уже на создании листа.
+     *
+     * Порядок в службе такой: водитель проходит здравпункт и только потом
+     * идёт за техникой. Значит, к моменту оформления листа заключение врача
+     * обязано существовать — лист без него не создаётся вовсе, а не создаётся
+     * с предупреждением. Отсутствие осмотра снимается тем же правом
+     * waybill.override_medical, что и при выдаче: иначе при закрытом
+     * здравпункте нельзя было бы даже дойти до шага выдачи. Отказ врача
+     * не снимается ничем.
+     *
+     * До транзакции, а не внутри: запрос из открытой транзакции уходит
+     * по другому соединению, где переменные сессии для RLS не выставлены,
+     * и выборка молча возвращается пустой (см. PrismaService.db).
+     */
+    const { verdict } = await this.drivers.preTripClearance(dto.driverId, new Date());
+    if (!verdict.allowed) {
+      const canOverride =
+        verdict.overridable &&
+        TenantStore.get()?.permissions?.includes(PERMISSIONS.WAYBILL_OVERRIDE_MEDICAL);
+
+      if (!canOverride) {
+        throw new ConflictException({
+          code: 'waybill.medical_clearance_required',
+          message:
+            verdict.state === 'FAILED'
+              ? 'Врач не допустил водителя к работе — путевой лист не создаётся'
+              : `${CLEARANCE_LABEL[verdict.state]} — путевой лист не создаётся`,
+          details: {
+            hint: [
+              verdict.state === 'FAILED'
+                ? 'Требуется замена водителя'
+                : 'Водитель должен пройти предрейсовый осмотр в здравпункте',
+            ],
+          },
+        });
+      }
     }
 
     return this.prisma.transaction(async (tx) => {
@@ -235,9 +308,13 @@ export class WaybillsService {
   /**
    * Выдача путевого листа водителю.
    *
-   * Здесь проверяются права, допуск на перрон и медосмотр. Это единственное
-   * место, где система может остановить выпуск техники с недопущенным
-   * водителем — дальше он уже на перроне.
+   * Единственное место, где система может остановить выпуск недопущенного
+   * водителя — дальше он уже на перроне.
+   *
+   * Медицинский допуск сюда не передаётся формой: он берётся из заключения
+   * врача. Раньше диспетчер сам ставил галочку «медосмотр пройден» — то есть
+   * заинтересованная сторона сама себя и проверяла. Теперь основанием служит
+   * запись здравпункта, и на неё же ссылается выданный лист.
    */
   async issue(officeId: number, id: number, dto: IssueWaybillDto) {
     const userId = TenantStore.get()?.userId ?? null;
@@ -250,23 +327,92 @@ export class WaybillsService {
 
     const issues = await this.drivers.checkEligibility(waybill.driverId, {
       requiresAirsidePermit: vehicle.requiresAirsidePermit,
-      onDate: waybill.validFrom,
+      onDate: new Date(),
     });
 
-    if (issues.length > 0 && !dto.overrideEligibility) {
+    // Замечания разделены по тому, чем они снимаются: отказ врача — ничем,
+    // отсутствие осмотра — отдельным правом, просроченная бумага — обычным
+    // правом выдачи. Раньше один флаг снимал всё сразу.
+    const blocking = issues.filter((i) => !i.overridable);
+    if (blocking.length > 0) {
+      throw new ConflictException({
+        code: 'waybill.driver_not_eligible',
+        message: blocking[0].message,
+        details: { issues: blocking.map((i) => i.message) },
+      });
+    }
+
+    const medicalIssues = issues.filter((i) => i.medical);
+    if (medicalIssues.length > 0) {
+      const canOverride = TenantStore.get()?.permissions?.includes(
+        PERMISSIONS.WAYBILL_OVERRIDE_MEDICAL,
+      );
+
+      if (!canOverride || !dto.medicalOverrideReason) {
+        throw new ConflictException({
+          code: 'waybill.medical_clearance_required',
+          message: medicalIssues[0].message,
+          details: {
+            issues: medicalIssues.map((i) => i.message),
+            hint: canOverride
+              ? ['Укажите причину выдачи без медосмотра']
+              : ['Водитель должен пройти предрейсовый осмотр в здравпункте'],
+          },
+        });
+      }
+    }
+
+    const otherIssues = issues.filter((i) => i.overridable && !i.medical);
+    if (otherIssues.length > 0 && !dto.overrideEligibility) {
       throw new ConflictException({
         code: 'waybill.driver_not_eligible',
         message: 'Водитель не допущен к работе',
-        details: { issues: issues.map((i) => i.message) },
+        details: { issues: otherIssues.map((i) => i.message) },
       });
     }
 
-    if (!dto.preTripMedicalOk || !dto.preTripTechnicalOk) {
-      throw new ConflictException({
-        code: 'waybill.pre_trip_check_failed',
-        message: 'Путевой лист не выдаётся без пройденного предрейсового контроля',
-      });
+    /*
+     * Заключение механика — так же, как медицинское: берётся из базы,
+     * а не с формы. Диспетчер больше не подтверждает исправность техники
+     * собственной галочкой.
+     */
+    /*
+     * Оба допуска берутся на ТЕКУЩИЙ момент, а не на начало смены.
+     *
+     * По validFrom заключение, выданное после составления листа, оказывалось
+     * невидимым: механик признавал технику неисправной, а выдача этого
+     * не замечала, потому что смотрела в прошлое. Выпуск происходит сейчас —
+     * и решение принимается по тому, что известно сейчас.
+     */
+    const releasedAt = new Date();
+    const technical = await this.vehicles.technicalClearance(waybill.vehicleId, releasedAt);
+
+    if (!technical.verdict.allowed) {
+      const canOverride =
+        technical.verdict.overridable &&
+        TenantStore.get()?.permissions?.includes(PERMISSIONS.WAYBILL_OVERRIDE_TECHNICAL);
+
+      if (!canOverride || !dto.technicalOverrideReason) {
+        throw new ConflictException({
+          code: 'waybill.technical_clearance_required',
+          message: TECHNICAL_LABEL[technical.verdict.state],
+          details: {
+            hint: [
+              technical.verdict.state === 'FAILED'
+                ? 'Неисправная техника на линию не выпускается — нужна замена'
+                : canOverride
+                  ? 'Укажите причину выпуска без заключения механика'
+                  : 'Технику должен осмотреть механик',
+            ],
+          },
+        });
+      }
     }
+
+    const { check, verdict } = await this.drivers.preTripClearance(
+      waybill.driverId,
+      releasedAt,
+    );
 
     if (issues.length > 0) {
       this.logger.warn(
@@ -279,11 +425,25 @@ export class WaybillsService {
       where: { id },
       data: {
         status: WaybillStatus.ISSUED,
-        preTripMedicalOk: dto.preTripMedicalOk,
-        preTripTechnicalOk: dto.preTripTechnicalOk,
+        preTripMedicalOk: verdict.allowed,
+        // Ссылку сохраняем и при выдаче в обход: тогда видно, что заключения
+        // не было вовсе, а не что его потеряли.
+        preTripMedicalCheckId: verdict.allowed ? (check?.id ?? null) : null,
+        medicalOverrideReason: verdict.allowed ? null : (dto.medicalOverrideReason ?? null),
+        preTripTechnicalOk: technical.verdict.allowed,
+        preTripTechnicalInspectionId: technical.verdict.allowed
+          ? (technical.check?.id ?? null)
+          : null,
+        technicalOverrideReason: technical.verdict.allowed
+          ? null
+          : (dto.technicalOverrideReason ?? null),
         preTripChecklist: (dto.preTripChecklist ?? undefined) as Prisma.InputJsonValue,
         preTripCheckedAt: new Date(),
         preTripCheckedBy: userId,
+        // Состояние на выдаче — точка отсчёта для акта при возврате.
+        // По умолчанию исправна: именно так технику и обязаны выдавать.
+        conditionOnIssue: dto.conditionOnIssue ?? VehicleCondition.SERVICEABLE,
+        conditionIssueNotes: dto.conditionIssueNotes ?? null,
         issuedBy: userId,
         issuedAt: new Date(),
       },
@@ -457,9 +617,55 @@ export class WaybillsService {
           normBreakdown: calculation as unknown as Prisma.InputJsonValue,
           closedBy: userId,
           closedAt: new Date(),
+          ...(dto.conditionOnReturn !== undefined && {
+            conditionOnReturn: dto.conditionOnReturn,
+          }),
+          ...(dto.conditionReturnNotes !== undefined && {
+            conditionReturnNotes: dto.conditionReturnNotes,
+          }),
           ...(dto.notes !== undefined && { notes: dto.notes }),
         },
       });
+
+      /*
+       * Техника вернулась хуже, чем ушла, — составляем акт.
+       *
+       * Автоматически, а не по кнопке: акт, который надо не забыть создать,
+       * не создаётся. Он привязан к водителю, принявшему технику исправной, —
+       * ровно к тому факту, без которого спор «сломалось при мне или до меня»
+       * разрешить нечем.
+       */
+      const conditionOnIssue = waybill.conditionOnIssue ?? VehicleCondition.SERVICEABLE;
+      if (needsConditionAct(conditionOnIssue, dto.conditionOnReturn)) {
+        const actNumber = await this.numbers.next(
+          tx,
+          officeId,
+          DocumentKind.CONDITION_ACT,
+          new Date(),
+        );
+
+        await tx.vehicleConditionAct.create({
+          data: {
+            officeId,
+            number: actNumber,
+            waybillId: id,
+            vehicleId: waybill.vehicleId,
+            driverId: waybill.driverId,
+            conditionOnIssue,
+            conditionOnReturn: dto.conditionOnReturn!,
+            description:
+              dto.conditionReturnNotes?.trim() ||
+              `Состояние при возврате ухудшилось: ${conditionOnIssue} → ${dto.conditionOnReturn}`,
+            medicalCheckId: waybill.preTripMedicalCheckId,
+            reportedBy: userId,
+          },
+        });
+
+        this.logger.warn(
+          `Составлен акт ${actNumber}: техника ${waybill.vehicleId} возвращена ` +
+            `в состоянии ${dto.conditionOnReturn} по листу ${waybill.number}`,
+        );
+      }
 
       // Показания счётчиков техники подтягиваются из закрытого листа —
       // он единственный достоверный источник пробега за смену.

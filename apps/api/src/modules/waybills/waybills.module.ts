@@ -14,8 +14,10 @@ import { PERMISSIONS } from '@gsm/shared';
 
 import { AuditAs, Audited } from '@/common/audit/audit.interceptor';
 import { CurrentOffice, RequirePermissions } from '@/common/decorators';
+import { PaginationDto } from '@/common/dto/pagination.dto';
 import { DriversModule } from '@/modules/drivers/drivers.module';
 import { FuelModule } from '@/modules/fuel/fuel.module';
+import { VehiclesModule } from '@/modules/vehicles/vehicles.module';
 
 import {
   CancelWaybillDto,
@@ -124,9 +126,29 @@ export class WaybillsController {
   }
 }
 
+/**
+ * Акты о состоянии техники.
+ *
+ * Только чтение: акт создаётся системой при закрытии путевого листа, когда
+ * машину вернули хуже, чем выдали. Заводить его руками нельзя — иначе он
+ * перестанет быть следствием факта и станет ещё одной формой отчётности.
+ */
+@ApiTags('waybills')
+@Controller('condition-acts')
+export class ConditionActsController {
+  constructor(private readonly waybills: WaybillsService) {}
+
+  @Get()
+  @RequirePermissions(PERMISSIONS.WAYBILL_READ)
+  @ApiOperation({ summary: 'Акты о повреждении техники' })
+  list(@CurrentOffice() officeId: number, @Query() query: PaginationDto) {
+    return this.waybills.listConditionActs(officeId, query);
+  }
+}
+
 @Module({
-  imports: [FuelModule, DriversModule],
-  controllers: [WaybillsController],
+  imports: [FuelModule, DriversModule, VehiclesModule],
+  controllers: [WaybillsController, ConditionActsController],
   providers: [WaybillsService],
   exports: [WaybillsService],
 })

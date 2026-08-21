@@ -14,6 +14,20 @@ export const DocumentKind = {
   FUEL_ISSUE: 'FUEL_ISSUE',
   WORK_ORDER: 'WORK_ORDER',
   INVENTORY_ACT: 'INVENTORY_ACT',
+  /** Акт о состоянии техники при возврате из смены */
+  CONDITION_ACT: 'CONDITION_ACT',
+
+  /*
+   * Склад ТМЦ. Каждый вид документа нумеруется своей серией: кладовщик
+   * сдаёт отчётность по каждой из них отдельно, а сплошная сквозная
+   * нумерация «всех складских документов подряд» превращает сверку
+   * прихода за месяц в перебор журнала.
+   */
+  STOCK_RECEIPT: 'STOCK_RECEIPT',
+  STOCK_ISSUE: 'STOCK_ISSUE',
+  STOCK_RETURN: 'STOCK_RETURN',
+  STOCK_WRITE_OFF: 'STOCK_WRITE_OFF',
+  STOCK_TRANSFER: 'STOCK_TRANSFER',
 } as const;
 export type DocumentKind = (typeof DocumentKind)[keyof typeof DocumentKind];
 
@@ -23,6 +37,12 @@ const PREFIX: Record<DocumentKind, string> = {
   [DocumentKind.FUEL_ISSUE]: 'GSM-V',
   [DocumentKind.WORK_ORDER]: 'NZ',
   [DocumentKind.INVENTORY_ACT]: 'INV',
+  [DocumentKind.CONDITION_ACT]: 'AKT',
+  [DocumentKind.STOCK_RECEIPT]: 'TMC-P',
+  [DocumentKind.STOCK_ISSUE]: 'TMC-V',
+  [DocumentKind.STOCK_RETURN]: 'TMC-VZ',
+  [DocumentKind.STOCK_WRITE_OFF]: 'TMC-SP',
+  [DocumentKind.STOCK_TRANSFER]: 'TMC-PM',
 };
 
 export interface DocumentNumberParts {

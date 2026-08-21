@@ -16,10 +16,12 @@ import dayjs from 'dayjs';
 import { useState } from 'react';
 import { PERMISSIONS } from '@gsm/shared';
 
+import { EntityId } from '@/components/EntityId';
 import { api } from '@/api/client';
 import { usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
 import { StickyTable } from '@/components/StickyTable';
+import { ACTION_COLOR, ACTION_LABEL, AUDIT_ENTITY_LABEL } from '@/lib/labels';
 import { TableCard } from '@/components/TableCard';
 
 interface AuditRow {
@@ -35,54 +37,6 @@ interface AuditRow {
   officeId: number | null;
   user: { id: number; fullName: string; email: string } | null;
 }
-
-const ACTION_LABEL: Record<string, string> = {
-  CREATE: 'Создание',
-  UPDATE: 'Изменение',
-  DELETE: 'Удаление',
-  RESTORE: 'Восстановление',
-  LOGIN: 'Вход',
-  LOGIN_FAILED: 'Неудачный вход',
-  LOGOUT: 'Выход',
-  EXPORT: 'Выгрузка',
-  PRINT: 'Печать',
-  APPROVE: 'Утверждение',
-  REJECT: 'Отклонение',
-};
-
-const ACTION_COLOR: Record<string, string> = {
-  CREATE: 'green',
-  UPDATE: 'blue',
-  DELETE: 'red',
-  APPROVE: 'cyan',
-  REJECT: 'orange',
-  EXPORT: 'purple',
-  LOGIN: 'default',
-  LOGIN_FAILED: 'red',
-};
-
-const ENTITY_LABEL: Record<string, string> = {
-  Vehicle: 'Транспорт',
-  Driver: 'Водитель',
-  Waybill: 'Путевой лист',
-  Fuel: 'ГСМ',
-  User: 'Пользователь',
-  Role: 'Роль',
-  Office: 'Офис',
-  Report: 'Отчёт',
-  FuelType: 'Вид топлива',
-  VehicleModel: 'Модель техники',
-  Department: 'Подразделение',
-  Counterparty: 'Контрагент',
-  SparePart: 'Запчасть',
-  VehiclePhoto: 'Фото техники',
-  VehicleDocument: 'Документ техники',
-  VehicleMeterReading: 'Показания счётчика',
-  DriverLicense: 'Удостоверение',
-  DriverPermit: 'Допуск водителя',
-  MedicalCheck: 'Медосмотр',
-  UserPassword: 'Пароль пользователя',
-};
 
 /** Человекочитаемое значение поля: null и объекты иначе выглядят как «[object]». */
 function renderValue(value: unknown): string {
@@ -153,7 +107,7 @@ export function AuditPage() {
             }}
             options={(entities.data ?? []).map((item) => ({
               value: item.entity,
-              label: `${t(ENTITY_LABEL[item.entity] ?? item.entity)} (${item.count})`,
+              label: `${t(AUDIT_ENTITY_LABEL[item.entity] ?? item.entity)} (${item.count})`,
             }))}
           />
           <Select
@@ -165,7 +119,10 @@ export function AuditPage() {
               setAction(value);
               setPage(1);
             }}
-            options={Object.entries(ACTION_LABEL).map(([value, label]) => ({ value, label }))}
+            options={Object.entries(ACTION_LABEL).map(([value, label]) => ({
+              value,
+              label: t(label),
+            }))}
           />
           <Input
             allowClear
@@ -235,7 +192,7 @@ export function AuditPage() {
             title: t("Объект"),
             dataIndex: 'entity',
             width: 170,
-            render: (value: string) => t(ENTITY_LABEL[value] ?? value),
+            render: (value: string) => t(AUDIT_ENTITY_LABEL[value] ?? value),
           },
           { title: 'ID', dataIndex: 'entityId', width: 80 },
           {
@@ -265,9 +222,10 @@ export function AuditPage() {
         width={720}
         title={
           selected
-            ? `${t(ACTION_LABEL[selected.action] ?? selected.action)}: ${t(ENTITY_LABEL[selected.entity] ?? selected.entity)}${selected.entityId ? ` #${selected.entityId}` : ''}`
+            ? `${t(ACTION_LABEL[selected.action] ?? selected.action)}: ${t(AUDIT_ENTITY_LABEL[selected.entity] ?? selected.entity)}${selected.entityId ? ` #${selected.entityId}` : ''}`
             : 'Запись журнала'
         }
+        extra={<EntityId id={selected?.id} />}
       >
         {selected && (
           <>

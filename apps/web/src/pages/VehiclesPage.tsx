@@ -18,13 +18,13 @@ import {
   Tooltip,
   Typography,
 } from 'antd';
-import dayjs from 'dayjs';
+import type dayjs from 'dayjs';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PERMISSIONS, VehicleCategory, VehicleStatus } from '@gsm/shared';
 
 import { api } from '@/api/client';
-import { useApiMutation, usePaged } from '@/api/hooks';
+import { useApiMutation, useDictionaries, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
 import { StickyTable } from '@/components/StickyTable';
 import { TableCard } from '@/components/TableCard';
@@ -70,6 +70,7 @@ export function VehiclesPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<string | undefined>();
   const [category, setCategory] = useState<string | undefined>();
+  const [departmentId, setDepartmentId] = useState<number | undefined>();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<VehicleFormValues | null>(null);
@@ -78,10 +79,14 @@ export function VehiclesPage() {
   const [transferForm] = Form.useForm();
   const preview = usePhotoPreview();
 
+  // Подразделения берём из общего справочника: он уже кэширован формой
+  // постановки на учёт, повторного запроса ради фильтра не будет.
+  const dictionaries = useDictionaries();
+
   const query = usePaged<VehicleRow>(
     ['vehicles'],
     '/vehicles',
-    { page, pageSize, search: search || undefined, status, category },
+    { page, pageSize, search: search || undefined, status, category, departmentId },
   );
 
   const remove = useApiMutation(
@@ -134,6 +139,23 @@ export function VehiclesPage() {
             options={Object.values(VehicleCategory).map((c) => ({
               value: c,
               label: t(CATEGORY_LABEL[c] ?? c),
+            }))}
+          />
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            placeholder={t('Подразделение')}
+            style={{ width: 200 }}
+            value={departmentId}
+            loading={dictionaries.isLoading}
+            onChange={(value) => {
+              setDepartmentId(value);
+              setPage(1);
+            }}
+            options={(dictionaries.data?.departments ?? []).map((department) => ({
+              value: department.id,
+              label: department.name,
             }))}
           />
           <Select

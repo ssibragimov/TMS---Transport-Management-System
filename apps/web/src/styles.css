@@ -4,6 +4,31 @@
  * всего закрепление шапок при прокрутке.
  */
 
+/*
+ * ─── Поля body ────────────────────────────────────────────────────────────
+ *
+ * Обязательный ноль, а не косметика.
+ *
+ * Браузер по умолчанию даёт body поля в 8 пикселей, и Ant Design v5 своего
+ * сброса стилей не приносит. При открытии любого модального окна или панели
+ * antd блокирует прокрутку страницы и компенсирует исчезнувшую полосу
+ * прокрутки правилом `html body { width: calc(100% - 15px) }` — оно считает,
+ * что body занимает всю ширину html.
+ *
+ * С полями это неверно, и компенсация промахивается: до блокировки ширина
+ * body равна «ширина html минус 16», после — «ширина html плюс 15 (полоса
+ * ушла) минус 15». Разница в 16 пикселей раздаёт по всей странице —
+ * шапка, карточка, таблица дёргаются вправо при открытии карточки и обратно
+ * при закрытии. Замерено в Chrome: 1553 → 1569 и назад.
+ *
+ * ВНИМАНИЕ: не «чинить» это добавлением `scrollbar-gutter: stable` на html.
+ * Полоса тогда останется зарезервированной, но antd всё равно вычтет свои
+ * 15 пикселей — рывок вернётся, только в другую сторону.
+ */
+body {
+  margin: 0;
+}
+
 /* ─── Экран входа ───────────────────────────────────────────────────────── */
 
 /*
@@ -16,12 +41,47 @@
   position: relative;
   min-height: 100vh;
   display: grid;
-  place-items: center;
-  padding: 24px;
-  overflow: hidden;
+  /*
+   * safe center: если герой и карточка вместе выше экрана, контент
+   * прижимается к началу и становится прокручиваемым, а не обрезается
+   * невидимой частью сверху.
+   */
+  place-items: safe center;
+  align-content: safe center;
+  padding: 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(120% 90% at 50% 120%, #0a2b4d 0%, transparent 60%),
     linear-gradient(160deg, #061c33 0%, #0b3d6b 45%, #10507f 100%);
+}
+
+/* Ночной перрон: векторная сцена заливает весь экран и остаётся за формой. */
+.gsm-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.gsm-backdrop svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Маяк на вышке и габаритный огонь самолёта мигают. */
+.gsm-beacon {
+  animation: gsm-beacon 2.6s ease-in-out infinite;
+}
+
+.gsm-beacon--slow {
+  animation-duration: 4.2s;
+}
+
+@keyframes gsm-beacon {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
 }
 
 /* Пятна света. Сильное размытие делает из них атмосферу, а не фигуры. */
@@ -75,6 +135,259 @@
   right: 20px;
   z-index: 2;
 }
+
+/* Контейнер входа: герой сверху по центру, форма под ним — как на экране
+   входа крупных сервисов. Переполнение по высоте прокручивается, а не
+   режется: см. safe center на .gsm-login. */
+.gsm-login-stack {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  max-width: 480px;
+}
+
+/*
+ * Композиция заставки.
+ *
+ * --hero-unit — единица масштаба: размеры плиток заданы числами, а не
+ * пикселями, и на узком экране достаточно уменьшить эту переменную,
+ * чтобы вся россыпь ужалась пропорционально. Иначе пришлось бы дублировать
+ * ширину, высоту, скругление и размер иконки в каждом медиазапросе.
+ *
+ * --px/--py — отклонение указателя в диапазоне [-1; 1], их выставляет
+ * компонент. По умолчанию нули: без мыши композиция просто стоит на месте.
+ */
+.gsm-hero {
+  position: relative;
+  width: 300px;
+  height: 300px;
+  flex: none;
+  margin: -4px;
+  --hero-unit: 1px;
+  --px: 0;
+  --py: 0;
+}
+
+/* Мягкое свечение позади композиции — роль жёлтого овала у iCloud. */
+.gsm-hero-halo {
+  position: absolute;
+  inset: 18%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, rgba(255, 214, 148, 0.34), transparent 70%);
+  filter: blur(18px);
+  animation: gsm-hero-halo-in 1.1s ease-out both;
+}
+
+/*
+ * Центр композиции. Внешний элемент держит позицию и отклик на курсор,
+ * внутренний — появление. Разделение то же, что и у плиток: два transform
+ * на одном узле затирают друг друга.
+ *
+ * Центр смещается за указателем слабее любой плитки — так и рождается
+ * ощущение, что он лежит глубже.
+ */
+.gsm-hero-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 100;
+  transform: translate(-50%, -50%)
+    translate(calc(var(--px) * 6px), calc(var(--py) * 6px));
+  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.gsm-hero-core-tile {
+  width: calc(100 * var(--hero-unit));
+  height: calc(100 * var(--hero-unit));
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  color: #0b3d6b;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow:
+    0 18px 44px rgba(3, 18, 33, 0.36),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+  animation: gsm-hero-pop 0.75s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.gsm-hero-core svg {
+  width: calc(38 * var(--hero-unit));
+  height: calc(38 * var(--hero-unit));
+}
+
+/* Мини-бейдж под бортом в круге — сокращение названия системы. */
+.gsm-hero-core--label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #7b8ca3;
+}
+
+/*
+ * ─── Плитка техники: три вложенных слоя ────────────────────────────────────
+ *
+ * Слой 1 (.gsm-hero-sat) — место в композиции и отклик на курсор.
+ * Слой 2 (.gsm-hero-sat-float) — бесконечное дыхание.
+ * Слой 3 (.gsm-hero-sat-tile) — появление и вся внешность.
+ *
+ * Разделение вынужденное и принципиальное: элементу доступен ровно один
+ * transform, и положение, дыхание и появление на одном узле затирали бы
+ * друг друга. Вложенность перемножает их бесплатно.
+ */
+
+/* Слой 1: положение и параллакс. Смещение пропорционально --sat-depth,
+   поэтому дальние плитки ходят за курсором заметнее ближних. */
+.gsm-hero-sat {
+  position: absolute;
+  left: var(--sat-x);
+  top: var(--sat-y);
+  transform: translate(-50%, -50%)
+    translate(
+      calc(var(--px) * var(--sat-depth) * 1px),
+      calc(var(--py) * var(--sat-depth) * 1px)
+    );
+  /* Плавный «догоняющий» ход вместо жёсткой привязки к курсору. */
+  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Слой 2: дыхание. Период и амплитуда приходят из компонента, фаза —
+   отрицательной задержкой, чтобы плитки не стартовали в ногу. */
+.gsm-hero-sat-float {
+  animation: gsm-hero-float var(--float-duration) ease-in-out infinite;
+  will-change: transform;
+}
+
+/*
+ * Слой 3: внешность. Белая карточка с цветной иконкой, лёгкой подцветкой
+ * сверху и цветным свечением позади — как плитки приложений у iCloud.
+ */
+.gsm-hero-sat-tile {
+  width: calc(var(--sat-size) * var(--hero-unit));
+  height: calc(var(--sat-size) * var(--hero-unit));
+  display: grid;
+  place-items: center;
+  position: relative;
+  color: var(--sat-color);
+  background: rgba(255, 255, 255, 0.97);
+  /* Скругление привязано к размеру: у мелких плиток фиксированные 20px
+     съедали бы половину и превращали карточку в кружок. */
+  border-radius: calc(var(--sat-size) * var(--hero-unit) * 0.3);
+  background-image: radial-gradient(
+    circle at 50% 24%,
+    color-mix(in srgb, var(--sat-color) 16%, transparent),
+    transparent 70%
+  );
+  box-shadow:
+    0 12px 28px rgba(3, 18, 33, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+  animation: gsm-hero-pop 0.75s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+
+  /* Свечение цвета плитки позади неё. */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -16px;
+    z-index: -1;
+    border-radius: 30px;
+    background: radial-gradient(
+      circle at 50% 50%,
+      color-mix(in srgb, var(--sat-color) 22%, transparent),
+      transparent 70%
+    );
+    filter: blur(10px);
+  }
+}
+
+.gsm-hero-sat-tile svg {
+  width: calc(var(--sat-size) * var(--hero-unit) * 0.44);
+  height: calc(var(--sat-size) * var(--hero-unit) * 0.44);
+}
+
+/*
+ * Появление: плитка выпрыгивает из точки с перелётом за единицу и
+ * возвратом — это и есть пружина. Перелёт целиком в easing'е, а не в
+ * ключевых кадрах: два перелёта подряд выглядят как дребезг.
+ */
+@keyframes gsm-hero-pop {
+  from { opacity: 0; transform: scale(0.3); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Свечение проступает медленнее плиток — иначе фон вспыхивает раньше,
+   чем появляется то, что он подсвечивает. */
+@keyframes gsm-hero-halo-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/*
+ * Дыхание: маленькая замкнутая петля. Три опорных точки вместо двух
+ * намеренно — движение туда-обратно по прямой читается как маятник,
+ * а по петле выглядит свободным дрейфом.
+ */
+@keyframes gsm-hero-float {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(var(--drift-x), calc(var(--drift-y) * -1)); }
+  66% { transform: translate(calc(var(--drift-x) * -0.6), calc(var(--drift-y) * 0.75)); }
+}
+
+@media (max-width: 720px) {
+  .gsm-login-stack {
+    flex-direction: column;
+    gap: 28px;
+  }
+}
+
+/* Вся композиция ужимается одной переменной — см. --hero-unit выше. */
+@media (max-width: 520px) {
+  .gsm-hero {
+    width: 270px;
+    height: 270px;
+    --hero-unit: 0.86px;
+  }
+  .gsm-hero-core--label { font-size: 10px; }
+  .gsm-hero-sat-tile::before { inset: -12px; }
+}
+
+/* Один из немногих честных случаев для фолбэка: color-mix держит тень
+   плитки свежей при любом --sat-color, но в старых браузерах для градиента
+   остаётся однотонная подцветка текущего цвета. */
+@supports not (background: color-mix(in srgb, red 10%, transparent)) {
+  .gsm-hero-sat-tile {
+    background: #fff;
+  }
+  .gsm-hero-sat-tile::before {
+    background: var(--sat-color);
+    opacity: 0.22;
+  }
+}
+
+/*
+ * При запрете анимаций композиция просто стоит собранной: ни дыхания, ни
+ * выпрыгивания, ни догоняющего хода за курсором. Слушатель указателя в этом
+ * режиме компонент не вешает вовсе, так что --px/--py остаются нулями.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .gsm-hero-halo,
+  .gsm-hero-sat-float,
+  .gsm-hero-sat-tile,
+  .gsm-hero-core-tile {
+    animation: none;
+  }
+
+  .gsm-hero-sat,
+  .gsm-hero-core {
+    transition: none;
+  }
+}
+
+
 
 /* Шапка — верхний уровень разметки и занимает всю ширину окна. Она не
    зависит от состояния меню и остаётся неподвижной при любых переходах:
@@ -250,4 +563,3 @@ body.gsm-resizing * {
 .gsm-table-card .ant-table-sticky-holder {
   z-index: 4;
 }
-

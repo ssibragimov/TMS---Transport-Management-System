@@ -53,6 +53,7 @@ export function WaybillFormModal({ open, onClose }: Props) {
 
   const [form] = Form.useForm();
   const [vehicleId, setVehicleId] = useState<number | null>(null);
+  const [driverId, setDriverId] = useState<number | null>(null);
 
   const vehicles = useQuery({
     queryKey: ['vehicles-lookup'],
@@ -72,6 +73,31 @@ export function WaybillFormModal({ open, onClose }: Props) {
       },
   });
 
+  /*
+   * Медицинский допуск выбранного водителя.
+   *
+   * Запрашивается сразу при выборе, а не при сохранении: диспетчер должен
+   * видеть запрет до того, как заполнит задания и упрётся в отказ сервера.
+   *
+   * Блокирует любое отсутствие действующего допуска, а не только отказ врача:
+   * порядок в службе — сначала здравпункт, потом техника, поэтому к моменту
+   * оформления листа заключение обязано существовать.
+   */
+  const clearance = useQuery({
+    queryKey: ['driver-medical-clearance', driverId],
+    enabled: open && driverId !== null,
+    queryFn: async () =>
+      (
+        await api.get<{ state: string; allowed: boolean; label: string; validUntil: string | null }>(
+          `/drivers/${driverId}/medical-clearance`,
+        )
+      ).data,
+  });
+
+  const refusedByDoctor = clearance.data?.state === 'FAILED';
+  /** Нет действующего допуска — лист не создаётся ни в каком виде. */
+  const blockedByMedical = clearance.data !== undefined && !clearance.data.allowed;
+
   // Нормы подтягиваются на выбранную технику: диспетчер должен видеть,
   // по какой ставке будет считаться расход, ДО выдачи листа.
   const norms = useQuery({
@@ -90,6 +116,7 @@ export function WaybillFormModal({ open, onClose }: Props) {
       tasks: [{ sequence: 1 }],
     });
     setVehicleId(null);
+    setDriverId(null);
   }, [open, form]);
 
   const create = useApiMutation(
@@ -157,6 +184,9 @@ export function WaybillFormModal({ open, onClose }: Props) {
       cancelText={t("Отмена")}
       width={900}
       confirmLoading={create.isPending}
+      // Кнопка неактивна, а не «нажми и получи отказ»: без действующего
+      // допуска лист не создастся, и предлагать попытку бессмысленно.
+      okButtonProps={{ disabled: blockedByMedical }}
       onCancel={onClose}
       onOk={() => {
         void form.validateFields().then((values) => {
@@ -165,6 +195,20 @@ export function WaybillFormModal({ open, onClose }: Props) {
       }}
     >
       <Form form={form} layout="vertical" onValuesChange={() => undefined}>
+        {blockedByMedical && (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={clearance.data?.label}
+            description={
+              refusedByDoctor
+                ? t('Путевой лист на этого водителя не создаётся. Требуется замена.')
+                : t('Сначала осмотр в здравпункте, затем оформление путевого листа.')
+            }
+          />
+        )}
+
         <Row gutter={16}>
           <Col span={6}>
             <Form.Item name="type" label={t("Тип")} rules={[{ required: true }]}>
@@ -202,11 +246,20 @@ export function WaybillFormModal({ open, onClose }: Props) {
             </Form.Item>
           </Col>
           <Col span={9}>
-            <Form.Item name="driverId" label={t("Водитель")} rules={[{ required: true }]}>
+            <Form.Item
+              name="driverId"
+              label={t('Водитель')}
+              rules={[{ required: true }]}
+              // Красная рамка и подпись прямо у поля: запрет должен быть
+              // виден там, где сделан выбор, а не только в сообщении об ошибке.
+              validateStatus={blockedByMedical ? 'error' : undefined}
+              help={blockedByMedical ? clearance.data?.label : undefined}
+            >
               <Select
                 showSearch
                 optionFilterProp="label"
                 loading={drivers.isLoading}
+                onChange={(value: number) => setDriverId(value)}
                 options={drivers.data?.items.map((d) => ({
                   value: d.id,
                   label: `${d.lastName} ${d.firstName} (${d.personnelNumber})`,

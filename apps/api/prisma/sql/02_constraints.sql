@@ -97,6 +97,92 @@ ALTER TABLE public.waybills
     OR (fuel_consumed IS NOT NULL AND fuel_closing IS NOT NULL AND closed_at IS NOT NULL)
   );
 
+/*
+ * Журнал путевых листов — самый открываемый экран системы.
+ *
+ * Запрос у него один: «последние листы этого офиса», то есть фильтр по
+ * office_id с сортировкой по дате начала. Индекс (office_id, status,
+ * valid_from) для него не годится: status стоит между колонками и рвёт
+ * порядок, поэтому планировщик читал таблицу целиком — тридцать тысяч строк
+ * ради двадцати пяти на экране. На месячном объёме это 39 мс и незаметно,
+ * а при пятилетнем хранении превратится в секунды на каждое открытие.
+ *
+ * Индекс частичный: удалённые листы в журнале не показываются, и держать
+ * их в индексе незачем. Prisma частичные индексы описывать не умеет —
+ * отсюда и место в этом файле.
+ */
+CREATE INDEX IF NOT EXISTS waybills_office_recent_idx
+  ON public.waybills (office_id, valid_from DESC)
+  WHERE deleted_at IS NULL;
+
+-- ─── Склад ТМЦ ────────────────────────────────────────────────────────────
+/*
+ * Остаток не может уйти в минус.
+ *
+ * Проверка есть и в сервисе, с понятным сообщением («на складе 12 л»),
+ * но здесь она стоит как последний рубеж: списание идёт из нескольких мест
+ * (выдача, перемещение, списание, наряд-заказ), и одна забытая проверка
+ * означает отрицательный остаток, который потом никто не объяснит.
+ */
+ALTER TABLE public.stock_balances DROP CONSTRAINT IF EXISTS stock_balances_non_negative;
+ALTER TABLE public.stock_balances
+  ADD CONSTRAINT stock_balances_non_negative CHECK (quantity >= 0);
+
+-- Движение с нулевым количеством — всегда ошибка ввода: документ проведён,
+-- в журнале строка есть, а остаток не изменился.
+ALTER TABLE public.stock_movements DROP CONSTRAINT IF EXISTS stock_movements_nonzero;
+ALTER TABLE public.stock_movements
+  ADD CONSTRAINT stock_movements_nonzero CHECK (quantity <> 0);
+
+-- Знак количества обязан соответствовать типу движения. Без этой проверки
+-- ошибка в знаке даёт приход вместо расхода — остаток растёт, ценности уходят.
+-- Корректировка по инвентаризации исключена: она принимает оба знака.
+ALTER TABLE public.stock_movements DROP CONSTRAINT IF EXISTS stock_movements_sign;
+ALTER TABLE public.stock_movements
+  ADD CONSTRAINT stock_movements_sign CHECK (
+    (type IN ('RECEIPT', 'RETURN', 'USED_RETURN', 'TRANSFER_IN') AND quantity > 0)
+    OR (type IN ('ISSUE', 'WRITE_OFF', 'TRANSFER_OUT') AND quantity < 0)
+    OR type = 'INVENTORY_ADJ'
+  );
+
+-- Выдача обязана называть получателя: водителя из картотеки либо сотрудника.
+-- Документ без получателя не отвечает на главный вопрос кладовщика — «кому».
+ALTER TABLE public.stock_documents DROP CONSTRAINT IF EXISTS stock_documents_recipient;
+ALTER TABLE public.stock_documents
+  ADD CONSTRAINT stock_documents_recipient CHECK (
+    kind <> 'ISSUE'
+    OR recipient_driver_id IS NOT NULL
+    OR recipient_user_id IS NOT NULL
+  );
+
+-- Перемещению нужен склад-приёмник, и он обязан отличаться от склада-отправителя.
+ALTER TABLE public.stock_documents DROP CONSTRAINT IF EXISTS stock_documents_transfer_target;
+ALTER TABLE public.stock_documents
+  ADD CONSTRAINT stock_documents_transfer_target CHECK (
+    kind <> 'TRANSFER'
+    OR (target_warehouse_id IS NOT NULL AND target_warehouse_id <> warehouse_id)
+  );
+
+-- Списание без причины — это и есть недостача, оформленная документом.
+ALTER TABLE public.stock_documents DROP CONSTRAINT IF EXISTS stock_documents_write_off_reason;
+ALTER TABLE public.stock_documents
+  ADD CONSTRAINT stock_documents_write_off_reason CHECK (
+    kind <> 'WRITE_OFF' OR (reason IS NOT NULL AND length(btrim(reason)) >= 5)
+  );
+
+-- Код склада уникален в пределах офиса, но удалённый склад не должен
+-- занимать свой код навсегда — отсюда частичный индекс.
+DROP INDEX IF EXISTS warehouses_office_id_code_key;
+CREATE UNIQUE INDEX IF NOT EXISTS warehouses_office_code_active_uq
+  ON public.warehouses (office_id, code)
+  WHERE deleted_at IS NULL;
+
+-- Поиск по номенклатуре: кладовщик ищет «масл», «аккум», «фильтр воздуш».
+CREATE INDEX IF NOT EXISTS spare_parts_search_trgm
+  ON public.spare_parts USING gin (
+    (name || ' ' || code || ' ' || COALESCE(catalog_number, '')) gin_trgm_ops
+  );
+
 -- ─── Офисы ────────────────────────────────────────────────────────────────
 ALTER TABLE public.offices DROP CONSTRAINT IF EXISTS offices_winter_months;
 ALTER TABLE public.offices
@@ -139,6 +225,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS gps_device_active_uq
 CREATE UNIQUE INDEX IF NOT EXISTS vehicle_primary_photo_uq
   ON public.vehicle_photos (vehicle_id)
   WHERE is_primary;
+
+-- Служебный внутренний номер НЕ уникален: один аппарат стоит в диспетчерской
+-- на всю смену, и номер закреплён сразу за несколькими сотрудниками.
+-- Индекс уникальности существовал в ранних сборках — снимаем его явно,
+-- иначе на уже развёрнутых базах он останется и продолжит отклонять вторую
+-- запись с тем же номером.
+DROP INDEX IF EXISTS users_internal_number_active_uq;
+
+-- Ровно четыре цифры. Проверка в СУБД, а не только в DTO: номер приходит
+-- ещё и из seed'а, который валидацию Nest не проходит.
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_internal_number_format;
+ALTER TABLE public.users
+  ADD CONSTRAINT users_internal_number_format
+  CHECK (internal_number IS NULL OR internal_number ~ '^[0-9]{4}$');
 
 -- ─── Поиск ────────────────────────────────────────────────────────────────
 -- Триграммные индексы под ILIKE '%...%' в списках.

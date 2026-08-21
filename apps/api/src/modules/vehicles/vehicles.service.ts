@@ -5,7 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { MeterSource, Prisma, VehicleStatus } from '@prisma/client';
-import type { PaginatedResult } from '@gsm/shared';
+import {
+  TECHNICAL_DEFAULT_HOURS,
+  TECHNICAL_LABEL,
+  evaluateTechnicalClearance,
+  type PaginatedResult,
+} from '@gsm/shared';
 
 import { paginate } from '@/common/dto/pagination.dto';
 import { PrismaService } from '@/common/prisma/prisma.service';
@@ -15,6 +20,7 @@ import { TenantStore } from '@/common/tenancy/tenant-context';
 import type {
   CreateVehicleDto,
   MeterAdjustmentDto,
+  TechnicalInspectionDto,
   TransferVehicleDto,
   UpdateVehicleDto,
   VehicleDocumentDto,
@@ -357,15 +363,172 @@ export class VehiclesService {
     });
   }
 
+  // ─── Предрейсовый контроль технического состояния ────────────────────────
+
+  /**
+   * Запись заключения механика.
+   *
+   * Как и медосмотр, это допуск со сроком, а не отметка в журнале: именно
+   * на него потом ссылается путевой лист. Подписывает вошедший пользователь —
+   * раньше исправность подтверждал сам диспетчер галочкой в форме выдачи.
+   */
+  async addTechnicalInspection(
+    officeId: number,
+    vehicleId: number,
+    dto: TechnicalInspectionDto,
+  ) {
+    await this.ensureExists(officeId, vehicleId);
+
+    const checkedAt = dto.checkedAt ? new Date(dto.checkedAt) : new Date();
+    const validUntil = dto.validUntil
+      ? new Date(dto.validUntil)
+      : new Date(checkedAt.getTime() + TECHNICAL_DEFAULT_HOURS * 3600_000);
+
+    return this.prisma.db.technicalInspection.create({
+      data: {
+        vehicleId,
+        checkedAt,
+        validUntil,
+        result: dto.result,
+        isPreTrip: dto.isPreTrip ?? true,
+        checkedByUserId: TenantStore.get()?.userId ?? null,
+        mechanicName: dto.mechanicName ?? null,
+        checklist: (dto.checklist ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+        odometer: dto.odometer ?? null,
+        notes: dto.notes ?? null,
+      },
+    });
+  }
+
+  /**
+   * Действующее заключение механика на заданный момент.
+   *
+   * Берётся последнее по времени, а не последнее положительное: если механик
+   * осмотрел повторно и не выпустил, прежнее разрешение не должно всплыть
+   * и перекрыть отказ.
+   */
+  async technicalClearance(vehicleId: number, at: Date = new Date()) {
+    const check = await this.prisma.db.technicalInspection.findFirst({
+      where: { vehicleId, isPreTrip: true, checkedAt: { lte: at } },
+      orderBy: { checkedAt: 'desc' },
+      select: {
+        id: true,
+        checkedAt: true,
+        validUntil: true,
+        result: true,
+        checklist: true,
+        odometer: true,
+        notes: true,
+        mechanicName: true,
+        checkedByUser: { select: { id: true, fullName: true } },
+      },
+    });
+
+    const verdict = evaluateTechnicalClearance(
+      check && { result: check.result, checkedAt: check.checkedAt, validUntil: check.validUntil },
+      at,
+    );
+
+    return { check, verdict };
+  }
+
+  /** Допуск техники с проверкой офиса — для интерфейса диспетчера. */
+  async technicalClearanceOf(officeId: number, vehicleId: number) {
+    await this.ensureExists(officeId, vehicleId);
+    const { check, verdict } = await this.technicalClearance(vehicleId);
+
+    return {
+      state: verdict.state,
+      allowed: verdict.allowed,
+      overridable: verdict.overridable,
+      label: TECHNICAL_LABEL[verdict.state],
+      validUntil: verdict.validUntil ?? null,
+      check,
+    };
+  }
+
+  /**
+   * Очередь техконтроля: техника офиса и состояние её допуска.
+   *
+   * Возвращается вся активная, а не только неосмотренная: механику нужно
+   * видеть и то, что он уже выпустил, иначе он не отличит «осмотрено»
+   * от «ещё не подавали».
+   */
+  async technicalQueue(officeId: number, search?: string) {
+    const vehicles = await this.prisma.db.vehicle.findMany({
+      where: {
+        officeId,
+        deletedAt: null,
+        status: VehicleStatus.ACTIVE,
+        ...(search && {
+          OR: [
+            { garageNumber: { contains: search, mode: 'insensitive' } },
+            { plateNumber: { contains: search, mode: 'insensitive' } },
+          ],
+        }),
+      },
+      orderBy: { garageNumber: 'asc' },
+      select: {
+        id: true,
+        garageNumber: true,
+        plateNumber: true,
+        category: true,
+        currentOdometer: true,
+        department: { select: { name: true } },
+        technicalInspections: {
+          where: { isPreTrip: true },
+          orderBy: { checkedAt: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            checkedAt: true,
+            validUntil: true,
+            result: true,
+            notes: true,
+            checkedByUser: { select: { fullName: true } },
+          },
+        },
+      },
+    });
+
+    const now = new Date();
+
+    return vehicles.map((vehicle) => {
+      const last = vehicle.technicalInspections[0] ?? null;
+      const verdict = evaluateTechnicalClearance(
+        last && { result: last.result, checkedAt: last.checkedAt, validUntil: last.validUntil },
+        now,
+      );
+
+      return {
+        vehicleId: vehicle.id,
+        garageNumber: vehicle.garageNumber,
+        plateNumber: vehicle.plateNumber,
+        category: vehicle.category,
+        department: vehicle.department?.name ?? null,
+        currentOdometer: vehicle.currentOdometer,
+        state: verdict.state,
+        allowed: verdict.allowed,
+        label: TECHNICAL_LABEL[verdict.state],
+        validUntil: verdict.validUntil ?? null,
+        lastCheck: last,
+      };
+    });
+  }
+
   /** История показаний счётчиков. */
   async meterHistory(officeId: number, id: number, limit = 100) {
     await this.ensureExists(officeId, id);
 
-    return this.prisma.db.vehicleMeterReading.findMany({
+    const rows = await this.prisma.db.vehicleMeterReading.findMany({
       where: { vehicleId: id },
       orderBy: { recordedAt: 'desc' },
       take: Math.min(limit, 500),
     });
+
+    // Идентификатор здесь bigint, а JSON.stringify такие значения не умеет
+    // и роняет весь ответ. Клиент и так ждёт строку (см. MeterRow).
+    return rows.map((row) => ({ ...row, id: String(row.id) }));
   }
 
   /**

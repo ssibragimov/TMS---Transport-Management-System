@@ -22,6 +22,8 @@ import dayjs from 'dayjs';
 import { useState } from 'react';
 import { CheckResult, LicenseCategory, PERMISSIONS, PermitZone } from '@gsm/shared';
 
+import { EntityAuditLog } from '@/components/EntityAuditLog';
+import { EntityId } from '@/components/EntityId';
 import { api } from '@/api/client';
 import { useApiMutation } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
@@ -181,6 +183,7 @@ export function DriverDrawer({ driverId, onClose }: Props) {
       width={820}
       loading={driver.isLoading}
       title={d ? `${d.lastName} ${d.firstName} ${d.middleName ?? ''}`.trim() : 'Карточка водителя'}
+      extra={<EntityId id={d?.id} />}
     >
       {d && (
         <>
@@ -403,6 +406,11 @@ export function DriverDrawer({ driverId, onClose }: Props) {
                     />
                   </>
                 ),
+              },
+              {
+                key: 'audit',
+                label: t("Журнал действий"),
+                children: <EntityAuditLog entity="Driver" entityId={d.id} />,
               },
             ]}
           />

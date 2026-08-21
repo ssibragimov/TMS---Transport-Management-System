@@ -75,7 +75,15 @@ export interface CurrentUserDto {
   id: number;
   email: string;
   fullName: string;
+  /** Служебный внутренний номер телефона: четыре цифры. */
+  internalNumber: string | null;
   phone: string | null;
+  /**
+   * Признак наличия фотографии. Самого файла здесь нет — он запрашивается
+   * отдельно по /users/:id/photo. Поле нужно, чтобы шапка не ходила за
+   * снимком у тех, у кого его нет.
+   */
+  photoKey: string | null;
   locale: string;
   activeOffice: OfficeSummaryDto;
   /** Офисы, между которыми пользователь может переключаться в интерфейсе */
@@ -91,6 +99,13 @@ export interface OfficeSummaryDto {
   iataCode: string | null;
   timezone: string;
   kind: string;
+  /**
+   * Координаты аэропорта. Нужны карте телеметрии: по ним она наводится
+   * на аэродром и ограничивает область просмотра его окрестностями.
+   * У головного офиса их нет.
+   */
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface LoginRequest {

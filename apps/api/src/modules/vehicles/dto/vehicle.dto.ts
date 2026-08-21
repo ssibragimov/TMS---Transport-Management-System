@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import {
+  CheckResult,
   MeterType,
   MeterSource,
   OwnershipType,
@@ -14,6 +15,7 @@ import {
   IsEnum,
   IsInt,
   IsNumber,
+  IsObject,
   IsOptional,
   IsPositive,
   IsString,
@@ -258,4 +260,57 @@ export class VehicleQueryDto extends PaginationDto {
   @Min(1)
   @Max(365)
   expiringWithinDays?: number;
+}
+
+/**
+ * Заключение механика о техническом состоянии.
+ *
+ * Перечень узлов приходит объектом «ключ → отметка»: состав перечня задан
+ * в общем пакете (TECHNICAL_CHECKLIST) и одинаков на сервере и в форме.
+ */
+export class TechnicalInspectionDto {
+  @ApiPropertyOptional({ format: 'date-time', description: 'По умолчанию — сейчас' })
+  @IsOptional()
+  @IsDateString()
+  checkedAt?: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description: 'До какого момента действует. По умолчанию — 12 часов от осмотра.',
+  })
+  @IsOptional()
+  @IsDateString()
+  validUntil?: string;
+
+  @ApiProperty({ enum: CheckResult })
+  @IsEnum(CheckResult)
+  result: CheckResult;
+
+  @ApiPropertyOptional({ default: true, description: 'Предрейсовый, а не периодический' })
+  @IsOptional()
+  @IsBoolean()
+  isPreTrip?: boolean;
+
+  @ApiPropertyOptional({ description: 'Отметки по узлам: {"brakes": true, ...}' })
+  @IsOptional()
+  @IsObject()
+  checklist?: Record<string, boolean>;
+
+  @ApiPropertyOptional({ description: 'Показание одометра на момент осмотра' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 1 })
+  @Min(0)
+  odometer?: number;
+
+  @ApiPropertyOptional({ description: 'ФИО механика для записей, перенесённых с бумаги' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  mechanicName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(600)
+  notes?: string;
 }

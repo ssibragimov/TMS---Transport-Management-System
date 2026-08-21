@@ -275,7 +275,9 @@ export function FuelPage() {
                     dataIndex: 'source',
                     width: 140,
                     render: (s: string, row: IssueRow) =>
-                      row.tank ? `${FUEL_SOURCE_LABEL[s]} ${row.tank.code}` : t(FUEL_SOURCE_LABEL[s] ?? s),
+                      row.tank
+                        ? `${t(FUEL_SOURCE_LABEL[s] ?? s)} ${row.tank.code}`
+                        : t(FUEL_SOURCE_LABEL[s] ?? s),
                   },
                   {
                     title: t("Объём, л"),

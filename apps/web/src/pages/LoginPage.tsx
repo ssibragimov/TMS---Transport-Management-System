@@ -5,7 +5,9 @@ import { Navigate } from 'react-router-dom';
 
 import { errorMessage } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
+import { LoginBackdrop } from '@/components/LoginBackdrop';
 import { LocaleFlag } from '@/components/LocaleFlag';
+import { LoginHero } from '@/components/LoginHero';
 import i18n, { SUPPORTED_LOCALES, localeDescriptor } from '@/i18n';
 
 interface LoginForm {
@@ -44,6 +46,8 @@ export function LoginPage() {
 
   return (
     <div className="gsm-login">
+      {/* Перрон на весь экран позади формы: ВПП, огни, самолёт с тягачом. */}
+      <LoginBackdrop />
       {/*
         Язык выбирается до входа намеренно: сотрудник, которому русский
         интерфейс незнаком, иначе не понял бы даже подписи полей формы.
@@ -66,7 +70,10 @@ export function LoginPage() {
         />
       </div>
 
-      <Card className="gsm-login-card" styles={{ body: { padding: 32 } }}>
+      <div className="gsm-login-stack">
+        <LoginHero />
+
+        <Card className="gsm-login-card" styles={{ body: { padding: 32 } }}>
         <Typography.Title level={3} style={{ marginBottom: 4 }}>
           {t('Вход в систему')}
         </Typography.Title>
@@ -97,7 +104,8 @@ export function LoginPage() {
             {t('Войти')}
           </Button>
         </Form>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }

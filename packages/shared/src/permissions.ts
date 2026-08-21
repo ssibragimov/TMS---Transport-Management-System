@@ -30,13 +30,30 @@ export const PERMISSIONS = {
   VEHICLE_TRANSFER: 'vehicle.transfer',
   VEHICLE_DOCUMENT_MANAGE: 'vehicle.document.manage',
   VEHICLE_METER_ADJUST: 'vehicle.meter.adjust',
+  /**
+   * Предрейсовый контроль технического состояния — право механика.
+   *
+   * Отделено от vehicle.update намеренно: диспетчер, правящий карточку
+   * техники, не должен подписывать заключение о её исправности.
+   */
+  VEHICLE_TECHNICAL_INSPECT: 'vehicle.technical.inspect',
 
   // ─── Водители ─────────────────────────────────────────────────────────
   DRIVER_READ: 'driver.read',
   DRIVER_CREATE: 'driver.create',
+  /** Правка карточки водителя, включая табельный номер */
   DRIVER_UPDATE: 'driver.update',
   DRIVER_DELETE: 'driver.delete',
+  /** Удостоверения и допуски в зоны. Медосмотры сюда НЕ входят. */
   DRIVER_CLEARANCE_MANAGE: 'driver.clearance.manage',
+  /**
+   * Проведение медосмотров — право медработника здравпункта.
+   *
+   * Отделено от driver.clearance.manage намеренно: начальник автослужбы
+   * не должен подписывать медосмотр, а врач — продлевать удостоверение.
+   * Разделение и есть смысл предрейсового контроля.
+   */
+  DRIVER_MEDICAL_MANAGE: 'driver.medical.manage',
 
   // ─── ГСМ ──────────────────────────────────────────────────────────────
   FUEL_READ: 'fuel.read',
@@ -62,13 +79,51 @@ export const PERMISSIONS = {
   WAYBILL_PRINT: 'waybill.print',
   /** Изменение уже закрытого путевого листа — только руководитель */
   WAYBILL_REOPEN: 'waybill.reopen',
+  /**
+   * Выдача листа без предрейсового медосмотра.
+   *
+   * Отдельное право, а не часть waybill.issue: диспетчер не должен решать
+   * этот вопрос сам. Отказ врача не обходится и этим правом — оно снимает
+   * только отсутствие осмотра, например когда здравпункт закрыт и запись
+   * переносится с бумаги позже.
+   */
+  WAYBILL_OVERRIDE_MEDICAL: 'waybill.override_medical',
+  /**
+   * Выдача листа без заключения механика под запись причины.
+   * Отказ механика этим не снимается: неисправная техника на перрон
+   * не выезжает ни по чьему распоряжению.
+   */
+  WAYBILL_OVERRIDE_TECHNICAL: 'waybill.override_technical',
 
   // ─── ТО и ремонты ─────────────────────────────────────────────────────
   MAINTENANCE_READ: 'maintenance.read',
   MAINTENANCE_MANAGE: 'maintenance.manage',
   WORK_ORDER_APPROVE: 'workorder.approve',
+  /** Чтение номенклатуры ТМЦ */
   SPARE_PART_READ: 'sparepart.read',
+  /** Правка номенклатуры и складов */
   SPARE_PART_MANAGE: 'sparepart.manage',
+
+  // ─── Склад ТМЦ ────────────────────────────────────────────────────────
+  /** Остатки, журнал движений, складские документы */
+  STOCK_READ: 'stock.read',
+  /** Оприходование от поставщика */
+  STOCK_RECEIPT: 'stock.receipt',
+  /**
+   * Выдача и возврат. Возврат намеренно не отделён: это та же операция
+   * в обратную сторону, у того же кладовщика, в том же окне выдачи.
+   */
+  STOCK_ISSUE: 'stock.issue',
+  /**
+   * Списание по акту — отдельное право, и по умолчанию его нет у кладовщика.
+   *
+   * Списание единственное уменьшает остаток без встречного документа:
+   * ни получателя, ни техники, ни поставщика в нём нет. Именно через него
+   * уходит недостача, поэтому подписывать его должен не тот, кто хранит.
+   */
+  STOCK_WRITE_OFF: 'stock.write_off',
+  /** Перемещение между складами офиса */
+  STOCK_TRANSFER: 'stock.transfer',
 
   // ─── Телематика ───────────────────────────────────────────────────────
   TELEMETRY_READ: 'telemetry.read',
@@ -101,6 +156,10 @@ export const SYSTEM_ROLES = {
   FUEL_OPERATOR: 'FUEL_OPERATOR',
   /** Механик */
   MECHANIC: 'MECHANIC',
+  /** Медработник здравпункта — предрейсовые осмотры и допуск к смене */
+  MEDIC: 'MEDIC',
+  /** Кладовщик — приём, хранение и выдача ТМЦ */
+  STOREKEEPER: 'STOREKEEPER',
   /** Бухгалтер — читает всё, правит ничего, выгружает отчёты */
   ACCOUNTANT: 'ACCOUNTANT',
   /** Водитель — свой профиль и свои путевые листы (мобильное приложение) */
@@ -129,7 +188,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     P.WAYBILL_READ, P.WAYBILL_CREATE, P.WAYBILL_ISSUE, P.WAYBILL_CLOSE,
     P.WAYBILL_CANCEL, P.WAYBILL_PRINT, P.WAYBILL_REOPEN,
     P.MAINTENANCE_READ, P.MAINTENANCE_MANAGE, P.WORK_ORDER_APPROVE,
-    P.SPARE_PART_READ,
+    // Начальник автослужбы списывает и перемещает, но не выдаёт:
+    // выдача — работа кладовщика, а подпись под списанием — его.
+    P.SPARE_PART_READ, P.SPARE_PART_MANAGE,
+    P.STOCK_READ, P.STOCK_WRITE_OFF, P.STOCK_TRANSFER,
     P.TELEMETRY_READ, P.GEOFENCE_MANAGE,
     P.REPORT_READ, P.REPORT_EXPORT, P.AUDIT_READ,
   ],
@@ -153,15 +215,42 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
 
   [SYSTEM_ROLES.MECHANIC]: [
     P.OFFICE_READ, P.DICTIONARY_READ, P.VEHICLE_READ, P.VEHICLE_UPDATE,
-    P.VEHICLE_METER_ADJUST, P.DRIVER_READ, P.WAYBILL_READ,
+    P.VEHICLE_METER_ADJUST, P.VEHICLE_TECHNICAL_INSPECT, P.DRIVER_READ, P.WAYBILL_READ,
     P.MAINTENANCE_READ, P.MAINTENANCE_MANAGE,
-    P.SPARE_PART_READ, P.SPARE_PART_MANAGE, P.REPORT_READ,
+    // Механик получает ТМЦ, но не выдаёт их сам: иначе подпись выдавшего
+    // и подпись получившего окажутся одной и той же.
+    P.SPARE_PART_READ, P.STOCK_READ, P.REPORT_READ,
+  ],
+
+  /*
+   * Медработник намеренно почти ничего не может: только видеть водителей
+   * и проводить осмотры. Ни путевых листов, ни техники, ни ГСМ — его
+   * подпись должна значить медицинское заключение, и ничего сверх того.
+   */
+  [SYSTEM_ROLES.MEDIC]: [
+    P.OFFICE_READ, P.DICTIONARY_READ,
+    P.DRIVER_READ, P.DRIVER_MEDICAL_MANAGE,
+  ],
+
+  /*
+   * Кладовщик: номенклатура, склады, приход, выдача, возврат.
+   *
+   * Списания среди прав нет намеренно — см. комментарий к STOCK_WRITE_OFF.
+   * Техника и водители доступны только на чтение: без них нельзя заполнить
+   * «на какую машину» и «кто получил», а это обязательные поля выдачи.
+   */
+  [SYSTEM_ROLES.STOREKEEPER]: [
+    P.OFFICE_READ, P.DICTIONARY_READ,
+    P.VEHICLE_READ, P.DRIVER_READ, P.USER_READ,
+    P.SPARE_PART_READ, P.SPARE_PART_MANAGE,
+    P.STOCK_READ, P.STOCK_RECEIPT, P.STOCK_ISSUE, P.STOCK_TRANSFER,
+    P.MAINTENANCE_READ, P.REPORT_READ,
   ],
 
   [SYSTEM_ROLES.ACCOUNTANT]: [
     P.OFFICE_READ, P.DICTIONARY_READ, P.VEHICLE_READ, P.DRIVER_READ,
     P.FUEL_READ, P.WAYBILL_READ, P.WAYBILL_PRINT,
-    P.MAINTENANCE_READ, P.SPARE_PART_READ,
+    P.MAINTENANCE_READ, P.SPARE_PART_READ, P.STOCK_READ,
     P.REPORT_READ, P.REPORT_EXPORT, P.AUDIT_READ,
   ],
 
@@ -171,7 +260,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
 
   [SYSTEM_ROLES.VIEWER]: [
     P.OFFICE_READ, P.DICTIONARY_READ, P.VEHICLE_READ, P.DRIVER_READ,
-    P.FUEL_READ, P.WAYBILL_READ, P.MAINTENANCE_READ, P.REPORT_READ,
+    P.FUEL_READ, P.WAYBILL_READ, P.MAINTENANCE_READ, P.STOCK_READ,
+    P.REPORT_READ,
   ],
 };
 
@@ -183,6 +273,8 @@ export const ROLE_LABELS: Record<SystemRole, { ru: string; uz: string; en: strin
   [SYSTEM_ROLES.DISPATCHER]: { ru: 'Диспетчер', uz: 'Dispetcher', en: 'Dispatcher' },
   [SYSTEM_ROLES.FUEL_OPERATOR]: { ru: 'Оператор ГСМ', uz: 'YoMM operatori', en: 'Fuel operator' },
   [SYSTEM_ROLES.MECHANIC]: { ru: 'Механик', uz: 'Mexanik', en: 'Mechanic' },
+  [SYSTEM_ROLES.MEDIC]: { ru: 'Медработник', uz: 'Tibbiyot xodimi', en: 'Medic' },
+  [SYSTEM_ROLES.STOREKEEPER]: { ru: 'Кладовщик', uz: 'Omborchi', en: 'Storekeeper' },
   [SYSTEM_ROLES.ACCOUNTANT]: { ru: 'Бухгалтер', uz: 'Buxgalter', en: 'Accountant' },
   [SYSTEM_ROLES.DRIVER]: { ru: 'Водитель', uz: 'Haydovchi', en: 'Driver' },
   [SYSTEM_ROLES.VIEWER]: { ru: 'Наблюдатель', uz: 'Kuzatuvchi', en: 'Viewer' },

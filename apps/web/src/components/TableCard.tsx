@@ -3,6 +3,7 @@ import { Button, Card, Space, Tooltip } from 'antd';
 import type { CardProps } from 'antd';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Карточка списка с закреплённой шапкой.
@@ -49,6 +50,7 @@ interface TableCardProps extends Omit<CardProps, 'children'> {
 }
 
 export function TableCard({ children, extra, ...cardProps }: TableCardProps) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [headHeight, setHeadHeight] = useState(0);
   const [resetColumns, setResetColumns] = useState<{ run: () => void } | null>(null);
@@ -88,13 +90,13 @@ export function TableCard({ children, extra, ...cardProps }: TableCardProps) {
     resetColumns || extra ? (
       <Space size="small">
         {resetColumns && (
-          <Tooltip title="Вернуть исходный порядок и ширину колонок">
+          <Tooltip title={t('Вернуть исходный порядок и ширину колонок')}>
             <Button
               type="text"
               size="small"
               icon={<UndoOutlined />}
               onClick={resetColumns.run}
-              aria-label="Сбросить настройку колонок"
+              aria-label={t('Сбросить настройку колонок')}
             />
           </Tooltip>
         )}

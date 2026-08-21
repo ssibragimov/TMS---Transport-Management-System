@@ -53,13 +53,23 @@ export class CreateUserDto {
   @MaxLength(200)
   fullName: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Служебный внутренний номер телефона: ровно четыре цифры. ' +
+      'Не уникален — один аппарат может быть закреплён за несколькими сотрудниками.',
+    example: '1042',
+  })
+  @IsOptional()
+  @Matches(/^\d{4}$/, { message: 'Внутренний номер — ровно четыре цифры' })
+  internalNumber?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @MaxLength(40)
   phone?: string;
 
-  @ApiPropertyOptional({ enum: ['ru', 'uz', 'uz-Cyrl', 'en'], default: 'ru' })
+  @ApiPropertyOptional({ enum: ['ru', 'uz', 'en'], default: 'ru' })
   @IsOptional()
   @IsString()
   @MaxLength(8)
@@ -95,6 +105,13 @@ export class UpdateUserDto {
   @IsString()
   @MaxLength(200)
   fullName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Служебный внутренний номер: четыре цифры. Пустая строка снимает номер.',
+  })
+  @IsOptional()
+  @Matches(/^(\d{4})?$/, { message: 'Внутренний номер — ровно четыре цифры' })
+  internalNumber?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

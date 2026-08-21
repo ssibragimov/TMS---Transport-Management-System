@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import type { PaginatedResult } from '@gsm/shared';
+import { SYSTEM_ROLES, type PaginatedResult } from '@gsm/shared';
 
 import { APP_CONFIG, type AppConfig } from '@/config/configuration';
 import { paginate } from '@/common/dto/pagination.dto';
@@ -16,7 +16,10 @@ import {
   PrismaService,
   type PrismaTransactionClient,
 } from '@/common/prisma/prisma.service';
+import { StorageService } from '@/common/storage/storage.service';
 import { TenantStore } from '@/common/tenancy/tenant-context';
+
+import { actorIsSuperAdmin, hideSuperAdmins } from './super-admin';
 
 import type {
   CreateUserDto,
@@ -29,6 +32,7 @@ import type {
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -65,6 +69,7 @@ export class UsersService {
     query: UserQueryDto,
   ): Promise<PaginatedResult<unknown>> {
     const { bypass, officeIds } = this.scopeOf();
+    const superAdmin = await actorIsSuperAdmin(this.prisma);
 
     // По умолчанию — пользователи активного офиса. Головной офис может
     // запросить всех в своей области видимости одним списком.
@@ -76,10 +81,14 @@ export class UsersService {
 
     const where: Prisma.UserWhereInput = {
       deletedAt: null,
+      ...hideSuperAdmins(superAdmin),
       ...(officeFilter && { offices: { some: officeFilter } }),
       ...(query.status && { status: query.status }),
+      // Служебный внутренний номер участвует в поиске наравне с ФИО:
+      // по короткому номеру сотрудника находят быстрее всего.
       ...(query.search && {
         OR: [
+          { internalNumber: { contains: query.search } },
           { fullName: { contains: query.search, mode: 'insensitive' } },
           { email: { contains: query.search, mode: 'insensitive' } },
         ],
@@ -98,6 +107,8 @@ export class UsersService {
           orderBy: query.orderBy(['fullName', 'email', 'createdAt', 'lastLoginAt'], 'fullName'),
           select: {
             id: true,
+            internalNumber: true,
+            photoKey: true,
             email: true,
             fullName: true,
             phone: true,
@@ -125,11 +136,18 @@ export class UsersService {
   }
 
   async findOne(id: number) {
+    // Признак снимается до входа в системный контекст: внутри него текущего
+    // пользователя уже нет, и проверка «кто спрашивает» стала бы бессмысленной.
+    const superAdmin = await actorIsSuperAdmin(this.prisma);
+
     return TenantStore.runAsSystem(async () => {
       const user = await this.prisma.db.user.findFirst({
         where: { id, deletedAt: null },
         select: {
           id: true,
+          internalNumber: true,
+          photoKey: true,
+          photoMimeType: true,
           email: true,
           fullName: true,
           phone: true,
@@ -147,6 +165,14 @@ export class UsersService {
       });
 
       if (!user) {
+        throw new NotFoundException({ code: 'user.not_found', message: 'Пользователь не найден' });
+      }
+
+      // Карточка суперадминистратора закрыта от остальных целиком, а не только
+      // на правку: через неё сбрасывается пароль, и администратор аэропорта
+      // получил бы вход с полным доступом. Ответ такой же, как на
+      // несуществующего пользователя — сама учётка тоже скрыта из списка.
+      if (!superAdmin && user.roles.some((r) => r.role.code === SYSTEM_ROLES.SUPER_ADMIN)) {
         throw new NotFoundException({ code: 'user.not_found', message: 'Пользователь не найден' });
       }
 
@@ -174,6 +200,7 @@ export class UsersService {
     const officeIds = [...new Set(dto.offices.map((o) => o.officeId))];
 
     this.assertOfficesAllowed(officeIds);
+    const superAdmin = await actorIsSuperAdmin(this.prisma);
 
     const defaultOfficeId = dto.defaultOfficeId ?? officeIds[0];
     if (!officeIds.includes(defaultOfficeId)) {
@@ -205,13 +232,14 @@ export class UsersService {
         });
       }
 
-      const roleIdByCode = await this.resolveRoles(tx, dto.offices);
+      const roleIdByCode = await this.resolveRoles(tx, dto.offices, superAdmin);
 
       const user = await tx.user.create({
         data: {
           email,
           passwordHash: await bcrypt.hash(dto.password, this.config.security.bcryptRounds),
           fullName: dto.fullName,
+          internalNumber: dto.internalNumber || null,
           phone: dto.phone ?? null,
           locale: dto.locale ?? 'ru',
           status: dto.status ?? UserStatus.ACTIVE,
@@ -238,6 +266,7 @@ export class UsersService {
 
   async update(id: number, dto: UpdateUserDto) {
     const current = await this.findOne(id);
+    const superAdmin = await actorIsSuperAdmin(this.prisma);
 
     if (dto.offices) {
       this.assertOfficesAllowed(dto.offices.map((o) => o.officeId));
@@ -282,7 +311,7 @@ export class UsersService {
           skipDuplicates: true,
         });
 
-        const roleIdByCode = await this.resolveRoles(tx, dto.offices);
+        const roleIdByCode = await this.resolveRoles(tx, dto.offices, superAdmin);
 
         // Перестраиваются назначения и в новых офисах, и в снятых.
         // Без второй части роль в отвязанном офисе осталась бы висеть
@@ -318,6 +347,10 @@ export class UsersService {
         where: { id },
         data: {
           ...(dto.fullName !== undefined && { fullName: dto.fullName }),
+          // Пустая строка из формы означает «снять номер», а не «не менять».
+          ...(dto.internalNumber !== undefined && {
+            internalNumber: dto.internalNumber || null,
+          }),
           ...(dto.phone !== undefined && { phone: dto.phone }),
           ...(dto.locale !== undefined && { locale: dto.locale }),
           ...(dto.defaultOfficeId !== undefined && { defaultOfficeId: dto.defaultOfficeId }),
@@ -400,13 +433,85 @@ export class UsersService {
     });
   }
 
+  // ─── Фотография сотрудника ───────────────────────────────────────────────
+
+  /**
+   * Загрузка фотографии.
+   *
+   * Файл ожидается уже квадратным: обрезку делает клиент перед отправкой
+   * (см. apps/web/src/lib/image.ts). Приводить снимок к квадрату на сервере
+   * значило бы тянуть в зависимости нативную библиотеку обработки изображений
+   * ради одной операции — для аватара это несоразмерно.
+   */
+  async setPhoto(id: number, file: Express.Multer.File) {
+    const user = await this.findOne(id);
+
+    const stored = await this.storage.saveImage(`users/${id}`, file);
+
+    const updated = await this.prisma.systemTransaction(async (tx) =>
+      tx.user.update({
+        where: { id },
+        data: { photoKey: stored.key, photoMimeType: stored.mimeType },
+        select: { id: true, fullName: true, photoKey: true },
+      }),
+    );
+
+    // Прежний файл удаляется после успешной записи: сорвись обновление,
+    // в базе остался бы ключ на стёртый снимок.
+    if (user.photoKey) {
+      await this.storage.remove(user.photoKey);
+    }
+
+    return updated;
+  }
+
+  async readPhoto(id: number) {
+    const user = await this.findOne(id);
+
+    if (!user.photoKey) {
+      throw new NotFoundException({
+        code: 'user.photo_not_found',
+        message: 'У пользователя нет фотографии',
+      });
+    }
+
+    const { stream } = this.storage.createReadStream(user.photoKey);
+    return { stream, mimeType: user.photoMimeType ?? 'image/jpeg' };
+  }
+
+  async removePhoto(id: number) {
+    const user = await this.findOne(id);
+    if (!user.photoKey) return { id, photoKey: null };
+
+    await this.prisma.systemTransaction(async (tx) =>
+      tx.user.update({
+        where: { id },
+        data: { photoKey: null, photoMimeType: null },
+      }),
+    );
+
+    await this.storage.remove(user.photoKey);
+    return { id, photoKey: null };
+  }
+
   /** Коды ролей → id. Отсутствие любой из ролей — ошибка, а не тихий пропуск. */
   private async resolveRoles(
     tx: PrismaTransactionClient,
     assignments: OfficeAssignmentDto[],
+    isSuperAdmin: boolean,
   ): Promise<Map<string, number>> {
     const codes = [...new Set(assignments.flatMap((a) => a.roleCodes))];
     if (codes.length === 0) return new Map();
+
+    // Роль суперадминистратора в список ролей администратору аэропорта
+    // не приходит, но форма — не граница безопасности: код можно подставить
+    // в запрос напрямую, и тогда назначающий выдал бы доступ ко всей стране.
+    if (codes.includes(SYSTEM_ROLES.SUPER_ADMIN) && !isSuperAdmin) {
+      throw new ForbiddenException({
+        code: 'user.superadmin_role_restricted',
+        message: 'Роль суперадминистратора назначает только суперадминистратор',
+      });
+    }
 
     const roles = await tx.role.findMany({
       where: { code: { in: codes } },

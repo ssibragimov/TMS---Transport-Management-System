@@ -1,9 +1,16 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CheckResult, PermitZone, Prisma } from '@prisma/client';
-import type { ExpiryAlertDto, PaginatedResult } from '@gsm/shared';
+import {
+  CLEARANCE_LABEL,
+  clearanceValidUntil,
+  evaluateClearance,
+  type ExpiryAlertDto,
+  type PaginatedResult,
+} from '@gsm/shared';
 
 import { paginate } from '@/common/dto/pagination.dto';
 import { PrismaService } from '@/common/prisma/prisma.service';
+import { TenantStore } from '@/common/tenancy/tenant-context';
 
 import type {
   CreateDriverDto,
@@ -21,6 +28,16 @@ export interface EligibilityIssue {
   code: string;
   message: string;
   expiredAt?: Date;
+  /**
+   * Можно ли выдать лист вопреки этому замечанию.
+   *
+   * Просроченная бумага — вопрос организационный, его закрывает диспетчер
+   * под запись в журнале. Отказ врача — вопрос допуска человека к работе,
+   * и он не снимается ничьим правом.
+   */
+  overridable: boolean;
+  /** Замечание про медосмотр снимается отдельным правом, а не общим. */
+  medical?: boolean;
 }
 
 @Injectable()
@@ -88,17 +105,36 @@ export class DriversService {
     return driver;
   }
 
-  async create(officeId: number, dto: CreateDriverDto) {
+  /**
+   * Табельный номер уникален в пределах офиса среди неудалённых карточек.
+   *
+   * При правке существующего водителя себя из проверки исключаем: сохранение
+   * карточки без изменения номера не должно упираться в собственную запись.
+   */
+  private async assertPersonnelNumberFree(
+    officeId: number,
+    personnelNumber: string,
+    exceptId?: number,
+  ): Promise<void> {
     const duplicate = await this.prisma.db.driver.findFirst({
-      where: { officeId, personnelNumber: dto.personnelNumber, deletedAt: null },
+      where: {
+        officeId,
+        personnelNumber,
+        deletedAt: null,
+        ...(exceptId !== undefined && { id: { not: exceptId } }),
+      },
       select: { id: true },
     });
     if (duplicate) {
       throw new ConflictException({
         code: 'driver.personnel_number_taken',
-        message: `Табельный номер ${dto.personnelNumber} уже используется`,
+        message: `Табельный номер ${personnelNumber} уже используется`,
       });
     }
+  }
+
+  async create(officeId: number, dto: CreateDriverDto) {
+    await this.assertPersonnelNumberFree(officeId, dto.personnelNumber);
 
     return this.prisma.db.driver.create({
       data: {
@@ -119,9 +155,19 @@ export class DriversService {
   async update(officeId: number, id: number, dto: UpdateDriverDto) {
     await this.ensureExists(officeId, id);
 
+    // Табельный номер меняется вместе с остальной карточкой, по праву
+    // driver.update: в отделе кадров номера переприсваивают — при переводе
+    // между подразделениями, при исправлении опечатки в приказе о приёме.
+    // Прежние путевые листы ссылаются на водителя по id, поэтому история
+    // от смены номера не рвётся.
+    if (dto.personnelNumber !== undefined) {
+      await this.assertPersonnelNumberFree(officeId, dto.personnelNumber, id);
+    }
+
     return this.prisma.db.driver.update({
       where: { id },
       data: {
+        ...(dto.personnelNumber !== undefined && { personnelNumber: dto.personnelNumber }),
         ...(dto.lastName !== undefined && { lastName: dto.lastName }),
         ...(dto.firstName !== undefined && { firstName: dto.firstName }),
         ...(dto.middleName !== undefined && { middleName: dto.middleName }),
@@ -222,25 +268,160 @@ export class DriversService {
     });
   }
 
+  /**
+   * Запись осмотра — предрейсового или периодического.
+   *
+   * Предрейсовый осмотр здесь перестаёт быть отметкой в журнале и становится
+   * допуском к смене: у него есть момент окончания, и именно на него потом
+   * ссылается путевой лист. Срок врач может задать сам — ночная смена
+   * и разовый выезд по вызову живут по разным правилам.
+   */
   async addMedicalCheck(officeId: number, driverId: number, dto: MedicalCheckDto) {
     await this.ensureExists(officeId, driverId);
 
-    // Предрейсовый осмотр действует одну смену, срок ему не задаётся.
     const isPreTrip = dto.isPreTrip ?? false;
+    const checkedAt = new Date(dto.checkedAt);
+
+    const validUntil = dto.validUntil
+      ? new Date(dto.validUntil)
+      : isPreTrip
+        ? clearanceValidUntil({ result: dto.result, checkedAt })
+        : null;
+
+    // Подписывает тот, кто вошёл в систему. Пустым остаётся только у записей,
+    // которые заводит фоновая задача или seed.
+    const checkedByUserId = TenantStore.get()?.userId ?? null;
 
     return this.prisma.db.medicalCheck.create({
       data: {
         driverId,
-        checkedAt: new Date(dto.checkedAt),
-        validUntil: !isPreTrip && dto.validUntil ? new Date(dto.validUntil) : null,
+        checkedAt,
+        validUntil,
         result: dto.result,
         isPreTrip,
+        checkedByUserId,
         doctorName: dto.doctorName ?? null,
         bloodPressure: dto.bloodPressure ?? null,
         temperature: dto.temperature ?? null,
         alcoholPpm: dto.alcoholPpm ?? null,
         notes: dto.notes ?? null,
       },
+    });
+  }
+
+  /**
+   * Действующий предрейсовый допуск водителя на заданный момент.
+   *
+   * Берётся последний по времени осмотр, а не последний действующий:
+   * если врач осмотрел повторно и не допустил, прежнее разрешение
+   * не должно всплыть и перекрыть отказ.
+   */
+  async preTripClearance(driverId: number, at: Date = new Date()) {
+    const check = await this.prisma.db.medicalCheck.findFirst({
+      where: { driverId, isPreTrip: true, checkedAt: { lte: at } },
+      orderBy: { checkedAt: 'desc' },
+      select: {
+        id: true,
+        checkedAt: true,
+        validUntil: true,
+        result: true,
+        doctorName: true,
+        bloodPressure: true,
+        temperature: true,
+        alcoholPpm: true,
+        notes: true,
+        checkedByUser: { select: { id: true, fullName: true } },
+      },
+    });
+
+    const verdict = evaluateClearance(
+      check && { result: check.result, checkedAt: check.checkedAt, validUntil: check.validUntil },
+      at,
+    );
+
+    return { check, verdict };
+  }
+
+  /** Допуск водителя с проверкой, что он из этого офиса. Для интерфейса. */
+  async medicalClearanceOf(officeId: number, driverId: number) {
+    await this.ensureExists(officeId, driverId);
+    const { check, verdict } = await this.preTripClearance(driverId);
+
+    return {
+      state: verdict.state,
+      allowed: verdict.allowed,
+      overridable: verdict.overridable,
+      label: CLEARANCE_LABEL[verdict.state],
+      validUntil: verdict.validUntil ?? null,
+      check,
+    };
+  }
+
+  /**
+   * Очередь здравпункта: водители офиса и состояние их допуска.
+   *
+   * Возвращаются все активные, а не только неосмотренные: врачу нужно видеть
+   * и тех, кого он уже пропустил, — иначе он не отличит «осмотрен» от
+   * «ещё не приходил» и будет искать человека по журналу.
+   */
+  async medicalQueue(officeId: number, search?: string) {
+    const drivers = await this.prisma.db.driver.findMany({
+      where: {
+        officeId,
+        deletedAt: null,
+        isActive: true,
+        ...(search && {
+          OR: [
+            { lastName: { contains: search, mode: 'insensitive' } },
+            { firstName: { contains: search, mode: 'insensitive' } },
+            { personnelNumber: { contains: search, mode: 'insensitive' } },
+          ],
+        }),
+      },
+      orderBy: { lastName: 'asc' },
+      select: {
+        id: true,
+        personnelNumber: true,
+        lastName: true,
+        firstName: true,
+        middleName: true,
+        department: { select: { name: true } },
+        medicalChecks: {
+          where: { isPreTrip: true },
+          orderBy: { checkedAt: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            checkedAt: true,
+            validUntil: true,
+            result: true,
+            notes: true,
+            checkedByUser: { select: { fullName: true } },
+          },
+        },
+      },
+    });
+
+    const now = new Date();
+
+    return drivers.map((driver) => {
+      const last = driver.medicalChecks[0] ?? null;
+      const verdict = evaluateClearance(
+        last && { result: last.result, checkedAt: last.checkedAt, validUntil: last.validUntil },
+        now,
+      );
+
+      return {
+        driverId: driver.id,
+        personnelNumber: driver.personnelNumber,
+        fullName: `${driver.lastName} ${driver.firstName} ${driver.middleName ?? ''}`.trim(),
+        department: driver.department?.name ?? null,
+        state: verdict.state,
+        allowed: verdict.allowed,
+        label: CLEARANCE_LABEL[verdict.state],
+        validUntil: verdict.validUntil ?? null,
+        lastCheck: last,
+      };
     });
   }
 
@@ -295,11 +476,15 @@ export class DriversService {
     });
 
     if (!driver) {
-      return [{ code: 'driver.not_found', message: 'Водитель не найден' }];
+      return [{ code: 'driver.not_found', message: 'Водитель не найден', overridable: false }];
     }
 
     if (!driver.isActive || driver.deletedAt) {
-      issues.push({ code: 'driver.inactive', message: 'Водитель не числится активным' });
+      issues.push({
+        code: 'driver.inactive',
+        message: 'Водитель не числится активным',
+        overridable: false,
+      });
     }
 
     const validLicense = driver.licenses.find((l) => l.expiresAt >= onDate);
@@ -311,6 +496,7 @@ export class DriversService {
         code: 'driver.license_expired',
         message: 'Водительское удостоверение просрочено или отсутствует',
         expiredAt: latest?.expiresAt,
+        overridable: true,
       });
     }
 
@@ -328,6 +514,7 @@ export class DriversService {
         issues.push({
           code: 'driver.airside_permit_expired',
           message: 'Нет действующего допуска на контролируемую зону аэродрома',
+          overridable: true,
         });
       }
     }
@@ -337,12 +524,33 @@ export class DriversService {
       issues.push({
         code: 'driver.medical_missing',
         message: 'Отсутствует пройденный периодический медосмотр',
+        overridable: true,
       });
     } else if (medical.validUntil && medical.validUntil < onDate) {
       issues.push({
         code: 'driver.medical_expired',
         message: 'Периодический медосмотр просрочен',
         expiredAt: medical.validUntil,
+        overridable: true,
+      });
+    }
+
+    // Предрейсовый допуск — то, ради чего водитель каждую смену идёт
+    // в здравпункт. Проверяется последним, потому что показывать его
+    // в списке замечаний нужно первым: это самая частая причина отказа.
+    const { verdict } = await this.preTripClearance(driverId, onDate);
+    if (!verdict.allowed) {
+      issues.push({
+        code:
+          verdict.state === 'FAILED'
+            ? 'driver.pretrip_medical_failed'
+            : verdict.state === 'EXPIRED'
+              ? 'driver.pretrip_medical_expired'
+              : 'driver.pretrip_medical_missing',
+        message: CLEARANCE_LABEL[verdict.state],
+        expiredAt: verdict.state === 'EXPIRED' ? verdict.validUntil : undefined,
+        overridable: verdict.overridable,
+        medical: true,
       });
     }
 

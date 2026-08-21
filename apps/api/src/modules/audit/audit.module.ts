@@ -23,6 +23,18 @@ class AuditQueryDto extends PaginationDto {
   @IsString()
   entityId?: string;
 
+  /**
+   * Всё, что относится к одной записи, включая операции над её вложенными
+   * объектами. Задаётся парой: relatedEntity=Vehicle&relatedId=12.
+   */
+  @IsOptional()
+  @IsString()
+  relatedEntity?: string;
+
+  @IsOptional()
+  @IsString()
+  relatedId?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -61,6 +73,16 @@ export class AuditService {
       ...(query.entity && { entity: query.entity }),
       ...(query.entityId && { entityId: query.entityId }),
       ...(query.userId && { userId: query.userId }),
+      // Карточка сущности: сама запись плюс всё вложенное в неё.
+      // Без второй половины условия загрузка фотографии или правка документа
+      // техники в её собственном журнале не появились бы.
+      ...(query.relatedEntity &&
+        query.relatedId && {
+          OR: [
+            { entity: query.relatedEntity, entityId: query.relatedId },
+            { parentEntity: query.relatedEntity, parentId: query.relatedId },
+          ],
+        }),
       ...((query.dateFrom || query.dateTo) && {
         createdAt: {
           ...(query.dateFrom && { gte: new Date(query.dateFrom) }),
@@ -80,6 +102,8 @@ export class AuditService {
           action: true,
           entity: true,
           entityId: true,
+          parentEntity: true,
+          parentId: true,
           before: true,
           after: true,
           ipAddress: true,

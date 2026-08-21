@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,13 +9,20 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  StreamableFile,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuditAction } from '@prisma/client';
+import type { Response } from 'express';
 import { PERMISSIONS } from '@gsm/shared';
 
 import { AuditAs, Audited } from '@/common/audit/audit.interceptor';
 import { CurrentOffice, RequirePermissions } from '@/common/decorators';
+import { StorageService } from '@/common/storage/storage.service';
 
 import {
   CreateUserDto,
@@ -105,6 +113,66 @@ export class UsersController {
   @ApiOperation({ summary: 'Блокировка учётной записи (мягкое удаление)' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.users.remove(id);
+  }
+
+  // ─── Фотография ──────────────────────────────────────────────────────────
+
+  /**
+   * Файл отдаётся через API, а не статикой: фотография сотрудника — это
+   * персональные данные, и получить её, угадав ссылку, быть не должно.
+   */
+  @Get(':id/photo')
+  @RequirePermissions(PERMISSIONS.USER_READ)
+  @ApiOperation({ summary: 'Фотография сотрудника' })
+  async photo(
+    @Param('id', ParseIntPipe) id: number,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { stream, mimeType } = await this.users.readPhoto(id);
+
+    res.setHeader('Content-Type', mimeType);
+    // Приватный кэш: снимок принадлежит сотруднику, промежуточным прокси
+    // его хранить нельзя, а в браузере — можно.
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+
+    return new StreamableFile(stream);
+  }
+
+  @Post(':id/photo')
+  @Audited('UserPhoto')
+  @AuditAs(AuditAction.UPDATE)
+  @RequirePermissions(PERMISSIONS.USER_MANAGE)
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: StorageService.MAX_IMAGE_BYTES } }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
+  })
+  @ApiOperation({
+    summary: 'Загрузка фотографии сотрудника',
+    description:
+      'Файл ожидается квадратным — обрезку выполняет клиент перед отправкой.',
+  })
+  uploadPhoto(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    if (!file) {
+      throw new BadRequestException({
+        code: 'storage.file_required',
+        message: 'Файл не передан',
+      });
+    }
+    return this.users.setPhoto(id, file);
+  }
+
+  @Delete(':id/photo')
+  @Audited('UserPhoto')
+  @RequirePermissions(PERMISSIONS.USER_MANAGE)
+  @ApiOperation({ summary: 'Удаление фотографии' })
+  removePhoto(@Param('id', ParseIntPipe) id: number) {
+    return this.users.removePhoto(id);
   }
 }
 

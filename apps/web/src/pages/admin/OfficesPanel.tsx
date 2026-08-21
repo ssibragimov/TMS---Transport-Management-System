@@ -30,6 +30,7 @@ import type { RcFile } from 'antd/es/upload';
 import { useEffect, useState } from 'react';
 import { OfficeKind, PERMISSIONS } from '@gsm/shared';
 
+import { CardTitle } from '@/components/EntityId';
 import { api, errorMessage } from '@/api/client';
 import { useApiMutation, useAuthedImage } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
@@ -81,7 +82,7 @@ function OfficeLogoCell({ office, manage }: { office: OfficeRow; manage: boolean
 
   const upload = async (file: RcFile): Promise<void> => {
     if (file.size > MAX_LOGO_BYTES) {
-      void message.error('Файл больше 10 МБ');
+      void message.error(t('Файл больше 10 МБ'));
       return;
     }
     const form = new FormData();
@@ -90,7 +91,7 @@ function OfficeLogoCell({ office, manage }: { office: OfficeRow; manage: boolean
       await api.post(`/offices/${office.id}/logo`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      void message.success('Логотип обновлён');
+      void message.success(t('Логотип обновлён'));
       await refresh();
     } catch (error) {
       void message.error(errorMessage(error));
@@ -100,7 +101,7 @@ function OfficeLogoCell({ office, manage }: { office: OfficeRow; manage: boolean
   const remove = async (): Promise<void> => {
     try {
       await api.delete(`/offices/${office.id}/logo`);
-      void message.success('Логотип удалён');
+      void message.success(t('Логотип удалён'));
       await refresh();
     } catch (error) {
       void message.error(errorMessage(error));
@@ -146,7 +147,7 @@ function OfficeLogoCell({ office, manage }: { office: OfficeRow; manage: boolean
           return false;
         }}
       >
-        <Tooltip title={office.logoKey ? 'Заменить логотип' : 'Загрузить логотип'}>
+        <Tooltip title={office.logoKey ? t('Заменить логотип') : t('Загрузить логотип')}>
           <Button type="text" size="small" icon={<UploadOutlined />} />
         </Tooltip>
       </Upload>
@@ -233,7 +234,7 @@ export function OfficesPanel() {
       return (await api.post('/offices', values)).data;
     },
     {
-      successMessage: editing ? 'Офис обновлён' : 'Аэропорт подключён',
+      successMessage: editing ? t('Офис обновлён') : t('Аэропорт подключён'),
       invalidate: [['offices-admin'], ['offices']],
     },
   );
@@ -303,9 +304,9 @@ export function OfficesPanel() {
             width: 130,
             render: (isActive: boolean) =>
               isActive ? (
-                <Tag color="green">В работе</Tag>
+                <Tag color="green">{t('В работе')}</Tag>
               ) : (
-                <Tag color="default">Отключён</Tag>
+                <Tag color="default">{t('Отключён')}</Tag>
               ),
           },
           ...(manage
@@ -326,17 +327,17 @@ export function OfficesPanel() {
                         />
                       </Tooltip>
                       <Popconfirm
-                        title={row.isActive ? 'Отключить офис?' : 'Включить офис?'}
+                        title={row.isActive ? t('Отключить офис?') : t('Включить офис?')}
                         description={
                           row.isActive
-                            ? 'Офис исчезнет из переключателя и списков. Данные и история сохранятся, включить можно в любой момент. Сотрудники этого офиса войти не смогут.'
-                            : 'Офис вернётся в переключатель и станет доступен сотрудникам.'
+                            ? t('Офис исчезнет из переключателя и списков. Данные и история сохранятся, включить можно в любой момент. Сотрудники этого офиса войти не смогут.')
+                            : t('Офис вернётся в переключатель и станет доступен сотрудникам.')
                         }
-                        okText={row.isActive ? 'Отключить' : 'Включить'}
+                        okText={row.isActive ? t('Отключить') : t('Включить')}
                         cancelText={t("Отмена")}
                         onConfirm={() => toggleActive.mutate(row)}
                       >
-                        <Tooltip title={row.isActive ? 'Отключить' : 'Включить'}>
+                        <Tooltip title={row.isActive ? t('Отключить') : t('Включить')}>
                           <Button
                             type="text"
                             danger={row.isActive}
@@ -355,7 +356,12 @@ export function OfficesPanel() {
       <Modal
         open={open}
         width={760}
-        title={editing ? `Офис ${editing.code}` : 'Подключение аэропорта'}
+        title={
+          <CardTitle
+            title={editing ? `${t('Офис')} ${editing.code}` : t('Подключение аэропорта')}
+            id={editing?.id}
+          />
+        }
         okText={t("Сохранить")}
         cancelText={t("Отмена")}
         confirmLoading={save.isPending}
@@ -451,7 +457,7 @@ export function OfficesPanel() {
             </Col>
           </Row>
 
-          <Typography.Text strong>Зимняя надбавка к норме расхода</Typography.Text>
+          <Typography.Text strong>{t('Зимняя надбавка к норме расхода')}</Typography.Text>
           <Row gutter={16} style={{ marginTop: 8 }}>
             <Col span={8}>
               <Form.Item
@@ -465,14 +471,14 @@ export function OfficesPanel() {
             <Col span={8}>
               <Form.Item name="winterFromMonth" label={t("С месяца")}>
                 <Select
-                  options={MONTHS.map((label, index) => ({ value: index + 1, label }))}
+                  options={MONTHS.map((label, index) => ({ value: index + 1, label: t(label) }))}
                 />
               </Form.Item>
             </Col>
             <Col span={8}>
               <Form.Item name="winterToMonth" label={t("По месяц")}>
                 <Select
-                  options={MONTHS.map((label, index) => ({ value: index + 1, label }))}
+                  options={MONTHS.map((label, index) => ({ value: index + 1, label: t(label) }))}
                 />
               </Form.Item>
             </Col>

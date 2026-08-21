@@ -16,6 +16,7 @@ import type { FormInstance } from 'antd/es/form';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
+import { CardTitle } from '@/components/EntityId';
 import { api } from '@/api/client';
 import { useApiMutation } from '@/api/hooks';
 import { StickyTable } from '@/components/StickyTable';
@@ -169,7 +170,7 @@ export function CrudPanel<T extends { id: number; isActive?: boolean }>({
 
       <Modal
         open={open}
-        title={editing ? `${title}: изменение` : `${title}: добавление`}
+        title={<CardTitle title={editing ? `${title}: изменение` : `${title}: добавление`} id={editing?.id} />}
         okText={t("Сохранить")}
         cancelText={t("Отмена")}
         confirmLoading={save.isPending}

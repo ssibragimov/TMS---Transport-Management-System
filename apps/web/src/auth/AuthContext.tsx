@@ -3,6 +3,22 @@ import type { ReactNode } from 'react';
 import type { AuthTokens, CurrentUserDto, Permission } from '@gsm/shared';
 
 import { api, tokenStorage } from '@/api/client';
+import i18n, { LOCALE_STORAGE_KEY, localeDescriptor } from '@/i18n';
+
+/**
+ * Язык из профиля применяется только тогда, когда на этом устройстве
+ * язык не выбирали руками.
+ *
+ * Иначе переключатель в шапке работал бы ровно до следующего входа:
+ * профиль каждый раз возвращал бы своё значение, и человек не понимал бы,
+ * почему выбор не держится. Явный выбор на устройстве сильнее профиля.
+ */
+function applyProfileLocale(locale: string | undefined): void {
+  if (!locale) return;
+  if (localStorage.getItem(LOCALE_STORAGE_KEY)) return;
+  const descriptor = localeDescriptor(locale);
+  if (descriptor.code !== i18n.language) void i18n.changeLanguage(descriptor.code);
+}
 
 interface AuthState {
   user: CurrentUserDto | null;
@@ -11,6 +27,14 @@ interface AuthState {
   logout: () => Promise<void>;
   /** Переключение активного офиса. Выдаёт новые токены и перезагружает данные. */
   switchOffice: (officeId: number) => Promise<void>;
+  /**
+   * Перечитать профиль без выхода из системы.
+   *
+   * Нужно там, где данные о себе меняются в обход контекста: например,
+   * загрузка собственной фотографии идёт через раздел пользователей, а
+   * показывается она в шапке — без перезапроса та осталась бы прежней.
+   */
+  refreshProfile: () => Promise<void>;
   can: (permission: Permission) => boolean;
 }
 
@@ -33,9 +57,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     api
       .get<CurrentUserDto>('/auth/me')
-      .then(({ data }) => setUser(data))
+      .then(({ data }) => {
+        setUser(data);
+        applyProfileLocale(data.locale);
+      })
       .catch(() => tokenStorage.clear())
       .finally(() => setLoading(false));
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    // Молча игнорируем сбой: это фоновое обновление, и выкидывать человека
+    // из системы из-за неудачного перезапроса профиля незачем.
+    const { data } = await api.get<CurrentUserDto>('/auth/me').catch(() => ({ data: null }));
+    if (data) setUser(data);
   }, []);
 
   const login = useCallback(async (email: string, password: string, officeId?: number) => {
@@ -46,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     tokenStorage.save(data);
     setUser(data.user);
+    applyProfileLocale(data.user.locale);
   }, []);
 
   const logout = useCallback(async () => {
@@ -72,8 +107,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AuthState>(
-    () => ({ user, loading, login, logout, switchOffice, can }),
-    [user, loading, login, logout, switchOffice, can],
+    () => ({ user, loading, login, logout, switchOffice, refreshProfile, can }),
+    [user, loading, login, logout, switchOffice, refreshProfile, can],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

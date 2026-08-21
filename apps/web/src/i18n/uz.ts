@@ -597,4 +597,455 @@ export const uz: Record<string, string> = {
     'Ofis o‘chirilmaydi — u faolsizlantiriladi. Faolsizlantirilgani almashtirgichdan va ish ro‘yxatlaridan yo‘qoladi, lekin texnika, yo‘l varaqalari va butun tarix joyida qoladi, uni istalgan paytda qayta yoqish mumkin. Bu yerda, ma’muriyatda, faolsizlantirilgan ofislar doim ko‘rinadi — aks holda ularni qaytarish imkoni bo‘lmasdi.',
   'Журнал только для чтения — записи нельзя изменить или удалить ни через интерфейс, ни через API. Для изменений сохраняются лишь те поля, которые действительно поменялись.':
     'Jurnal faqat o‘qish uchun — yozuvlarni na interfeys, na API orqali o‘zgartirib yoki o‘chirib bo‘lmaydi. O‘zgarishlar uchun faqat haqiqatan o‘zgargan maydonlar saqlanadi.',
+
+  // ─── Разделы, добавленные позже навигации ────────────────────────────────
+  Здравпункт: 'Tibbiy punkt',
+  Техконтроль: 'Texnik nazorat',
+  'Склад ТМЦ': 'TMB ombori',
+  Телеметрия: 'Telemetriya',
+  'Роль не назначена': 'Rol biriktirilmagan',
+
+  // ─── Журнал действий в карточке ──────────────────────────────────────────
+  'Нет прав на просмотр журнала действий': 'Amallar jurnalini ko‘rish huquqi yo‘q',
+  'Показаны последние изменения этой записи и связанных с ней объектов. Полный журнал с фильтрами — в разделе «Журнал действий».':
+    'Ushbu yozuv va u bilan bog‘liq obyektlardagi so‘nggi o‘zgarishlar ko‘rsatilgan. Filtrlar bilan to‘liq jurnal — «Amallar jurnali» bo‘limida.',
+  'Изменений не зафиксировано': 'O‘zgarishlar qayd etilmagan',
+  система: 'tizim',
+  'Идентификатор записи в базе данных': 'Yozuvning ma’lumotlar bazasidagi identifikatori',
+  'Подключение аэропорта': 'Aeroportni ulash',
+  'Файл больше 10 МБ': 'Fayl 10 MB dan katta',
+  'Зимняя надбавка к норме расхода': 'Sarf me’yoriga qishki ustama',
+  'Офис исчезнет из переключателя и списков. Данные и история сохранятся, включить можно в любой момент. Сотрудники этого офиса войти не смогут.':
+    'Ofis almashtirgichdan va ro‘yxatlardan yo‘qoladi. Ma’lumotlar va tarix saqlanadi, istalgan paytda qayta yoqish mumkin. Bu ofis xodimlari tizimga kira olmaydi.',
+  'Офис вернётся в переключатель и станет доступен сотрудникам.':
+    'Ofis almashtirgichga qaytadi va xodimlar uchun ochiladi.',
+  'Номер можно изменить: путевые листы связаны с водителем по карточке, а не по номеру, поэтому история не потеряется':
+    'Raqamni o‘zgartirish mumkin: yo‘l varaqalari haydovchi bilan kartochka orqali bog‘langan, raqam orqali emas, shuning uchun tarix yo‘qolmaydi',
+
+  // ─── Здравпункт ──────────────────────────────────────────────────────────
+  'Заключение записано': 'Xulosa yozildi',
+  'Нет прав на просмотр здравпункта': 'Tibbiy punktni ko‘rish huquqi yo‘q',
+  'Здравпункт — предрейсовый осмотр': 'Tibbiy punkt — reysoldi ko‘rik',
+  допущено: 'ruxsat berilgan',
+  'не допущено': 'ruxsat berilmagan',
+  всего: 'jami',
+  'Табельный номер или фамилия': 'Tabel raqami yoki familiya',
+  Все: 'Barchasi',
+  'Ждут осмотра': 'Ko‘rikni kutmoqda',
+  Допущены: 'Ruxsat berilgan',
+  'Водителей не найдено': 'Haydovchilar topilmadi',
+  Допуск: 'Ruxsat',
+  Осмотрел: 'Ko‘rikdan o‘tkazdi',
+  'запись с бумаги': 'qog‘ozdan kiritilgan',
+  'не осматривался': 'ko‘rikdan o‘tmagan',
+  Осмотреть: 'Ko‘rikdan o‘tkazish',
+  Осмотр: 'Ko‘rik',
+  'Записать заключение': 'Xulosani yozish',
+  Заключение: 'Xulosa',
+  Допущен: 'Ruxsat berildi',
+  'С ограничениями': 'Cheklovlar bilan',
+  'Не допущен': 'Ruxsat berilmadi',
+  'Температура, °C': 'Harorat, °C',
+  'При допуске с ограничениями диспетчер увидит этот текст перед выдачей путевого листа':
+    'Cheklovlar bilan ruxsat berilganda dispetcher yo‘l varaqasini berishdan oldin shu matnni ko‘radi',
+  'Если не указать — двенадцать часов от момента осмотра, длина смены с запасом':
+    'Ko‘rsatilmasa — ko‘rik paytidan o‘n ikki soat, ya’ni smena uzunligi zaxirasi bilan',
+  'Заключение подписывается вашей учётной записью и попадает в журнал действий. Изменить его нельзя — при ошибке проведите осмотр повторно.':
+    'Xulosa sizning hisobingiz bilan imzolanadi va amallar jurnaliga tushadi. Uni o‘zgartirib bo‘lmaydi — xatolik bo‘lsa, ko‘rikni qaytadan o‘tkazing.',
+  'Просмотр без права проводить осмотр': 'Ko‘rik o‘tkazish huquqisiz ko‘rish',
+
+  // ─── Техконтроль механика ────────────────────────────────────────────────
+  'Нет прав на просмотр техконтроля': 'Texnik nazoratni ko‘rish huquqi yo‘q',
+  'Техконтроль — предрейсовый осмотр техники': 'Texnik nazorat — texnikaning reysoldi ko‘rigi',
+  выпущено: 'chiqarilgan',
+  'не выпущено': 'chiqarilmagan',
+  'Гаражный или госномер': 'Garaj yoki davlat raqami',
+  Вся: 'Barchasi',
+  Выпущены: 'Chiqarilgan',
+  'Техники не найдено': 'Texnika topilmadi',
+  'не осматривалась': 'ko‘rikdan o‘tmagan',
+  Выпустить: 'Chiqarish',
+  'Не выпускать': 'Chiqarmaslik',
+  'Проверенные узлы': 'Tekshirilgan uzellar',
+  'Одометр на момент осмотра, км': 'Ko‘rik paytidagi odometr, km',
+  'Сверяется с показанием на выезд — расхождение видно сразу':
+    'Chiqishdagi ko‘rsatkich bilan solishtiriladi — tafovut darhol ko‘rinadi',
+  Замечания: 'E’tirozlar',
+  'При выпуске с ограничениями диспетчер увидит этот текст перед выдачей листа':
+    'Cheklovlar bilan chiqarilganda dispetcher varaqani berishdan oldin shu matnni ko‘radi',
+  Механик: 'Mexanik',
+  'Одометр при осмотре': 'Ko‘rikdagi odometr',
+  'Замечания по узлам': 'Uzellar bo‘yicha e’tirozlar',
+
+  // ─── Склад ТМЦ: документы ────────────────────────────────────────────────
+  'Документ проведён': 'Hujjat o‘tkazildi',
+  'Склад-отправитель': 'Jo‘natuvchi ombor',
+  Склад: 'Ombor',
+  ТМЦ: 'TMB',
+  'Склад-получатель': 'Qabul qiluvchi ombor',
+  'Склады совпадают': 'Omborlar bir xil',
+  'Накладная поставщика': 'Yetkazib beruvchi yuk xati',
+  'ТТН-000123': 'YUX-000123',
+  'На какую машину идут ценности. Без этого поля не собрать стоимость её содержания.':
+    'Boyliklar qaysi mashinaga ketmoqda. Bu maydonsiz uni saqlash xarajatini hisoblab bo‘lmaydi.',
+  'Кому выдаём': 'Kimga beramiz',
+  'Кто возвращает': 'Kim qaytarmoqda',
+  Сотрудник: 'Xodim',
+  Получатель: 'Qabul qiluvchi',
+  'таб.': 'tab.',
+  'Строки документа': 'Hujjat satrlari',
+  Позиция: 'Pozitsiya',
+  'Выберите позицию': 'Pozitsiyani tanlang',
+  'Наименование или код': 'Nomi yoki kodi',
+  остаток: 'qoldiq',
+  'Кол-во': 'Miqdori',
+  'Укажите количество': 'Miqdorni ko‘rsating',
+  'На складе': 'Omborda',
+  Цена: 'Narxi',
+  сум: 'so‘m',
+  Обмен: 'Almashuv',
+  'старое сдано': 'eskisi topshirildi',
+  'Добавить строку': 'Satr qo‘shish',
+  'Выдача без обмена': 'Almashuvsiz berish',
+  'Эти позиции выдаются в обмен на сданное отработанное. Отметьте «старое сдано» либо укажите причину — она останется в документе.':
+    'Bu pozitsiyalar topshirilgan ishlatilgan buyum evaziga beriladi. «Eskisi topshirildi» belgisini qo‘ying yoki sababni ko‘rsating — u hujjatda qoladi.',
+  'Основание списания': 'Hisobdan chiqarish asosi',
+  'Опишите основание': 'Asosni yozing',
+  'Акт комиссии №… , порча при хранении, истёк срок годности':
+    'Komissiya dalolatnomasi №… , saqlashda buzilgan, yaroqlilik muddati tugagan',
+  'Причина выдачи без обмена': 'Almashuvsiz berish sababi',
+  'Позиция выдаётся в обмен — укажите причину':
+    'Pozitsiya almashuv evaziga beriladi — sababni ko‘rsating',
+  'Первая установка на новую технику, утрата по акту':
+    'Yangi texnikaga birinchi o‘rnatish, dalolatnoma bo‘yicha yo‘qotilgan',
+  'Документ проводится целиком: либо все строки, либо ни одной. Номер присваивается при проведении и не меняется.':
+    'Hujjat butunlay o‘tkaziladi: yo barcha satrlar, yo hech biri. Raqam o‘tkazishda beriladi va o‘zgarmaydi.',
+
+  // ─── Склад ТМЦ: номенклатура ─────────────────────────────────────────────
+  'Позиция изменена': 'Pozitsiya o‘zgartirildi',
+  'Позиция заведена': 'Pozitsiya kiritildi',
+  'Новая позиция номенклатуры': 'Yangi nomenklatura pozitsiyasi',
+  'Уникален для всех аэропортов: по нему сводится расход по стране':
+    'Barcha aeroportlar uchun yagona: uning bo‘yicha mamlakat bo‘ylab sarf jamlanadi',
+  'Масло моторное 15W-40': 'Motor moyi 15W-40',
+  Единица: 'O‘lchov birligi',
+  необязательно: 'majburiy emas',
+  'Способ учёта': 'Hisob usuli',
+  'Поштучный учёт с серийным номером вводится следующим этапом; разметка нужна уже сейчас':
+    'Seriya raqami bo‘yicha donalab hisob keyingi bosqichda joriy etiladi; belgilash hozirdan kerak',
+  'Выдаётся в обмен на сданное отработанное':
+    'Topshirilgan ishlatilgan buyum evaziga beriladi',
+  'Признак для аккумуляторов и шин. При выдаче такой позиции форма предложит принять старое на склад отработанных, а без этого потребует записать причину.':
+    'Akkumulyator va shinalar uchun belgi. Bunday pozitsiyani berishda shakl eskisini ishlatilgan materiallar omboriga qabul qilishni taklif etadi, aks holda sababni yozishni talab qiladi.',
+
+  // ─── Склад ТМЦ: экран ────────────────────────────────────────────────────
+  'Нет прав на просмотр склада': 'Omborni ko‘rish huquqi yo‘q',
+  'Позиций в наличии': 'Mavjud pozitsiyalar',
+  'Стоимость запасов': 'Zaxiralar qiymati',
+  'Ниже минимума': 'Minimumdan past',
+  'Старые аккумуляторы и шины, принятые при обмене и ожидающие сдачи':
+    'Almashuvda qabul qilingan va topshirishni kutayotgan eski akkumulyator va shinalar',
+  'К утилизации': 'Utilizatsiyaga',
+  'ед.': 'dona',
+  позиций: 'pozitsiya',
+  'на сумму': 'summasi',
+  ответственный: 'mas’ul',
+  'движений сегодня': 'bugungi harakatlar',
+  Возврат: 'Qaytarish',
+  Перемещение: 'Ko‘chirish',
+  Списание: 'Hisobdan chiqarish',
+  'Выдать ТМЦ': 'TMB berish',
+  Остатки: 'Qoldiqlar',
+  'В наличии': 'Mavjud',
+  'Остатков не найдено': 'Qoldiqlar topilmadi',
+  Остаток: 'Qoldiq',
+  'Неснижаемый запас': 'Kamaytirilmas zaxira',
+  'Средняя цена': 'O‘rtacha narx',
+  Учёт: 'Hisob',
+  обмен: 'almashuv',
+  Движения: 'Harakatlar',
+  Всего: 'Jami',
+  Операция: 'Amaliyot',
+  'Остаток после': 'Keyingi qoldiq',
+  'Куда / кому': 'Qayerga / kimga',
+  Документы: 'Hujjatlar',
+  'Основание выдачи': 'Berish asosi',
+  Строк: 'Satrlar',
+  'Кому / от кого': 'Kimga / kimdan',
+  Номенклатура: 'Nomenklatura',
+  'Новая позиция': 'Yangi pozitsiya',
+  'Ед.': 'Birlik',
+  'В офисе': 'Ofisda',
+  Признаки: 'Belgilar',
+  поштучно: 'donalab',
+  снята: 'hisobdan olingan',
+
+  // ─── Единицы измерения номенклатуры ──────────────────────────────────────
+  // «шт» уже переведено выше, среди единиц измерения техники.
+  л: 'l',
+  кг: 'kg',
+  м: 'm',
+  компл: 'komplekt',
+  упак: 'quti',
+  пара: 'juft',
+
+  // ─── Телеметрия: карта ───────────────────────────────────────────────────
+  'Карта Яндекса недоступна — показана резервная':
+    'Yandex xaritasi mavjud emas — zaxira xarita ko‘rsatildi',
+  'Показана схема без картографической подложки': 'Xarita asosisiz sxema ko‘rsatildi',
+  'Файл карты не найден. Соберите его командой npm run map:tiles — она вырезает район аэропорта из открытых данных OpenStreetMap в один файл рядом с приложением.':
+    'Xarita fayli topilmadi. Uni npm run map:tiles buyrug‘i bilan yig‘ing — u OpenStreetMap ochiq ma’lumotlaridan aeroport hududini kesib, dastur yoniga bitta faylga joylaydi.',
+  'У этого офиса нет своей территории': 'Bu ofisning o‘z hududi yo‘q',
+  'Карта аэродрома доступна в офисе аэропорта. Переключите офис в шапке.':
+    'Aerodrom xaritasi aeroport ofisida mavjud. Yuqoridan ofisni almashtiring.',
+  'Карта не открылась': 'Xarita ochilmadi',
+  'Нет данных для отображения: не заданы геозоны и нет точек':
+    'Ko‘rsatish uchun ma’lumot yo‘q: geozonalar belgilanmagan va nuqtalar yo‘q',
+  'Схема территории без картографической подложки: относительное положение техники, геозоны и курс движения.':
+    'Xarita asosisiz hudud sxemasi: texnikaning nisbiy joylashuvi, geozonalar va harakat yo‘nalishi.',
+  схема: 'sxema',
+  Трек: 'Trek',
+  'Пробег по треку': 'Trek bo‘yicha yurish',
+  'Максимальная скорость': 'Maksimal tezlik',
+  Точек: 'Nuqtalar',
+  'Показана только часть трека': 'Trekning faqat bir qismi ko‘rsatilgan',
+  'За период накопилось больше точек, чем отдаётся за один запрос. Пробег посчитан по показанной части — выберите более узкий интервал.':
+    'Davr ichida bitta so‘rovda beriladiganidan ko‘ra ko‘proq nuqta to‘plangan. Yurish ko‘rsatilgan qism bo‘yicha hisoblangan — torroq oraliqni tanlang.',
+  'За выбранные сутки трека нет': 'Tanlangan kun uchun trek yo‘q',
+  'Карта Яндекса не открылась': 'Yandex xaritasi ochilmadi',
+  'Нет прав на просмотр телеметрии': 'Telemetriyani ko‘rish huquqi yo‘q',
+  'Живая карта': 'Jonli xarita',
+  'Положение техники': 'Texnikaning joylashuvi',
+  'С трекером': 'Trekerli',
+  'Вся техника': 'Barcha texnika',
+  'Обновляется автоматически каждые 15 секунд':
+    'Har 15 soniyada avtomatik yangilanadi',
+  'В этом офисе нет техники с трекерами': 'Bu ofisda trekerli texnika yo‘q',
+  'Телеметрия ведётся по аэропортам — выберите офис аэропорта в шапке.':
+    'Telemetriya aeroportlar bo‘yicha yuritiladi — yuqoridan aeroport ofisini tanlang.',
+  'Техники с данными нет': 'Ma’lumotli texnika yo‘q',
+  Скорость: 'Tezlik',
+  'Последняя точка': 'So‘nggi nuqta',
+  'трекер молчит': 'treker jim',
+  'трекера нет': 'treker yo‘q',
+  Трекеры: 'Trekerlar',
+  'Трекеры не зарегистрированы': 'Trekerlar ro‘yxatdan o‘tkazilmagan',
+  // Международные сокращения: пишутся одинаково на всех трёх языках,
+  // но нужны в словаре — иначе проверка покрытия считает их пропуском.
+  IMEI: 'IMEI',
+  SIM: 'SIM',
+  'Последний сеанс': 'So‘nggi seans',
+  'не выходил на связь': 'aloqaga chiqmagan',
+  снят: 'olib qo‘yilgan',
+  работает: 'ishlamoqda',
+  отключён: 'o‘chirilgan',
+  Геозоны: 'Geozonalar',
+  'Геозоны не заданы': 'Geozonalar belgilanmagan',
+  Ограничение: 'Cheklov',
+  Оповещения: 'Ogohlantirishlar',
+  'на въезд': 'kirishda',
+  'на выезд': 'chiqishda',
+  'не настроены': 'sozlanmagan',
+  Событий: 'Hodisalar',
+  Полигон: 'Poligon',
+  точек: 'nuqta',
+  'не обведён': 'chizilmagan',
+  События: 'Hodisalar',
+  'Пересечений границ не зафиксировано': 'Chegara kesib o‘tilishi qayd etilmagan',
+  Время: 'Vaqt',
+  Событие: 'Hodisa',
+  въезд: 'kirish',
+  выезд: 'chiqish',
+  Геозона: 'Geozona',
+
+  // ─── Пользователи ────────────────────────────────────────────────────────
+  'Фотография загружена': 'Surat yuklandi',
+  'Заменить фото': 'Suratni almashtirish',
+  'Загрузить фото': 'Surat yuklash',
+  'Снимок обрезается по центру в квадрат. JPEG, PNG или WebP.':
+    'Surat markazidan kvadrat shaklida kesiladi. JPEG, PNG yoki WebP.',
+  Основной: 'Asosiy',
+  'Служебный внутренний номер телефона — четыре цифры. По нему сотрудника набирают внутри предприятия, поэтому он идёт раньше личного. Один номер может быть закреплён за несколькими сотрудниками.':
+    'Xizmat ichki telefon raqami — to‘rt raqam. Korxona ichida xodimga shu raqam orqali qo‘ng‘iroq qilinadi, shuning uchun u shaxsiy raqamdan oldin turadi. Bitta raqam bir necha xodimga biriktirilishi mumkin.',
+  'Ровно четыре цифры': 'Aniq to‘rtta raqam',
+  'Личный номер сотрудника': 'Xodimning shaxsiy raqami',
+  'Исключение — суперадминистратор: при выборе этой роли все доступные офисы подставляются сразу.':
+    'Istisno — superadministrator: bu rol tanlanganda barcha mavjud ofislar darhol qo‘yiladi.',
+  'Служебный номер, ФИО или почта': 'Xizmat raqami, F.I.Sh. yoki pochta',
+  'Внутренний номер не задан': 'Ichki raqam belgilanmagan',
+  'действует до': 'amal qiladi',
+  Показатели: 'Ko‘rsatkichlar',
+
+  // ─── Путевой лист: допуски и состояние техники ───────────────────────────
+  'Водитель не проходил предрейсовый осмотр в здравпункте.':
+    'Haydovchi tibbiy punktda reysoldi ko‘rikdan o‘tmagan.',
+  'Техника не проходила предрейсовый контроль технического состояния.':
+    'Texnika reysoldi texnik holat nazoratidan o‘tmagan.',
+  'Система проверит удостоверение, допуск на перрон, медицинское заключение и заключение механика.':
+    'Tizim guvohnoma, perronga ruxsat, tibbiy xulosa va mexanik xulosasini tekshiradi.',
+  'Причина выпуска без заключения механика': 'Mexanik xulosasisiz chiqarish sababi',
+  'Доступно только с правом waybill.override_technical. Причина сохраняется в путевом листе и в журнале действий.':
+    'Faqat waybill.override_technical huquqi bilan mumkin. Sabab yo‘l varaqasida va amallar jurnalida saqlanadi.',
+  'Укажите причину': 'Sababni ko‘rsating',
+  'Например: механик на выезде, осмотр внесён с бумаги':
+    'Masalan: mexanik chiqishda, ko‘rik qog‘ozdan kiritilgan',
+  'Выпуск невозможен': 'Chiqarish mumkin emas',
+  'Механик не выпустил технику на линию. Это решение не обходится никакими правами — нужна замена машины.':
+    'Mexanik texnikani liniyaga chiqarmadi. Bu qarorni hech qanday huquq bilan chetlab o‘tib bo‘lmaydi — mashinani almashtirish kerak.',
+  'Состояние техники при выдаче': 'Berishda texnikaning holati',
+  'Замечания при выдаче': 'Berishdagi e’tirozlar',
+  'Причина выдачи без медосмотра': 'Tibbiy ko‘riksiz berish sababi',
+  'Доступно только с правом waybill.override_medical. Причина сохраняется в путевом листе и в журнале действий.':
+    'Faqat waybill.override_medical huquqi bilan mumkin. Sabab yo‘l varaqasida va amallar jurnalida saqlanadi.',
+  'Например: здравпункт закрыт, осмотр внесён с бумаги':
+    'Masalan: tibbiy punkt yopiq, ko‘rik qog‘ozdan kiritilgan',
+  'Выдача невозможна': 'Berish mumkin emas',
+  'Врач не допустил водителя к работе. Это решение не обходится никакими правами — нужна замена водителя.':
+    'Shifokor haydovchini ishga qo‘ymadi. Bu qarorni hech qanday huquq bilan chetlab o‘tib bo‘lmaydi — haydovchini almashtirish kerak.',
+  'Выдать вопреки замечаниям по документам (действие попадёт в журнал аудита)':
+    'Hujjatlardagi e’tirozlarga qaramay berish (amal audit jurnaliga tushadi)',
+  'Состояние техники при возврате': 'Qaytarishda texnikaning holati',
+  'При выдаче было': 'Berishda edi',
+  'Описание повреждений': 'Shikastlanishlar tavsifi',
+  'Текст попадёт в акт — пишите так, как объясните это через месяц':
+    'Matn dalolatnomaga tushadi — bir oydan keyin tushuntira oladigan qilib yozing',
+  'Будет составлен акт о состоянии техники':
+    'Texnikaning holati to‘g‘risida dalolatnoma tuziladi',
+  'В акте будет указан водитель, принявший технику':
+    'Dalolatnomada texnikani qabul qilgan haydovchi ko‘rsatiladi',
+  'Путевой лист на этого водителя не создаётся. Требуется замена.':
+    'Bu haydovchiga yo‘l varaqasi yaratilmaydi. Almashtirish talab etiladi.',
+  'Сначала осмотр в здравпункте, затем оформление путевого листа.':
+    'Avval tibbiy punktda ko‘rik, keyin yo‘l varaqasini rasmiylashtirish.',
+
+  // ─── Подписи справочников: документы и журнал ────────────────────────────
+  ОСАГО: 'MMSS (OSAGO)',
+  КАСКО: 'KASKO',
+  Создание: 'Yaratish',
+  Изменение: 'O‘zgartirish',
+  Удаление: 'O‘chirish',
+  Восстановление: 'Tiklash',
+  Вход: 'Kirish',
+  'Неудачный вход': 'Muvaffaqiyatsiz kirish',
+  Выход: 'Chiqish',
+  Выгрузка: 'Yuklab olish',
+  Утверждение: 'Tasdiqlash',
+  Отчёт: 'Hisobot',
+  'Номенклатура ТМЦ': 'TMB nomenklaturasi',
+  'Фото техники': 'Texnika surati',
+  'Показания счётчика': 'Hisoblagich ko‘rsatkichi',
+  Удостоверение: 'Guvohnoma',
+  'Допуск водителя': 'Haydovchi ruxsati',
+  'Пароль пользователя': 'Foydalanuvchi paroli',
+  'Фото сотрудника': 'Xodim surati',
+
+  // ─── Подписи справочников: состояние техники ─────────────────────────────
+  Исправна: 'Soz',
+  'Мелкие замечания': 'Kichik e’tirozlar',
+  Неисправна: 'Nosoz',
+  Повреждена: 'Shikastlangan',
+  ДТП: 'YTH',
+
+  // ─── Подписи справочников: допуск врача и механика ───────────────────────
+  'Предрейсовый медосмотр не пройден': 'Reysoldi tibbiy ko‘rik o‘tilmagan',
+  'Врач не допустил к работе': 'Shifokor ishga qo‘ymadi',
+  'Срок предрейсового допуска истёк': 'Reysoldi ruxsat muddati tugagan',
+  'Допущен врачом': 'Shifokor ruxsat berdi',
+  'Допущен с ограничениями': 'Cheklovlar bilan ruxsat berildi',
+  'Предрейсовый техосмотр не пройден': 'Reysoldi texnik ko‘rik o‘tilmagan',
+  'Механик не выпустил технику на линию': 'Mexanik texnikani liniyaga chiqarmadi',
+  'Срок заключения механика истёк': 'Mexanik xulosasining muddati tugagan',
+  'Техника исправна, выпуск разрешён': 'Texnika soz, chiqishga ruxsat berilgan',
+  'Выпуск разрешён с ограничениями': 'Chiqishga cheklovlar bilan ruxsat berilgan',
+
+  // ─── Подписи справочников: склад ─────────────────────────────────────────
+  'Масла и смазки': 'Moylar va moylash materiallari',
+  Фильтры: 'Filtrlar',
+  Шины: 'Shinalar',
+  Аккумуляторы: 'Akkumulyatorlar',
+  'Тормозная система': 'Tormoz tizimi',
+  Электрооборудование: 'Elektr uskunalari',
+  'Технические жидкости': 'Texnik suyuqliklar',
+  'Запасные части': 'Ehtiyot qismlar',
+  'Крепёж и расходники': 'Mahkamlagichlar va sarf materiallari',
+  'Инструмент и инвентарь': 'Asbob va inventar',
+  'Спецодежда и СИЗ': 'Maxsus kiyim va HVV',
+  'По количеству': 'Miqdor bo‘yicha',
+  'Поштучно, с номером': 'Donalab, raqami bilan',
+  'По партиям': 'Partiyalar bo‘yicha',
+  'Основной склад': 'Asosiy ombor',
+  Кладовая: 'Omborxona',
+  'Отработанные материалы': 'Ishlatilgan materiallar',
+  'Плановая замена': 'Rejali almashtirish',
+  'Замена по износу': 'Eskirish bo‘yicha almashtirish',
+  'Ремонт по наряд-заказу': 'Naryad-buyurtma bo‘yicha ta’mirlash',
+  'Аварийная выдача': 'Favqulodda berish',
+  'Обеспечение работника': 'Xodimni ta’minlash',
+  'Возврат на склад': 'Omborga qaytarish',
+  'Приём отработанного': 'Ishlatilganini qabul qilish',
+  'Перемещение со склада': 'Ombordan ko‘chirish',
+  'Перемещение на склад': 'Omborga ko‘chirish',
+  'Корректировка по инвентаризации': 'Inventarizatsiya bo‘yicha tuzatish',
+
+  /*
+   * ─── Сообщения об ошибках сервера ──────────────────────────────────────
+   *
+   * Ключ — машинный код из ответа API (см. errorMessage в api/client.ts).
+   * Перевода нет — показывается русский текст сервера, поэтому список
+   * можно пополнять постепенно.
+   *
+   * Намеренно НЕ переведены коды, чьё сообщение несёт данные: остаток,
+   * объём, занятый номер, дату. Сервер подстановок отдельным полем пока
+   * не передаёт, и перевод по коду потерял бы цифру, ради которой
+   * сообщение и читают. Их черёд — когда в ApiErrorResponse появятся
+   * параметры.
+   */
+  'Неизвестная ошибка': 'Noma’lum xatolik',
+  'error.auth.invalid_credentials': 'Pochta yoki parol noto‘g‘ri',
+  'error.auth.account_locked':
+    'Hisob vaqtincha bloklangan: parol bir necha marta noto‘g‘ri kiritilgan',
+  'error.auth.account_inactive': 'Hisob faol emas — administratorga murojaat qiling',
+  'error.auth.no_office': 'Hisobga birorta ham ofis biriktirilmagan',
+  'error.auth.office_not_allowed': 'Bu ofisga kirish huquqi yo‘q',
+  'error.auth.invalid_refresh_token': 'Sessiya muddati tugagan — qaytadan kiring',
+  'error.auth.wrong_current_password': 'Joriy parol noto‘g‘ri',
+  'error.auth.permission_denied': 'Bu amal uchun huquq yo‘q',
+  'error.validation.failed': 'Shakl to‘ldirishda xatolik — maydonlarni tekshiring',
+  'error.internal.error': 'Ichki xatolik. Qayta urinib ko‘ring yoki administratorga murojaat qiling.',
+  'error.db.foreign_key_violation':
+    'Yozuvni o‘chirib bo‘lmaydi: unga boshqa hujjatlar bog‘langan',
+  'error.db.not_found': 'Yozuv topilmadi',
+  'error.db.row_level_security': 'Bu ofisning ma’lumotlariga kirish huquqi yo‘q',
+  'error.stock.recipient_required':
+    'Qabul qiluvchini ko‘rsating: haydovchi yoki xodim',
+  'error.stock.transfer_same_warehouse':
+    'Jo‘natuvchi va qabul qiluvchi ombor bir xil',
+  'error.stock.no_utilization_warehouse':
+    'Ofisda ishlatilgan materiallar ombori yo‘q. Almashuvda eski akkumulyator va shinalarni qabul qilish uchun uni yarating.',
+  'error.stock.warehouse_not_found': 'Ombor topilmadi yoki yopilgan',
+  'error.stock.item_not_found': 'Nomenklatura pozitsiyasi topilmadi yoki hisobdan olingan',
+  'error.stock.document_not_found': 'Hujjat topilmadi',
+  'error.stock.vehicle_not_found': 'Texnika bu ofisda topilmadi',
+  'error.stock.recipient_not_found': 'Qabul qiluvchi bu ofisda topilmadi',
+  'error.stock.exchange_required':
+    'Pozitsiya ishlatilgan buyum evaziga beriladi. Eskisini topshirilganini belgilang yoki almashuvsiz berish sababini ko‘rsating.',
+  'error.waybill.not_found': 'Yo‘l varaqasi topilmadi',
+  'error.waybill.invalid_period': 'Yo‘l varaqasining muddati noto‘g‘ri',
+  'error.waybill.medical_clearance_required':
+    'Haydovchining amaldagi reysoldi tibbiy ruxsati yo‘q',
+  'error.waybill.technical_clearance_required':
+    'Texnikaning amaldagi mexanik xulosasi yo‘q',
+  'error.waybill.driver_not_eligible': 'Haydovchi ishga qo‘yilmagan',
+  'error.waybill.invalid_transition': 'Yo‘l varaqasining joriy holatida bu amal mumkin emas',
+  'error.waybill.negative_consumption': 'Sarf manfiy chiqdi — ko‘rsatkichlarni tekshiring',
+  'error.driver.not_found': 'Haydovchi topilmadi',
+  'error.driver.inactive': 'Haydovchi faol emas',
+  'error.vehicle.not_found': 'Texnika topilmadi',
+  'error.office.not_found': 'Ofis topilmadi',
+  'error.user.not_found': 'Foydalanuvchi topilmadi',
+  'error.user.cannot_delete_self': 'O‘z hisobingizni o‘chira olmaysiz',
+  'error.role.not_found': 'Rol topilmadi',
+  'error.role.system_role': 'Tizim rolini o‘chirib bo‘lmaydi',
+  'error.role.in_use': 'Rol foydalanuvchilarga biriktirilgan — avval uni yechib oling',
+  'error.storage.file_required': 'Fayl tanlanmagan',
 };

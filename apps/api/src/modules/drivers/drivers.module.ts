@@ -147,8 +147,14 @@ export class DriversController {
 
   @Post(':id/medical-checks')
   @Audited('MedicalCheck')
-  @RequirePermissions(PERMISSIONS.DRIVER_CLEARANCE_MANAGE)
-  @ApiOperation({ summary: 'Медосмотр — периодический или предрейсовый' })
+  @RequirePermissions(PERMISSIONS.DRIVER_MEDICAL_MANAGE)
+  @ApiOperation({
+    summary: 'Медосмотр — периодический или предрейсовый',
+    description:
+      'Право driver.medical.manage отделено от driver.clearance.manage: ' +
+      'начальник автослужбы не подписывает медосмотр, врач не продлевает ' +
+      'удостоверение. В этом и смысл предрейсового контроля.',
+  })
   addMedicalCheck(
     @CurrentOffice() officeId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -156,10 +162,44 @@ export class DriversController {
   ) {
     return this.drivers.addMedicalCheck(officeId, id, dto);
   }
+
+  @Get(':id/medical-clearance')
+  @RequirePermissions(PERMISSIONS.DRIVER_READ)
+  @ApiOperation({
+    summary: 'Действующий предрейсовый допуск водителя',
+    description: 'То основание, по которому диспетчер вправе выдать путевой лист.',
+  })
+  medicalClearance(@CurrentOffice() officeId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.drivers.medicalClearanceOf(officeId, id);
+  }
+}
+
+/**
+ * Здравпункт — рабочее место медработника.
+ *
+ * Вынесено отдельным контроллером, а не вкладкой в водителях: врач приходит
+ * в систему за одним действием и работает в темпе очереди перед сменой.
+ */
+@ApiTags('medical')
+@Audited('MedicalCheck')
+@Controller('medical')
+export class MedicalController {
+  constructor(private readonly drivers: DriversService) {}
+
+  @Get('queue')
+  @RequirePermissions(PERMISSIONS.DRIVER_READ)
+  @ApiQuery({ name: 'search', required: false })
+  @ApiOperation({
+    summary: 'Очередь на осмотр: водители офиса и состояние их допуска',
+    description: 'Показывает и осмотренных, и ещё не пришедших — врач видит, кого ждать.',
+  })
+  queue(@CurrentOffice() officeId: number, @Query('search') search?: string) {
+    return this.drivers.medicalQueue(officeId, search);
+  }
 }
 
 @Module({
-  controllers: [DriversController],
+  controllers: [DriversController, MedicalController],
   providers: [DriversService],
   exports: [DriversService],
 })

@@ -87,8 +87,13 @@ DECLARE
     'fuel_inventories',
     'waybills',
     'work_orders',
-    'spare_part_stocks',
+    'warehouses',
+    'stock_balances',
+    'stock_documents',
+    'stock_movements',
     'geofences',
+    'geofence_events',
+    'vehicle_condition_acts',
     'alerts',
     'document_sequences'
   ];
@@ -102,7 +107,9 @@ DECLARE
     ARRAY['maintenance_plans',      'vehicle_id',  'vehicles'],
     ARRAY['tire_installations',     'vehicle_id',  'vehicles'],
     ARRAY['gps_devices',            'vehicle_id',  'vehicles'],
+    ARRAY['technical_inspections',  'vehicle_id',  'vehicles'],
     ARRAY['telemetry_positions',    'vehicle_id',  'vehicles'],
+    ARRAY['telemetry_last_positions', 'vehicle_id', 'vehicles'],
     ARRAY['driver_licenses',        'driver_id',   'drivers'],
     ARRAY['driver_permits',         'driver_id',   'drivers'],
     ARRAY['medical_checks',         'driver_id',   'drivers'],
@@ -198,5 +205,9 @@ CREATE POLICY office_isolation ON public.users
   WITH CHECK (TRUE);
 
 -- Справочники (fuel_types, vehicle_models, spare_parts, roles, permissions)
+-- Номенклатура ТМЦ (spare_parts) тоже общая: код позиции обязан означать
+-- одно и то же в Ташкенте и Бухаре, иначе расход масла по стране не сложить.
+-- Разделены по офисам склады, остатки и движения — то, что принадлежит
+-- конкретному аэропорту.
 -- намеренно общие для всей страны: единая номенклатура — условие
 -- сравнимости отчётов между аэропортами. RLS на них не вешаем.

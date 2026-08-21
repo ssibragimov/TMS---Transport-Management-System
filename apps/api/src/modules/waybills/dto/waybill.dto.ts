@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { WaybillStatus, WaybillType } from '@prisma/client';
+import { VehicleCondition, WaybillStatus, WaybillType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -155,13 +155,31 @@ export class CreateWaybillDto {
 }
 
 export class IssueWaybillDto {
-  @ApiProperty({ description: 'Пройден предрейсовый медосмотр' })
-  @IsBoolean()
-  preTripMedicalOk: boolean;
+  /*
+   * Признака «медосмотр пройден» здесь намеренно нет.
+   *
+   * Он был булевым полем, которое диспетчер ставил себе сам, — то есть
+   * заинтересованная сторона подтверждала собственную проверку. Теперь
+   * основанием служит заключение врача из здравпункта, и сервер берёт его
+   * из базы, а не со слов вызывающего.
+   */
 
-  @ApiProperty({ description: 'Пройден предрейсовый технический осмотр' })
-  @IsBoolean()
-  preTripTechnicalOk: boolean;
+  /*
+   * Признака «техосмотр пройден» здесь тоже нет — по той же причине,
+   * что и медицинского: исправность подтверждает механик своим заключением,
+   * а не диспетчер галочкой в форме выдачи.
+   */
+
+  @ApiPropertyOptional({
+    description:
+      'Причина выпуска без действующего заключения механика. ' +
+      'Требует права waybill.override_technical. Отказ механика этим не снимается.',
+    maxLength: 400,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(400)
+  technicalOverrideReason?: string;
 
   @ApiPropertyOptional({ description: 'Чек-лист осмотра из мобильного приложения' })
   @IsOptional()
@@ -170,11 +188,39 @@ export class IssueWaybillDto {
   @ApiPropertyOptional({
     description:
       'Выдать вопреки предупреждениям о просроченных документах водителя. ' +
-      'Требует права waybill.issue и фиксируется в журнале аудита.',
+      'Требует права waybill.issue и фиксируется в журнале аудита. ' +
+      'На медицинский допуск не распространяется.',
   })
   @IsOptional()
   @IsBoolean()
   overrideEligibility?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Причина выдачи без действующего предрейсового медосмотра. ' +
+      'Требует отдельного права waybill.override_medical. ' +
+      'Отказ врача этим не снимается ни при каких правах.',
+    maxLength: 400,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(400)
+  medicalOverrideReason?: string;
+
+  @ApiPropertyOptional({
+    enum: VehicleCondition,
+    default: VehicleCondition.SERVICEABLE,
+    description: 'Состояние техники при выдаче — точка отсчёта для акта при возврате',
+  })
+  @IsOptional()
+  @IsEnum(VehicleCondition)
+  conditionOnIssue?: VehicleCondition;
+
+  @ApiPropertyOptional({ description: 'Замечания к состоянию при выдаче' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(600)
+  conditionIssueNotes?: string;
 }
 
 export class SubmitWaybillDto {
@@ -226,6 +272,22 @@ export class CloseWaybillDto {
   @ValidateNested({ each: true })
   @Type(() => WaybillTaskDto)
   tasks?: WaybillTaskDto[];
+
+  @ApiPropertyOptional({
+    enum: VehicleCondition,
+    description:
+      'Состояние техники при возврате. Если хуже, чем при выдаче, ' +
+      'автоматически составляется акт с указанием водителя.',
+  })
+  @IsOptional()
+  @IsEnum(VehicleCondition)
+  conditionOnReturn?: VehicleCondition;
+
+  @ApiPropertyOptional({ description: 'Описание повреждений — попадёт в акт' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(600)
+  conditionReturnNotes?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

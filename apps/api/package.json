@@ -18,7 +18,10 @@
     "db:apply-sql": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register prisma/apply-sql.ts",
     "db:seed": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register prisma/seed.ts",
     "db:seed:demo": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register prisma/seed-demo.ts",
-    "db:studio": "prisma studio",
+    "db:seed:load": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register prisma/seed-load.ts",
+    "db:seed:telemetry": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register prisma/seed-telemetry.ts",
+    "_comment:studio": "Как и остальные db-команды, ищет .env в корне монорепозитория: рядом со схемой его нет, и без dotenv-cli Prisma Studio падает на 'Environment variable not found: DATABASE_URL'.",
+    "db:studio": "dotenv -e ../../.env -- prisma studio",
     "db:reset": "dotenv -e ../../.env -- prisma migrate reset --force && npm run db:apply-sql && npm run db:seed"
   },
   "prisma": {

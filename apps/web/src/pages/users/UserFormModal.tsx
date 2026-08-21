@@ -1,20 +1,38 @@
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import {
+  DeleteOutlined,
+  PhoneOutlined,
+  PlusOutlined,
+  UploadOutlined,
+} from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
+  App,
   Button,
   Col,
+  Collapse,
   Divider,
   Form,
   Input,
   Modal,
+  Popconfirm,
   Row,
   Select,
+  Space,
   Typography,
+  Upload,
 } from 'antd';
-import { useEffect } from 'react';
+import axios from 'axios';
+import { useEffect, useState } from 'react';
+import { SYSTEM_ROLES } from '@gsm/shared';
 
+import { EntityAuditLog } from '@/components/EntityAuditLog';
+import { errorMessage } from '@/api/client';
+import { UserAvatar } from '@/components/UserAvatar';
+import { AVATAR_ACCEPT, cropToSquare } from '@/lib/image';
+
+import { CardTitle } from '@/components/EntityId';
 import { api } from '@/api/client';
 import { useApiMutation } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
@@ -23,6 +41,10 @@ export interface UserDetail {
   id: number;
   email: string;
   fullName: string;
+  /** Служебный внутренний номер телефона: четыре цифры. */
+  internalNumber: string | null;
+  /** Ключ фотографии в хранилище. null — снимка нет. */
+  photoKey: string | null;
   phone: string | null;
   locale: string;
   status: string;
@@ -50,8 +72,14 @@ export function UserFormModal({ open, initial, onClose }: Props) {
   const { t } = useTranslation();
 
   const [form] = Form.useForm();
-  const { user } = useAuth();
+  const { user: me, refreshProfile } = useAuth();
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
   const isEdit = Boolean(initial?.id);
+
+  // Имя `user` занято под текущего пользователя в остальном файле —
+  // сохраняем прежнее обращение к списку доступных офисов.
+  const user = me;
 
   const roles = useQuery({
     queryKey: ['roles'],
@@ -76,6 +104,7 @@ export function UserFormModal({ open, initial, onClose }: Props) {
 
       form.setFieldsValue({
         fullName: initial.fullName,
+        internalNumber: initial.internalNumber ?? undefined,
         phone: initial.phone ?? undefined,
         locale: initial.locale,
         status: initial.status,
@@ -94,11 +123,108 @@ export function UserFormModal({ open, initial, onClose }: Props) {
     }
   }, [open, initial, form, user]);
 
+  /**
+   * Суперадминистратору доступ ко всем офисам выдаётся сам.
+   *
+   * Роль по определению означает работу поверх всех аэропортов, и заставлять
+   * кадровика добавлять их по одному — заведомо лишний труд, в котором к тому
+   * же легко пропустить офис. Для остальных ролей поведение прежнее: офисы
+   * назначаются вручную, потому что доступ там точечный.
+   *
+   * Строки не дописываются к уже введённым, а заменяют их: смысл действия —
+   * «все офисы», и остаток прежнего выбора сделал бы результат непредсказуемым.
+   */
+  const handleValuesChange = (changed: Record<string, unknown>): void => {
+    if (!('offices' in changed)) return;
+
+    const rows = (form.getFieldValue('offices') ?? []) as Array<{
+      officeId?: number;
+      roleCodes?: string[];
+    }>;
+    const grantsSuperAdmin = rows.some((row) =>
+      row?.roleCodes?.includes(SYSTEM_ROLES.SUPER_ADMIN),
+    );
+    if (!grantsSuperAdmin) return;
+
+    const available = user?.availableOffices ?? [];
+    // Уже покрыты все офисы — второй раз не трогаем, иначе правка ролей
+    // в одной строке сбрасывала бы роли в остальных.
+    if (rows.length >= available.length) return;
+
+    form.setFieldsValue({
+      offices: available.map((office) => ({
+        officeId: office.id,
+        roleCodes: [SYSTEM_ROLES.SUPER_ADMIN],
+      })),
+      defaultOfficeId: form.getFieldValue('defaultOfficeId') ?? available[0]?.id,
+    });
+  };
+
+  /**
+   * Фотография сохраняется отдельным запросом, а не вместе с формой.
+   *
+   * Причина: файл уходит как multipart, а остальные поля — как JSON, и
+   * смешивать их в одном запросе значило бы переводить всю форму на
+   * multipart ради одного необязательного поля. Сохранение снимка сразу
+   * по выбору файла ещё и удобнее: результат виден, не нажимая «Сохранить».
+   */
+  const [photoKey, setPhotoKey] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  useEffect(() => {
+    setPhotoKey(initial?.photoKey ?? null);
+  }, [initial, open]);
+
+  const refreshPhoto = async (nextKey: string | null): Promise<void> => {
+    setPhotoKey(nextKey);
+    await queryClient.invalidateQueries({ queryKey: ['users'] });
+    // Свой снимок в шапке обновится только после перезапроса профиля.
+    if (initial?.id === me?.id) await refreshProfile();
+  };
+
+  const uploadPhoto = async (file: File): Promise<void> => {
+    if (!initial) return;
+    setPhotoBusy(true);
+    try {
+      const square = await cropToSquare(file);
+      const form = new FormData();
+      form.append('file', square.blob, square.fileName);
+
+      const { data } = await api.post<{ photoKey: string | null }>(
+        `/users/${initial.id}/photo`,
+        form,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+      void message.success(t('Фотография загружена'));
+      await refreshPhoto(data.photoKey);
+    } catch (error) {
+      void message.error(
+        error instanceof Error && !axios.isAxiosError(error)
+          ? error.message
+          : errorMessage(error),
+      );
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const removePhoto = async (): Promise<void> => {
+    if (!initial) return;
+    try {
+      await api.delete(`/users/${initial.id}/photo`);
+      void message.success(t('Фотография удалена'));
+      await refreshPhoto(null);
+    } catch (error) {
+      void message.error(errorMessage(error));
+    }
+  };
+
   const save = useApiMutation(
     async (values: Record<string, unknown>) => {
       if (isEdit) {
         const { data } = await api.patch(`/users/${initial!.id}`, {
           fullName: values.fullName,
+          internalNumber: values.internalNumber ?? '',
           phone: values.phone,
           locale: values.locale,
           status: values.status,
@@ -130,7 +256,7 @@ export function UserFormModal({ open, initial, onClose }: Props) {
     <Modal
       open={open}
       width={780}
-      title={isEdit ? `Пользователь: ${initial?.fullName}` : 'Новый пользователь'}
+      title={<CardTitle title={isEdit ? `Пользователь: ${initial?.fullName}` : 'Новый пользователь'} id={initial?.id} />}
       okText={t("Сохранить")}
       cancelText={t("Отмена")}
       confirmLoading={save.isPending}
@@ -151,7 +277,57 @@ export function UserFormModal({ open, initial, onClose }: Props) {
         />
       )}
 
-      <Form form={form} layout="vertical">
+      {/*
+        Порядок полей: ФИО → почта → служебный номер → личный телефон →
+        язык → статус. Сначала кто это, потом как с ним связаться, и только
+        потом настройки учётки.
+
+        Четыре коротких поля стоят одной ровной строкой по четверти ширины.
+        Разной ширины колонки и разрывы между рядами делали карточку рваной.
+      */}
+      {/* Фотография — только у существующей записи: файл кладётся по её
+          идентификатору, которого до сохранения ещё нет. */}
+      {isEdit && initial && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+          <UserAvatar
+            userId={initial.id}
+            fullName={initial.fullName}
+            photoKey={photoKey}
+            size={72}
+          />
+          <Space direction="vertical" size={4}>
+            <Space>
+              <Upload
+                accept={AVATAR_ACCEPT}
+                showUploadList={false}
+                beforeUpload={(file) => {
+                  void uploadPhoto(file);
+                  return false;
+                }}
+              >
+                <Button icon={<UploadOutlined />} loading={photoBusy}>
+                  {photoKey ? t('Заменить фото') : t('Загрузить фото')}
+                </Button>
+              </Upload>
+              {photoKey && (
+                <Popconfirm
+                  title={t('Удалить фотографию?')}
+                  okText={t('Удалить')}
+                  cancelText={t('Отмена')}
+                  onConfirm={() => void removePhoto()}
+                >
+                  <Button danger icon={<DeleteOutlined />} />
+                </Popconfirm>
+              )}
+            </Space>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {t('Снимок обрезается по центру в квадрат. JPEG, PNG или WebP.')}
+            </Typography.Text>
+          </Space>
+        </div>
+      )}
+
+      <Form form={form} layout="vertical" onValuesChange={handleValuesChange}>
         <Row gutter={16}>
           <Col span={12}>
             <Form.Item
@@ -182,9 +358,11 @@ export function UserFormModal({ open, initial, onClose }: Props) {
           </Col>
         </Row>
 
-        <Row gutter={16}>
-          {!isEdit && (
-            <Col span={8}>
+        {/* Пароль задаётся только при создании и стоит отдельной строкой,
+            чтобы не разрывать ряд контактов и настроек. */}
+        {!isEdit && (
+          <Row gutter={16}>
+            <Col span={12}>
               <Form.Item
                 name="password"
                 label={t("Пароль")}
@@ -196,25 +374,46 @@ export function UserFormModal({ open, initial, onClose }: Props) {
                 <Input.Password autoComplete="new-password" />
               </Form.Item>
             </Col>
-          )}
-          <Col span={8}>
-            <Form.Item name="phone" label={t("Телефон")}>
+          </Row>
+        )}
+
+        <Row gutter={16}>
+          <Col span={6}>
+            <Form.Item
+              name="internalNumber"
+              label={t("Основной")}
+              tooltip={t("Служебный внутренний номер телефона — четыре цифры. По нему сотрудника набирают внутри предприятия, поэтому он идёт раньше личного. Один номер может быть закреплён за несколькими сотрудниками.")}
+              rules={[{ pattern: /^\d{4}$/, message: t("Ровно четыре цифры") }]}
+            >
+              <Input
+                placeholder="1042"
+                maxLength={4}
+                inputMode="numeric"
+                addonBefore={<PhoneOutlined />}
+              />
+            </Form.Item>
+          </Col>
+          <Col span={6}>
+            <Form.Item
+              name="phone"
+              label={t("Телефон")}
+              tooltip={t("Личный номер сотрудника")}
+            >
               <Input placeholder="+998 90 123-45-67" />
             </Form.Item>
           </Col>
-          <Col span={4}>
+          <Col span={6}>
             <Form.Item name="locale" label={t("Язык")}>
               <Select
                 options={[
                   { value: 'ru', label: t("Русский") },
                   { value: 'uz', label: 'O‘zbekcha' },
-                  { value: 'uz-Cyrl', label: t("Ўзбекча") },
                   { value: 'en', label: 'English' },
                 ]}
               />
             </Form.Item>
           </Col>
-          <Col span={4}>
+          <Col span={6}>
             <Form.Item name="status" label={t("Статус")}>
               <Select
                 options={[
@@ -232,6 +431,8 @@ export function UserFormModal({ open, initial, onClose }: Props) {
         </Divider>
         <Typography.Paragraph type="secondary" style={{ marginTop: -8 }}>
           {t("Роль действует в конкретном офисе. Один человек может быть диспетчером в Ташкенте и наблюдателем в Самарканде — это две отдельные строки.")}
+          {' '}
+          {t("Исключение — суперадминистратор: при выборе этой роли все доступные офисы подставляются сразу.")}
         </Typography.Paragraph>
 
         <Form.List
@@ -330,6 +531,22 @@ export function UserFormModal({ open, initial, onClose }: Props) {
           }}
         </Form.Item>
       </Form>
+
+      {/* Журнал свёрнут по умолчанию: карточка пользователя — это прежде
+          всего форма, и раскрытая таблица истории оттеснила бы поля вниз. */}
+      {isEdit && initial && (
+        <Collapse
+          ghost
+          style={{ marginTop: 8 }}
+          items={[
+            {
+              key: 'audit',
+              label: t('Журнал действий'),
+              children: <EntityAuditLog entity="User" entityId={initial.id} limit={30} />,
+            },
+          ]}
+        />
+      )}
     </Modal>
   );
 }

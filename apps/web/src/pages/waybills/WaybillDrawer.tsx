@@ -10,6 +10,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  Select,
   Space,
   Statistic,
   Table,
@@ -18,11 +19,21 @@ import {
 } from 'antd';
 import dayjs from 'dayjs';
 import { useState } from 'react';
-import { PERMISSIONS, WaybillStatus } from '@gsm/shared';
+import {
+  CONDITION_LABEL,
+  PERMISSIONS,
+  VehicleCondition,
+  WaybillStatus,
+  needsConditionAct,
+} from '@gsm/shared';
 
+import { EntityAuditLog } from '@/components/EntityAuditLog';
+import { EntityId } from '@/components/EntityId';
 import { api } from '@/api/client';
 import { useApiMutation } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { MedicalClearanceCard } from './MedicalClearanceCard';
+import { TechnicalClearanceCard } from './TechnicalClearanceCard';
 import {
   WAYBILL_STATUS_COLOR,
   WAYBILL_STATUS_LABEL,
@@ -58,7 +69,13 @@ interface WaybillDetail {
   normBreakdown: { lines: Array<{ key: string; rate: number; quantity: number; unit: string; litres: number }> } | null;
   notes: string | null;
   cancelReason: string | null;
+  conditionOnIssue: string | null;
+  conditionIssueNotes: string | null;
+  conditionOnReturn: string | null;
+  conditionReturnNotes: string | null;
+  vehicleId: number;
   vehicle: { garageNumber: string; plateNumber: string | null; requiresAirsidePermit: boolean } | null;
+  driverId: number;
   driver: { lastName: string; firstName: string; personnelNumber: string } | null;
   tasks: Array<{
     id: number;
@@ -81,12 +98,39 @@ interface WaybillDetail {
 
 type ActionKind = 'issue' | 'submit' | 'close' | 'cancel' | null;
 
+/**
+ * Варианты состояния техники — один список для выдачи и для закрытия.
+ *
+ * Список строится на уровне модуля, вне компонента, поэтому t() здесь
+ * недоступен: перевод применяется в месте отрисовки. Хранится русский
+ * текст из общего пакета — он же ключ перевода.
+ */
+const CONDITION_OPTIONS = Object.values(VehicleCondition).map((value) => ({
+  value,
+  labelKey: CONDITION_LABEL[value],
+}));
+
 export function WaybillDrawer({ waybillId, onClose }: Props) {
   const { t } = useTranslation();
 
   const { can } = useAuth();
   const [action, setAction] = useState<ActionKind>(null);
+  // Состояние допуска приходит из карточки: от него зависит, спрашивать ли
+  // причину обхода и показывать ли предупреждение о недопуске.
+  const [clearance, setClearance] = useState<{
+    state: string;
+    allowed: boolean;
+    overridable: boolean;
+  } | null>(null);
+  // Заключение механика — второй допуск, от которого зависит выпуск.
+  const [technical, setTechnical] = useState<{
+    state: string;
+    allowed: boolean;
+    overridable: boolean;
+  } | null>(null);
   const [form] = Form.useForm();
+  // Следим за выбором, чтобы предупредить об акте до нажатия кнопки.
+  const returnCondition = Form.useWatch('conditionOnReturn', form) as VehicleCondition | undefined;
 
   const open = waybillId !== null;
 
@@ -113,10 +157,15 @@ export function WaybillDrawer({ waybillId, onClose }: Props) {
       form.setFieldsValue({
         odometerEnd: w?.odometerEnd ? Number(w.odometerEnd) : undefined,
         engineHoursEnd: w?.engineHoursEnd ? Number(w.engineHoursEnd) : undefined,
+        // По умолчанию — как выдали: изменение состояния должно быть
+        // осознанным действием, а не следствием незаполненного поля.
+        conditionOnReturn: (w?.conditionOnIssue as VehicleCondition) ?? VehicleCondition.SERVICEABLE,
       });
     }
     if (kind === 'issue') {
-      form.setFieldsValue({ preTripMedicalOk: true, preTripTechnicalOk: true });
+      setClearance(null);
+      setTechnical(null);
+      form.setFieldsValue({ conditionOnIssue: VehicleCondition.SERVICEABLE });
     }
     setAction(kind);
   };
@@ -146,6 +195,9 @@ export function WaybillDrawer({ waybillId, onClose }: Props) {
       extra={
         w && (
           <Space>
+            {/* Идентификатор перед кнопками: действия должны оставаться
+                у самого края, куда тянется рука. */}
+            <EntityId id={w.id} />
             {status === WaybillStatus.DRAFT && can(PERMISSIONS.WAYBILL_ISSUE) && (
               <Button type="primary" onClick={() => openAction('issue')}>
                 {t("Выдать водителю")}
@@ -302,6 +354,12 @@ export function WaybillDrawer({ waybillId, onClose }: Props) {
               />
             </>
           )}
+
+          {/* Журнал внизу, а не вкладкой: карточка путевого листа читается
+              сверху вниз одним потоком, и разрывать её вкладками ради
+              служебного раздела значит спрятать сам документ. */}
+          <h4 style={{ marginTop: 24 }}>{t('Журнал действий')}</h4>
+          <EntityAuditLog entity="Waybill" entityId={w.id} limit={30} />
         </>
       )}
 
@@ -332,18 +390,93 @@ export function WaybillDrawer({ waybillId, onClose }: Props) {
         <Form form={form} layout="vertical">
           {action === 'issue' && (
             <>
+              {/* Медицинский допуск не вводится, а показывается: его источник —
+                  заключение врача из здравпункта. Галочки «медосмотр пройден»
+                  здесь больше нет, потому что подтверждать собственную
+                  проверку заинтересованной стороне нельзя. */}
+              <MedicalClearanceCard driverId={w?.driverId} onState={setClearance} />
+              {/* Заключение механика — так же показывается, а не вводится:
+                  исправность техники подтверждает механик, а не диспетчер. */}
+              <TechnicalClearanceCard vehicleId={w?.vehicleId} onState={setTechnical} />
+
               <Typography.Paragraph type="secondary">
-                {t("Система проверит права, допуск на перрон и медосмотр водителя. При замечаниях выдача будет заблокирована.")}
+                {t('Система проверит удостоверение, допуск на перрон, медицинское заключение и заключение механика.')}
               </Typography.Paragraph>
-              <Form.Item name="preTripMedicalOk" valuePropName="checked">
-                <Checkbox>Предрейсовый медосмотр пройден</Checkbox>
+
+              {technical && !technical.allowed && technical.overridable && (
+                <Form.Item
+                  name="technicalOverrideReason"
+                  label={t('Причина выпуска без заключения механика')}
+                  tooltip={t(
+                    'Доступно только с правом waybill.override_technical. Причина сохраняется в путевом листе и в журнале действий.',
+                  )}
+                  rules={[{ required: true, message: t('Укажите причину') }]}
+                >
+                  <Input.TextArea rows={2} placeholder={t('Например: механик на выезде, осмотр внесён с бумаги')} />
+                </Form.Item>
+              )}
+
+              {technical?.state === 'FAILED' && (
+                <Alert
+                  type="error"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                  message={t('Выпуск невозможен')}
+                  description={t(
+                    'Механик не выпустил технику на линию. Это решение не обходится никакими правами — нужна замена машины.',
+                  )}
+                />
+              )}
+
+              {/* Состояние на выдаче — точка отсчёта. Без него при возврате
+                  не с чем сравнивать, и любая поломка выглядит как «было
+                  и до меня». */}
+              <Form.Item
+                name="conditionOnIssue"
+                label={t('Состояние техники при выдаче')}
+                rules={[{ required: true, message: t('Обязательное поле') }]}
+              >
+                <Select
+                  options={CONDITION_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: t(option.labelKey),
+                  }))}
+                />
               </Form.Item>
-              <Form.Item name="preTripTechnicalOk" valuePropName="checked">
-                <Checkbox>Предрейсовый технический осмотр пройден</Checkbox>
+              <Form.Item name="conditionIssueNotes" label={t('Замечания при выдаче')}>
+                <Input.TextArea rows={2} maxLength={600} />
               </Form.Item>
+
+              {/* Обход медосмотра — отдельное поле и отдельное право.
+                  Общая галочка «вопреки замечаниям» его не снимает. */}
+              {clearance && !clearance.allowed && clearance.overridable && (
+                <Form.Item
+                  name="medicalOverrideReason"
+                  label={t('Причина выдачи без медосмотра')}
+                  tooltip={t(
+                    'Доступно только с правом waybill.override_medical. Причина сохраняется в путевом листе и в журнале действий.',
+                  )}
+                  rules={[{ required: true, message: t('Укажите причину') }]}
+                >
+                  <Input.TextArea rows={2} placeholder={t('Например: здравпункт закрыт, осмотр внесён с бумаги')} />
+                </Form.Item>
+              )}
+
+              {clearance && clearance.state === 'FAILED' && (
+                <Alert
+                  type="error"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                  message={t('Выдача невозможна')}
+                  description={t(
+                    'Врач не допустил водителя к работе. Это решение не обходится никакими правами — нужна замена водителя.',
+                  )}
+                />
+              )}
+
               <Form.Item name="overrideEligibility" valuePropName="checked">
                 <Checkbox>
-                  {t("Выдать вопреки замечаниям (действие попадёт в журнал аудита)")}
+                  {t('Выдать вопреки замечаниям по документам (действие попадёт в журнал аудита)')}
                 </Checkbox>
               </Form.Item>
             </>
@@ -375,6 +508,50 @@ export function WaybillDrawer({ waybillId, onClose }: Props) {
               >
                 <InputNumber min={0} style={{ width: '100%' }} />
               </Form.Item>
+
+              <Form.Item
+                name="conditionOnReturn"
+                label={t('Состояние техники при возврате')}
+                tooltip={
+                  w?.conditionOnIssue
+                    ? `${t('При выдаче было')}: ${t(CONDITION_LABEL[w.conditionOnIssue as VehicleCondition] ?? w.conditionOnIssue)}`
+                    : undefined
+                }
+                rules={[{ required: true, message: t('Обязательное поле') }]}
+              >
+                <Select
+                  options={CONDITION_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: t(option.labelKey),
+                  }))}
+                />
+              </Form.Item>
+              <Form.Item
+                name="conditionReturnNotes"
+                label={t('Описание повреждений')}
+                tooltip={t('Текст попадёт в акт — пишите так, как объясните это через месяц')}
+              >
+                <Input.TextArea rows={3} maxLength={600} />
+              </Form.Item>
+
+              {/* Предупреждение до нажатия, а не сюрприз после: акт —
+                  документ, на который ссылаются при удержании. */}
+              {returnCondition &&
+                needsConditionAct(
+                  (w?.conditionOnIssue as VehicleCondition | null) ?? null,
+                  returnCondition,
+                ) && (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message={t('Будет составлен акт о состоянии техники')}
+                    description={
+                      w?.driver
+                        ? `${t('В акте будет указан водитель, принявший технику')}: ${w.driver.lastName} ${w.driver.firstName}`
+                        : undefined
+                    }
+                  />
+                )}
             </>
           )}
 

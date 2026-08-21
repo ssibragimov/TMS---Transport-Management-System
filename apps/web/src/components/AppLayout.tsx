@@ -3,7 +3,10 @@ import {
   CarOutlined,
   DashboardOutlined,
   DatabaseOutlined,
+  EnvironmentOutlined,
+  InboxOutlined,
   FileTextOutlined,
+  MedicineBoxOutlined,
   HistoryOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
@@ -15,6 +18,9 @@ import {
 import type { Permission } from '@gsm/shared';
 import { PERMISSIONS } from '@gsm/shared';
 import { Dropdown, Layout, Menu, Select, Space, Tag, Tooltip, Typography } from 'antd';
+
+import { HeaderClock } from '@/components/HeaderClock';
+import { UserAvatar } from '@/components/UserAvatar';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -22,7 +28,8 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
 import { LocaleFlag } from '@/components/LocaleFlag';
 import { OfficeLogo } from '@/components/OfficeLogo';
-import i18n, { SUPPORTED_LOCALES, localeDescriptor } from '@/i18n';
+import i18n, { LOCALE_STORAGE_KEY, SUPPORTED_LOCALES, localeDescriptor } from '@/i18n';
+import { roleLabel } from '@/lib/labels';
 
 const { Header, Sider, Content } = Layout;
 
@@ -82,6 +89,30 @@ export function AppLayout() {
       permission: PERMISSIONS.WAYBILL_READ,
     },
     {
+      key: '/medical',
+      icon: <MedicineBoxOutlined />,
+      label: t('Здравпункт'),
+      permission: PERMISSIONS.DRIVER_READ,
+    },
+    {
+      key: '/technical',
+      icon: <ToolOutlined />,
+      label: t('Техконтроль'),
+      permission: PERMISSIONS.VEHICLE_READ,
+    },
+    {
+      key: '/stock',
+      icon: <InboxOutlined />,
+      label: t('Склад ТМЦ'),
+      permission: PERMISSIONS.STOCK_READ,
+    },
+    {
+      key: '/telemetry',
+      icon: <EnvironmentOutlined />,
+      label: t('Телеметрия'),
+      permission: PERMISSIONS.TELEMETRY_READ,
+    },
+    {
       key: '/reports',
       icon: <BarChartOutlined />,
       label: t('Отчёты'),
@@ -112,11 +143,27 @@ export function AppLayout() {
     .map(({ key, icon, label }) => ({ key, icon, label }));
 
   const changeLocale = (locale: string): void => {
-    localStorage.setItem('gsm.locale', locale);
+    // Запись в localStorage делает выбор «явным»: с этого момента язык
+    // из профиля его больше не перебивает (см. AuthContext).
+    localStorage.setItem(LOCALE_STORAGE_KEY, locale);
     void i18n.changeLanguage(locale);
   };
 
   const activeOffice = user?.activeOffice;
+
+  /*
+   * Должность под именем пользователя.
+   *
+   * Ролей может быть несколько — человек бывает диспетчером и механиком
+   * одновременно, — поэтому перечисляем все. Незнакомый код роли выводим
+   * как есть: роли заводятся администратором, и подписи для новых в словаре
+   * не будет. Перерисовка при смене языка приходит от useTranslation выше,
+   * поэтому i18n.language здесь всегда актуален.
+   */
+  const roleTitle =
+    user?.roles?.length
+      ? user.roles.map((code) => roleLabel(code, i18n.language)).join(', ')
+      : t('Роль не назначена');
 
   return (
     /*
@@ -165,6 +212,8 @@ export function AppLayout() {
         </Space>
 
         <Space size="middle">
+          <HeaderClock />
+
           <Select
             value={localeDescriptor(i18n.language).code}
             style={{ width: 140 }}
@@ -193,8 +242,35 @@ export function AppLayout() {
               ],
             }}
           >
-            <Space style={{ cursor: 'pointer' }}>
-              <Typography.Text strong>{user?.fullName}</Typography.Text>
+            {/* Фотография рядом с именем: по лицу свою учётку узнают быстрее,
+                чем по строке текста, — особенно на общем рабочем месте,
+                где за компьютер садятся посменно.
+
+                Должность в подсказке, а не в строке: на общем рабочем месте
+                важно с одного взгляда убедиться, под чьими правами работаешь,
+                но в шапке для неё нет места. */}
+            <Space style={{ cursor: 'pointer' }} size={10}>
+              <UserAvatar
+                userId={user?.id}
+                fullName={user?.fullName}
+                photoKey={user?.photoKey}
+                size={36}
+              />
+              {/* Должность строкой под именем, а не подсказкой при наведении:
+                  всплывающая подсказка перекрывалась выпадающим меню выхода,
+                  которое открывается по тому же наведению. */}
+              <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25 }}>
+                <Typography.Text strong>{user?.fullName}</Typography.Text>
+                <Typography.Text
+                  type="secondary"
+                  style={{ fontSize: 12 }}
+                  // Ролей может быть несколько; в строку помещается не всё,
+                  // поэтому длинный перечень обрезается многоточием.
+                  ellipsis={{ tooltip: false }}
+                >
+                  {roleTitle}
+                </Typography.Text>
+              </div>
             </Space>
           </Dropdown>
         </Space>

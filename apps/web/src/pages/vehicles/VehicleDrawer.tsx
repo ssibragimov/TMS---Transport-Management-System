@@ -22,6 +22,8 @@ import dayjs from 'dayjs';
 import { useState } from 'react';
 import { PERMISSIONS, VehicleDocumentType } from '@gsm/shared';
 
+import { EntityAuditLog } from '@/components/EntityAuditLog';
+import { EntityId } from '@/components/EntityId';
 import { api } from '@/api/client';
 import { useApiMutation } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
@@ -176,6 +178,7 @@ export function VehicleDrawer({ vehicleId, onClose }: Props) {
           'Карточка техники'
         )
       }
+      extra={<EntityId id={v?.id} />}
       loading={vehicle.isLoading}
     >
       {v && (
@@ -355,6 +358,11 @@ export function VehicleDrawer({ vehicleId, onClose }: Props) {
                   />
                 </>
               ),
+            },
+            {
+              key: 'audit',
+              label: t("Журнал действий"),
+              children: <EntityAuditLog entity="Vehicle" entityId={v.id} />,
             },
           ]}
         />

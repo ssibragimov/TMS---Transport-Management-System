@@ -48,6 +48,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       officeId: payload.officeId,
       officeScope: payload.officeScope,
       bypassRls: payload.bypassRls,
+      permissions: payload.permissions,
     });
 
     return user;

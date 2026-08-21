@@ -20,6 +20,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PERMISSIONS } from '@gsm/shared';
 
+import { CardTitle } from '@/components/EntityId';
 import { api } from '@/api/client';
 import { useApiMutation, useDictionaries, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
@@ -60,6 +61,7 @@ export function DriversPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [search, setSearch] = useState('');
+  const [departmentId, setDepartmentId] = useState<number | undefined>();
   const [detailId, setDetailId] = useState<number | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<DriverRow | null>(null);
@@ -69,6 +71,7 @@ export function DriversPage() {
     page,
     pageSize,
     search: search || undefined,
+    departmentId,
   });
 
   useEffect(() => {
@@ -103,7 +106,9 @@ export function DriversPage() {
     },
     {
       successMessage: editing ? t('Карточка обновлена') : t('Водитель принят'),
-      invalidate: [['drivers'], ['office-summary']],
+      // 'driver' — карточка в ящике: там табельный номер выведен отдельной
+      // строкой и после правки остался бы прежним до перезагрузки страницы.
+      invalidate: [['drivers'], ['driver'], ['waybills'], ['office-summary']],
     },
   );
 
@@ -129,6 +134,25 @@ export function DriversPage() {
               setSearch(value);
               setPage(1);
             }}
+          />
+          {/* Справочник тот же, что питает форму приёма водителя, —
+              он уже закэширован, отдельного запроса ради фильтра нет. */}
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            placeholder={t('Подразделение')}
+            style={{ width: 200 }}
+            value={departmentId}
+            loading={dictionaries.isLoading}
+            onChange={(value) => {
+              setDepartmentId(value);
+              setPage(1);
+            }}
+            options={(dictionaries.data?.departments ?? []).map((department) => ({
+              value: department.id,
+              label: department.name,
+            }))}
           />
           {can(PERMISSIONS.DRIVER_CREATE) && (
             <Button
@@ -238,7 +262,7 @@ export function DriversPage() {
 
       <Modal
         open={formOpen}
-        title={editing ? 'Карточка водителя' : 'Приём водителя'}
+        title={<CardTitle title={editing ? 'Карточка водителя' : 'Приём водителя'} id={editing?.id} />}
         okText={t('Сохранить')}
         cancelText={t('Отмена')}
         width={680}
@@ -257,8 +281,17 @@ export function DriversPage() {
                 name="personnelNumber"
                 label={t('Табельный номер')}
                 rules={[{ required: true, message: t('Обязательное поле') }]}
+                tooltip={
+                  editing
+                    ? t('Номер можно изменить: путевые листы связаны с водителем по карточке, а не по номеру, поэтому история не потеряется')
+                    : undefined
+                }
               >
-                <Input disabled={Boolean(editing)} />
+                {/* Поле открыто и при правке: смена табельного номера входит
+                    в право driver.update, а сама форма доступна только его
+                    обладателям — номера переприсваивают при переводе между
+                    подразделениями и исправляют опечатки приказа о приёме. */}
+                <Input />
               </Form.Item>
             </Col>
             <Col span={8}>

@@ -27,7 +27,13 @@ import {
   OwnershipType,
   PermitZone,
   PrismaClient,
+  StockCategory,
+  StockDocumentKind,
+  StockIssuePurpose,
+  StockMovementType,
+  StockTracking,
   UserStatus,
+  WarehouseKind,
   VehicleStatus,
   WaybillStatus,
   WaybillType,
@@ -215,15 +221,80 @@ const SUPPLIERS = [
   { name: 'ООО «Neft Gaz Savdo»', inn: '403456789' },
 ];
 
-const SPARE_PARTS = [
-  { code: 'FLT-OIL-01', name: 'Фильтр масляный', unit: 'шт', price: 145_000 },
-  { code: 'FLT-AIR-01', name: 'Фильтр воздушный', unit: 'шт', price: 210_000 },
-  { code: 'FLT-FUEL-01', name: 'Фильтр топливный', unit: 'шт', price: 190_000 },
-  { code: 'OIL-15W40', name: 'Масло моторное 15W-40', unit: 'л', price: 62_000 },
-  { code: 'BRK-PAD-01', name: 'Колодки тормозные, комплект', unit: 'компл', price: 1_250_000 },
-  { code: 'TIRE-1100R20', name: 'Шина 11.00R20', unit: 'шт', price: 4_800_000 },
-  { code: 'BAT-190', name: 'Аккумулятор 190 А·ч', unit: 'шт', price: 2_400_000 },
-  { code: 'ANTIFRZ', name: 'Антифриз G12', unit: 'л', price: 48_000 },
+/**
+ * Номенклатура ТМЦ.
+ *
+ * exchange — позиция выдаётся в обмен на сданное отработанное. Для шин
+ * и аккумуляторов это не формальность: без встречной сдачи старое просто
+ * исчезает из учёта, а свинец и резина стоят денег и сдаются по акту.
+ */
+interface SparePartSeed {
+  code: string;
+  name: string;
+  unit: string;
+  /** Ориентировочная цена, сум. От неё считаются приходы и себестоимость. */
+  price: number;
+  category: StockCategory;
+  tracking?: StockTracking;
+  exchange?: boolean;
+}
+
+const SPARE_PARTS: SparePartSeed[] = [
+  { code: 'FLT-OIL-01', name: 'Фильтр масляный', unit: 'шт', price: 145_000, category: StockCategory.FILTER },
+  { code: 'FLT-AIR-01', name: 'Фильтр воздушный', unit: 'шт', price: 210_000, category: StockCategory.FILTER },
+  { code: 'FLT-FUEL-01', name: 'Фильтр топливный', unit: 'шт', price: 190_000, category: StockCategory.FILTER },
+  { code: 'FLT-HYD-01', name: 'Фильтр гидравлический', unit: 'шт', price: 320_000, category: StockCategory.FILTER },
+  { code: 'OIL-15W40', name: 'Масло моторное 15W-40', unit: 'л', price: 62_000, category: StockCategory.OIL },
+  { code: 'OIL-ATF', name: 'Масло трансмиссионное ATF', unit: 'л', price: 78_000, category: StockCategory.OIL },
+  { code: 'OIL-HYD-46', name: 'Масло гидравлическое HLP-46', unit: 'л', price: 54_000, category: StockCategory.OIL },
+  { code: 'GREASE-LI', name: 'Смазка литиевая', unit: 'кг', price: 96_000, category: StockCategory.OIL },
+  { code: 'BRK-PAD-01', name: 'Колодки тормозные, комплект', unit: 'компл', price: 1_250_000, category: StockCategory.BRAKE },
+  { code: 'BRK-FLUID', name: 'Жидкость тормозная DOT-4', unit: 'л', price: 74_000, category: StockCategory.BRAKE },
+  {
+    code: 'TIRE-1100R20',
+    name: 'Шина 11.00R20',
+    unit: 'шт',
+    price: 4_800_000,
+    category: StockCategory.TIRE,
+    tracking: StockTracking.SERIAL,
+    exchange: true,
+  },
+  {
+    code: 'TIRE-825R16',
+    name: 'Шина 8.25R16',
+    unit: 'шт',
+    price: 2_650_000,
+    category: StockCategory.TIRE,
+    tracking: StockTracking.SERIAL,
+    exchange: true,
+  },
+  {
+    code: 'BAT-190',
+    name: 'Аккумулятор 190 А·ч',
+    unit: 'шт',
+    price: 2_400_000,
+    category: StockCategory.BATTERY,
+    tracking: StockTracking.SERIAL,
+    exchange: true,
+  },
+  {
+    code: 'BAT-100',
+    name: 'Аккумулятор 100 А·ч',
+    unit: 'шт',
+    price: 1_150_000,
+    category: StockCategory.BATTERY,
+    tracking: StockTracking.SERIAL,
+    exchange: true,
+  },
+  { code: 'ANTIFRZ', name: 'Антифриз G12', unit: 'л', price: 48_000, category: StockCategory.FLUID },
+  { code: 'WASH-FLUID', name: 'Жидкость омывателя, зимняя', unit: 'л', price: 22_000, category: StockCategory.FLUID },
+  { code: 'LAMP-H4', name: 'Лампа H4 24В', unit: 'шт', price: 38_000, category: StockCategory.ELECTRIC },
+  { code: 'BEACON-LED', name: 'Маячок проблесковый светодиодный', unit: 'шт', price: 890_000, category: StockCategory.ELECTRIC },
+  { code: 'BELT-V', name: 'Ремень приводной', unit: 'шт', price: 265_000, category: StockCategory.SPARE },
+  { code: 'HOSE-HYD', name: 'Рукав высокого давления', unit: 'шт', price: 420_000, category: StockCategory.SPARE },
+  { code: 'RAG-TECH', name: 'Ветошь обтирочная', unit: 'кг', price: 18_000, category: StockCategory.HARDWARE },
+  { code: 'GLOVE-WORK', name: 'Перчатки рабочие', unit: 'пара', price: 15_000, category: StockCategory.PPE },
+  { code: 'VEST-SIGNAL', name: 'Жилет сигнальный', unit: 'шт', price: 65_000, category: StockCategory.PPE },
 ];
 
 // ─── Вспомогательное ────────────────────────────────────────────────────────
@@ -318,9 +389,26 @@ async function resetOperationalData(officeIds: number[]): Promise<void> {
     prisma.vehicleMeterReading.deleteMany({ where: { vehicleId: { in: vehicleIds } } }),
     prisma.fuelIssue.deleteMany({ where: { officeId: { in: officeIds } } }),
     prisma.waybillTask.deleteMany({ where: { waybill: { officeId: { in: officeIds } } } }),
+    // Акты о состоянии техники ссылаются на путевой лист с onDelete: Restrict —
+    // удалить лист, не сняв акт, нельзя. Ограничение намеренное: живой акт
+    // не должен исчезать вместе с документом, на который ссылается.
+    prisma.vehicleConditionAct.deleteMany({ where: { officeId: { in: officeIds } } }),
     prisma.waybill.deleteMany({ where: { officeId: { in: officeIds } } }),
+    // Заключения врача и механика тоже держат лист ссылкой, но в обратную
+    // сторону: сначала лист, потом они.
+    prisma.technicalInspection.deleteMany({ where: { vehicleId: { in: vehicleIds } } }),
+    prisma.medicalCheck.deleteMany({
+      where: { isPreTrip: true, driver: { officeId: { in: officeIds } } },
+    }),
     prisma.fuelInventory.deleteMany({ where: { officeId: { in: officeIds } } }),
     prisma.fuelReceipt.deleteMany({ where: { officeId: { in: officeIds } } }),
+    // Склад ТМЦ: сначала проводки, затем документы (движение ссылается
+    // на документ), затем остатки и сами склады. Остаток — производная
+    // от движений, поэтому пересоздаётся вместе с ними, а не правится.
+    prisma.stockMovement.deleteMany({ where: { officeId: { in: officeIds } } }),
+    prisma.stockDocument.deleteMany({ where: { officeId: { in: officeIds } } }),
+    prisma.stockBalance.deleteMany({ where: { officeId: { in: officeIds } } }),
+    prisma.warehouse.deleteMany({ where: { officeId: { in: officeIds } } }),
     prisma.workOrderPart.deleteMany({ where: { workOrder: { officeId: { in: officeIds } } } }),
     prisma.workOrder.deleteMany({ where: { officeId: { in: officeIds } } }),
     prisma.maintenancePlan.deleteMany({ where: { vehicleId: { in: vehicleIds } } }),
@@ -671,10 +759,16 @@ async function seedOffice(plan: OfficePlan): Promise<void> {
     { role: SYSTEM_ROLES.DISPATCHER, login: 'dispatcher', name: 'Диспетчер' },
     { role: SYSTEM_ROLES.FUEL_OPERATOR, login: 'fuel', name: 'Оператор ГСМ' },
     { role: SYSTEM_ROLES.MECHANIC, login: 'mechanic', name: 'Механик' },
+    // Без учётки медработника предрейсовый допуск некому выдать,
+    // и вся цепочка выдачи путевых листов встанет на демо-стенде.
+    { role: SYSTEM_ROLES.MEDIC, login: 'medic', name: 'Медработник' },
+    // Кладовщик — материально ответственный за склады офиса.
+    { role: SYSTEM_ROLES.STOREKEEPER, login: 'store', name: 'Кладовщик' },
     { role: SYSTEM_ROLES.ACCOUNTANT, login: 'accountant', name: 'Бухгалтер' },
     { role: SYSTEM_ROLES.FLEET_MANAGER, login: 'chief', name: 'Начальник автослужбы' },
   ];
 
+  const staffIds = new Map<string, number>();
   for (const s of staff) {
     const email = `${s.login}.${plan.code.toLowerCase()}@gsm.local`;
     const user = await prisma.user.upsert({
@@ -702,6 +796,7 @@ async function seedOffice(plan: OfficePlan): Promise<void> {
     if (!hasRole) {
       await prisma.userRole.create({ data: { userId: user.id, roleId, officeId: office.id } });
     }
+    staffIds.set(s.login, user.id);
   }
   console.log(`  пользователи: ${staff.length} (пароль ${DEMO_PASSWORD})`);
 
@@ -1067,22 +1162,8 @@ async function seedOffice(plan: OfficePlan): Promise<void> {
   }
   console.log(`  наряд-заказы: ${workOrderCount}`);
 
-  // ─── Склад запчастей ─────────────────────────────────────────────────────
-  for (const part of SPARE_PARTS) {
-    const partId = partIds.get(part.code);
-    if (!partId) continue;
-    await prisma.sparePartStock.upsert({
-      where: { officeId_partId: { officeId: office.id, partId } },
-      update: { quantity: randInt(0, 40) },
-      create: {
-        officeId: office.id,
-        partId,
-        quantity: randInt(0, 40),
-        minQuantity: randInt(2, 8),
-        avgPrice: part.price,
-      },
-    });
-  }
+  // ─── Склад ТМЦ ───────────────────────────────────────────────────────────
+  await seedStock(plan, office, year, partIds, vehicles, drivers, staffIds);
 
   // ─── Счётчики номеров ────────────────────────────────────────────────────
   // Обязательный шаг: приложение продолжит нумерацию с этих значений.
@@ -1101,12 +1182,333 @@ async function seedOffice(plan: OfficePlan): Promise<void> {
   }
 }
 
+/**
+ * Склад ТМЦ: склады офиса, начальный приход, выдачи за период.
+ *
+ * Остатки здесь считаются так же, как их считает сервер, — накоплением
+ * движений. Проставить остаток напрямую было бы вдвое короче, но тогда
+ * демо-стенд показывал бы цифру, за которой нет ни одного документа,
+ * и «карточка складского учёта» на нём осталась бы пустой.
+ */
+async function seedStock(
+  plan: OfficePlan,
+  office: { id: number; city: string | null },
+  year: number,
+  partIds: Map<string, number>,
+  vehicles: Array<{ id: number; garageNumber: string }>,
+  drivers: Array<{ id: number; label: string }>,
+  staffIds: Map<string, number>,
+): Promise<void> {
+  const keeperId = staffIds.get('store') ?? null;
+  const mechanicId = staffIds.get('mechanic') ?? null;
+
+  const main = await prisma.warehouse.create({
+    data: {
+      officeId: office.id,
+      code: 'SKL-1',
+      name: 'Основной склад',
+      kind: WarehouseKind.MAIN,
+      location: `${office.city ?? plan.code}, территория автобазы`,
+      keeperUserId: keeperId,
+    },
+  });
+
+  const garage = await prisma.warehouse.create({
+    data: {
+      officeId: office.id,
+      code: 'SKL-GAR',
+      name: 'Кладовая при гараже',
+      kind: WarehouseKind.SUB,
+      location: 'Ремонтная зона, помещение 3',
+      keeperUserId: keeperId,
+    },
+  });
+
+  const utilization = await prisma.warehouse.create({
+    data: {
+      officeId: office.id,
+      code: 'SKL-OTR',
+      name: 'Отработанные материалы',
+      kind: WarehouseKind.UTILIZATION,
+      location: 'Площадка накопления, сдача по акту',
+      keeperUserId: keeperId,
+    },
+  });
+
+  // Остаток ведём в памяти и записываем один раз в конце: ровно так же,
+  // как сервер ведёт его в транзакции документа.
+  const balances = new Map<string, { quantity: number; price: number | null; min: number }>();
+  const key = (warehouseId: number, partId: number): string => `${warehouseId}:${partId}`;
+
+  let movementCount = 0;
+  let documentCount = 0;
+
+  const post = async (
+    document: { id: number; documentDate: Date },
+    warehouseId: number,
+    partId: number,
+    type: StockMovementType,
+    quantity: number,
+    unitPrice: number | null,
+    notes?: string,
+  ): Promise<number> => {
+    const outgoing =
+      type === StockMovementType.ISSUE ||
+      type === StockMovementType.WRITE_OFF ||
+      type === StockMovementType.TRANSFER_OUT;
+    const signed = round2(outgoing ? -Math.abs(quantity) : Math.abs(quantity));
+
+    const slot = balances.get(key(warehouseId, partId)) ?? {
+      quantity: 0,
+      price: null,
+      min: 0,
+    };
+    const after = round2(slot.quantity + signed);
+    if (after < 0) return 0;
+
+    // Средневзвешенная цена — только по приходу, как в StockService.
+    if (signed > 0 && unitPrice !== null) {
+      const total = slot.quantity + signed;
+      slot.price =
+        total > 0
+          ? round2((slot.quantity * (slot.price ?? unitPrice) + signed * unitPrice) / total)
+          : unitPrice;
+    }
+    slot.quantity = after;
+    balances.set(key(warehouseId, partId), slot);
+
+    await prisma.stockMovement.create({
+      data: {
+        officeId: office.id,
+        documentId: document.id,
+        warehouseId,
+        partId,
+        type,
+        quantity: signed,
+        unitPrice,
+        totalAmount: unitPrice === null ? null : round2(signed * unitPrice),
+        balanceAfter: after,
+        movedAt: document.documentDate,
+        notes: notes ?? null,
+        createdBy: keeperId,
+      },
+    });
+    movementCount += 1;
+    return Math.abs(signed) * (unitPrice ?? 0);
+  };
+
+  const openDocument = async (
+    kind: StockDocumentKind,
+    documentKind: DocumentKind,
+    documentDate: Date,
+    data: Record<string, unknown>,
+  ) => {
+    documentCount += 1;
+    return prisma.stockDocument.create({
+      data: {
+        officeId: office.id,
+        kind,
+        number: nextNumber(documentKind, plan.code, year),
+        documentDate,
+        warehouseId: main.id,
+        createdBy: keeperId,
+        ...data,
+      },
+    });
+  };
+
+  // ─── Начальный приход ──────────────────────────────────────────────────
+  // Датирован раньше периода отчётности: иначе оборотная ведомость
+  // за месяц покажет нулевой остаток на начало.
+  const suppliers = await prisma.counterparty.findMany({
+    where: { officeId: office.id },
+    take: 3,
+  });
+
+  const opening = await openDocument(
+    StockDocumentKind.RECEIPT,
+    DocumentKind.STOCK_RECEIPT,
+    daysAgo(HISTORY_DAYS + 6),
+    {
+      supplierId: suppliers[0]?.id ?? null,
+      externalNumber: `ТТН-${randInt(100_000, 999_999)}`,
+      notes: 'Начальный остаток по результатам инвентаризации',
+    },
+  );
+
+  let openingTotal = 0;
+  for (const part of SPARE_PARTS) {
+    const partId = partIds.get(part.code);
+    if (!partId) continue;
+
+    // Дорогие позиции держат штучно, расходники — с запасом.
+    const quantity =
+      part.price > 1_000_000 ? randInt(2, 6) : part.price > 200_000 ? randInt(6, 20) : randInt(30, 160);
+    const price = round2(part.price * randFloat(0.94, 1.04, 3));
+
+    openingTotal += await post(
+      opening,
+      main.id,
+      partId,
+      StockMovementType.RECEIPT,
+      quantity,
+      price,
+    );
+
+    const slot = balances.get(key(main.id, partId));
+    if (slot) slot.min = part.price > 1_000_000 ? 2 : part.price > 200_000 ? 4 : 20;
+  }
+  await prisma.stockDocument.update({
+    where: { id: opening.id },
+    data: { totalAmount: round2(openingTotal) },
+  });
+
+  // ─── Перемещение части запаса в кладовую гаража ────────────────────────
+  const transferParts = ['OIL-15W40', 'FLT-OIL-01', 'RAG-TECH', 'GLOVE-WORK'];
+  const transfer = await openDocument(
+    StockDocumentKind.TRANSFER,
+    DocumentKind.STOCK_TRANSFER,
+    daysAgo(HISTORY_DAYS - 1),
+    {
+      targetWarehouseId: garage.id,
+      notes: 'Пополнение кладовой ремонтной зоны',
+    },
+  );
+  for (const code of transferParts) {
+    const partId = partIds.get(code);
+    if (!partId) continue;
+    const price = balances.get(key(main.id, partId))?.price ?? null;
+    const quantity = randInt(2, 10);
+    await post(transfer, main.id, partId, StockMovementType.TRANSFER_OUT, quantity, price);
+    await post(transfer, garage.id, partId, StockMovementType.TRANSFER_IN, quantity, price);
+  }
+
+  // ─── Выдачи за период ──────────────────────────────────────────────────
+  const consumables = SPARE_PARTS.filter((p) => !p.exchange);
+  const exchangeable = SPARE_PARTS.filter((p) => p.exchange);
+  const issueCount = Math.max(12, Math.round(vehicles.length * 1.6));
+
+  for (let i = 0; i < issueCount; i += 1) {
+    const vehicle = pick(vehicles);
+    const toDriver = chance(0.6);
+    const day = daysAgo(randInt(0, HISTORY_DAYS - 2));
+
+    // Раз в несколько выдач уходит аккумулятор или шина — с приёмом
+    // отработанного, ради которого весь механизм обмена и заводился.
+    const withExchange = chance(0.22);
+    const chosen = withExchange ? pick(exchangeable) : pick(consumables);
+    const partId = partIds.get(chosen.code);
+    if (!partId) continue;
+
+    const document = await openDocument(
+      StockDocumentKind.ISSUE,
+      DocumentKind.STOCK_ISSUE,
+      day,
+      {
+        vehicleId: vehicle.id,
+        recipientDriverId: toDriver ? pick(drivers).id : null,
+        recipientUserId: toDriver ? null : mechanicId,
+        targetWarehouseId: withExchange ? utilization.id : null,
+        purpose: withExchange
+          ? StockIssuePurpose.REPLACEMENT
+          : pick([
+              StockIssuePurpose.SCHEDULED,
+              StockIssuePurpose.REPAIR,
+              StockIssuePurpose.REPLACEMENT,
+              StockIssuePurpose.EMERGENCY,
+            ]),
+        notes: `Выдано на ${vehicle.garageNumber}`,
+      },
+    );
+
+    const quantity = withExchange ? randInt(1, 2) : chosen.price > 200_000 ? randInt(1, 3) : randInt(2, 12);
+    const price = balances.get(key(main.id, partId))?.price ?? chosen.price;
+    const amount = await post(
+      document,
+      main.id,
+      partId,
+      StockMovementType.ISSUE,
+      quantity,
+      price,
+    );
+
+    if (withExchange) {
+      await post(
+        document,
+        utilization.id,
+        partId,
+        StockMovementType.USED_RETURN,
+        quantity,
+        null,
+        'Принято при обмене',
+      );
+    }
+
+    await prisma.stockDocument.update({
+      where: { id: document.id },
+      data: { totalAmount: round2(amount) },
+    });
+  }
+
+  // ─── Списание по акту ──────────────────────────────────────────────────
+  const writeOffPart = partIds.get('WASH-FLUID');
+  if (writeOffPart) {
+    const act = await openDocument(
+      StockDocumentKind.WRITE_OFF,
+      DocumentKind.STOCK_WRITE_OFF,
+      daysAgo(randInt(3, 12)),
+      {
+        reason: 'Акт комиссии: тара повреждена при хранении, содержимое утрачено',
+      },
+    );
+    const price = balances.get(key(main.id, writeOffPart))?.price ?? null;
+    const amount = await post(
+      act,
+      main.id,
+      writeOffPart,
+      StockMovementType.WRITE_OFF,
+      randInt(3, 8),
+      price,
+    );
+    await prisma.stockDocument.update({
+      where: { id: act.id },
+      data: { totalAmount: round2(amount) },
+    });
+  }
+
+  // ─── Остатки ───────────────────────────────────────────────────────────
+  for (const [slotKey, slot] of balances) {
+    const [warehouseId, partId] = slotKey.split(':').map(Number);
+    await prisma.stockBalance.create({
+      data: {
+        officeId: office.id,
+        warehouseId,
+        partId,
+        quantity: slot.quantity,
+        minQuantity: warehouseId === main.id ? slot.min : 0,
+        avgPrice: slot.price,
+      },
+    });
+  }
+
+  console.log(
+    `  склад ТМЦ: 3 склада, документов ${documentCount}, проводок ${movementCount}`,
+  );
+}
+
 async function seedSpareParts(): Promise<void> {
   for (const part of SPARE_PARTS) {
+    const attributes = {
+      name: part.name,
+      unit: part.unit,
+      category: part.category,
+      tracking: part.tracking ?? StockTracking.QUANTITY,
+      exchangeRequired: part.exchange ?? false,
+    };
     await prisma.sparePart.upsert({
       where: { code: part.code },
-      update: { name: part.name, unit: part.unit },
-      create: { code: part.code, name: part.name, unit: part.unit },
+      update: attributes,
+      create: { code: part.code, ...attributes },
     });
   }
 }

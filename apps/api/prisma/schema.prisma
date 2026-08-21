@@ -93,8 +93,13 @@ model Office {
   fuelInventories    FuelInventory[]
   waybills           Waybill[]
   workOrders         WorkOrder[]
-  sparePartStocks    SparePartStock[]
+  warehouses         Warehouse[]
+  stockBalances      StockBalance[]
+  stockDocuments     StockDocument[]
+  stockMovements     StockMovement[]
   geofences          Geofence[]
+  geofenceEvents     GeofenceEvent[]
+  conditionActs      VehicleConditionAct[]
   alerts             Alert[]
   documentSequences  DocumentSequence[]
   counterparties     Counterparty[]
@@ -137,8 +142,25 @@ model User {
   passwordHash String @map("password_hash") @db.VarChar(120)
 
   fullName String  @map("full_name") @db.VarChar(200)
+  /// Личный номер сотрудника. Служебный внутренний — в internalNumber ниже.
   phone    String? @db.VarChar(40)
   locale   String  @default("ru") @db.VarChar(8)
+
+  /// Служебный внутренний номер телефона: ровно четыре цифры.
+  /// Основной способ связаться с сотрудником внутри предприятия — по нему
+  /// набирают чаще, чем по личному мобильному, поэтому он идёт раньше поля
+  /// phone. Nullable: у заведённых ранее учёток номера нет, и требовать его
+  /// задним числом нельзя.
+  ///
+  /// НЕ уникален: один аппарат в диспетчерской закреплён сразу за несколькими
+  /// сотрудниками. Индекс ниже нужен только для поиска.
+  internalNumber String? @map("internal_number") @db.VarChar(4)
+
+  /// Фотография сотрудника. Хранится квадратом: аватар показывается кружком
+  /// в шапке и в списках, и неквадратный снимок обрезался бы там как попало.
+  /// Оба поля nullable: у большинства учёток фотографии нет.
+  photoKey      String? @map("photo_key") @db.VarChar(400)
+  photoMimeType String? @map("photo_mime_type") @db.VarChar(60)
 
   status UserStatus @default(INVITED)
   /// Офис, в который пользователь попадает сразу после входа.
@@ -164,9 +186,14 @@ model User {
   refreshTokens RefreshToken[]
   driverProfile Driver?
   auditLogs     AuditLog[]
+  medicalChecksPerformed MedicalCheck[] @relation("MedicalChecksPerformed")
+  technicalInspectionsPerformed TechnicalInspection[] @relation("TechnicalInspectionsPerformed")
+  warehousesKept         Warehouse[]     @relation("WarehouseKeeper")
+  stockReceived          StockDocument[] @relation("StockDocumentRecipient")
 
   @@index([status])
   @@index([defaultOfficeId])
+  @@index([internalNumber])
   @@map("users")
 }
 
@@ -427,6 +454,11 @@ model Vehicle {
   workOrders     WorkOrder[]
   tires          TireInstallation[]
   gpsDevices     GpsDevice[]
+  technicalInspections TechnicalInspection[]
+  lastPosition   TelemetryLastPosition?
+  geofenceEvents GeofenceEvent[]
+  conditionActs  VehicleConditionAct[]
+  stockDocuments StockDocument[]
   alerts         Alert[]
 
   @@unique([officeId, garageNumber])
@@ -581,6 +613,17 @@ enum CheckResult {
   CONDITIONAL
 }
 
+/// Состояние техники при выдаче и возврате из смены.
+/// Порядок значений — от исправного к худшему: сравнение по нему решает,
+/// нужен ли акт о повреждении.
+enum VehicleCondition {
+  SERVICEABLE
+  MINOR_DEFECTS
+  UNSERVICEABLE
+  DAMAGED
+  ACCIDENT
+}
+
 model Driver {
   id           Int  @id @default(autoincrement())
   officeId     Int  @map("office_id")
@@ -613,7 +656,9 @@ model Driver {
   permits        DriverPermit[]
   medicalChecks  MedicalCheck[]
   waybills       Waybill[]
+  conditionActs  VehicleConditionAct[]
   fuelIssues     FuelIssue[]
+  stockDocuments StockDocument[]
   alerts         Alert[]
 
   @@unique([officeId, personnelNumber])
@@ -670,10 +715,18 @@ model MedicalCheck {
   id         Int         @id @default(autoincrement())
   driverId   Int         @map("driver_id")
   checkedAt  DateTime    @map("checked_at") @db.Timestamptz(3)
-  validUntil DateTime?   @map("valid_until") @db.Date
+  /// Срок действия. У периодического — дата, у предрейсового — момент
+  /// окончания смены, поэтому тип с временем, а не просто дата.
+  validUntil DateTime?   @map("valid_until") @db.Timestamptz(3)
   result     CheckResult @default(PASSED)
   /// true — предрейсовый (действует одну смену), false — периодический
   isPreTrip  Boolean     @default(false) @map("is_pre_trip")
+  /// Кто провёл осмотр — учётная запись медработника.
+  /// Именно она делает заключение подписью, а не отметкой: раньше врач
+  /// существовал только строкой в doctorName, и подписаться можно было любым
+  /// именем. Пусто только у записей, перенесённых из бумажного журнала.
+  checkedByUserId Int?    @map("checked_by_user_id")
+  /// ФИО врача для записей, перенесённых с бумаги, и для печати
   doctorName String?     @map("doctor_name") @db.VarChar(200)
   bloodPressure String?  @map("blood_pressure") @db.VarChar(16)
   temperature Decimal?   @db.Decimal(4, 1)
@@ -682,9 +735,13 @@ model MedicalCheck {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driver        Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  checkedByUser User?     @relation("MedicalChecksPerformed", fields: [checkedByUserId], references: [id], onDelete: SetNull)
+  waybills      Waybill[] @relation("WaybillPreTripMedical")
 
   @@index([driverId, checkedAt])
+  /// Поиск действующего предрейсового допуска — самый частый запрос модуля.
+  @@index([driverId, isPreTrip, checkedAt(sort: Desc)])
   @@index([validUntil])
   @@map("medical_checks")
 }
@@ -713,6 +770,7 @@ model Counterparty {
   receipts   FuelReceipt[]
   fuelCards  FuelCard[]
   workOrders WorkOrder[]
+  stockDocuments StockDocument[]
 
   @@index([officeId])
   @@map("counterparties")
@@ -1070,9 +1128,26 @@ model Waybill {
 
   /// Предрейсовый контроль
   preTripMedicalOk   Boolean?  @map("pre_trip_medical_ok")
+  /// Заключение врача, на основании которого выдан лист.
+  /// Ссылка, а не флаг: через год на разборе выпуска нужно показать не галочку
+  /// диспетчера, а запись — кто осматривал, во сколько, что показал алкотестер.
+  preTripMedicalCheckId Int?   @map("pre_trip_medical_check_id")
+  /// Выдан без действующего медосмотра по праву waybill.override_medical
+  medicalOverrideReason String? @map("medical_override_reason") @db.VarChar(400)
   preTripTechnicalOk Boolean?  @map("pre_trip_technical_ok")
+  /// Заключение механика, на основании которого выпущена техника.
+  preTripTechnicalInspectionId Int? @map("pre_trip_technical_inspection_id")
+  /// Выдан без заключения механика по праву waybill.override_technical
+  technicalOverrideReason String? @map("technical_override_reason") @db.VarChar(400)
   preTripCheckedAt   DateTime? @map("pre_trip_checked_at") @db.Timestamptz(3)
   preTripCheckedBy   Int?      @map("pre_trip_checked_by")
+
+  /// Состояние техники при выдаче водителю
+  conditionOnIssue   VehicleCondition? @map("condition_on_issue")
+  conditionIssueNotes String?          @map("condition_issue_notes") @db.VarChar(600)
+  /// Состояние техники при возврате из смены
+  conditionOnReturn  VehicleCondition? @map("condition_on_return")
+  conditionReturnNotes String?         @map("condition_return_notes") @db.VarChar(600)
   /// Чек-лист осмотра из мобильного приложения
   preTripChecklist   Json?     @map("pre_trip_checklist")
 
@@ -1093,16 +1168,105 @@ model Waybill {
   office  Office  @relation(fields: [officeId], references: [id], onDelete: Restrict)
   vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   driver  Driver  @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  /// Restrict, а не Cascade: заключение, по которому выпустили технику,
+  /// удалить нельзя, пока жив путевой лист.
+  preTripMedicalCheck MedicalCheck? @relation("WaybillPreTripMedical", fields: [preTripMedicalCheckId], references: [id], onDelete: Restrict)
+  preTripTechnicalInspection TechnicalInspection? @relation("WaybillPreTripTechnical", fields: [preTripTechnicalInspectionId], references: [id], onDelete: Restrict)
 
   tasks         WaybillTask[]
   fuelIssues    FuelIssue[]
   meterReadings VehicleMeterReading[]
+  conditionActs VehicleConditionAct[]
 
   @@unique([officeId, number])
   @@index([officeId, status, validFrom])
   @@index([vehicleId, validFrom])
   @@index([driverId, validFrom])
   @@map("waybills")
+}
+
+/// Заключение механика о техническом состоянии перед выпуском на линию.
+///
+/// Зеркало предрейсового медосмотра, но про машину, а не про человека.
+/// Отдельная запись, а не отметка в путевом листе: подпись должна принадлежать
+/// механику, иметь срок и сохраняться независимо от того, был ли лист выдан.
+model TechnicalInspection {
+  id        Int      @id @default(autoincrement())
+  vehicleId Int      @map("vehicle_id")
+  checkedAt DateTime @map("checked_at") @db.Timestamptz(3)
+  /// Момент окончания действия. По умолчанию — двенадцать часов от осмотра.
+  validUntil DateTime? @map("valid_until") @db.Timestamptz(3)
+  result    CheckResult @default(PASSED)
+  /// true — предрейсовый (действует смену), false — периодический техосмотр
+  isPreTrip Boolean  @default(true) @map("is_pre_trip")
+
+  /// Кто подписал заключение. Пусто только у записей, перенесённых с бумаги.
+  checkedByUserId Int?   @map("checked_by_user_id")
+  mechanicName    String? @map("mechanic_name") @db.VarChar(200)
+
+  /// Отметки по перечню узлов: {"brakes": true, "beacon": false, ...}
+  checklist Json?
+  /// Показание одометра на момент осмотра — сверяется с выездным
+  odometer  Decimal? @db.Decimal(12, 1)
+  notes     String?  @db.VarChar(600)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  vehicle       Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  checkedByUser User?     @relation("TechnicalInspectionsPerformed", fields: [checkedByUserId], references: [id], onDelete: SetNull)
+  waybills      Waybill[] @relation("WaybillPreTripTechnical")
+
+  /// Поиск действующего заключения — самый частый запрос модуля.
+  @@index([vehicleId, isPreTrip, checkedAt(sort: Desc)])
+  @@index([validUntil])
+  @@map("technical_inspections")
+}
+
+/// Акт о состоянии техники.
+///
+/// Составляется, когда машина вернулась из смены хуже, чем ушла. Смысл акта —
+/// зафиксировать, кто принимал технику исправной: без этого спор «сломалось
+/// при мне или до меня» разрешить нечем, а через месяц не вспомнит никто.
+///
+/// Номер сквозной и без пропусков, как у путевого листа: акт — документ,
+/// на который ссылаются при удержании и при обращении в страховую.
+model VehicleConditionAct {
+  id       Int    @id @default(autoincrement())
+  officeId Int    @map("office_id")
+  number   String @db.VarChar(40)
+
+  waybillId Int @map("waybill_id")
+  vehicleId Int @map("vehicle_id")
+  /// Водитель, получивший технику в начале смены. Ради этой связи акт и нужен.
+  driverId  Int @map("driver_id")
+
+  conditionOnIssue  VehicleCondition @map("condition_on_issue")
+  conditionOnReturn VehicleCondition @map("condition_on_return")
+  /// Что именно повреждено — со слов принимающего
+  description String @db.Text
+  /// Осмотр, по которому водитель был допущен: пригодится, если состояние
+  /// техники связано с состоянием человека.
+  medicalCheckId Int? @map("medical_check_id")
+
+  reportedBy Int?      @map("reported_by")
+  reportedAt DateTime  @default(now()) @map("reported_at") @db.Timestamptz(3)
+  /// Разбор завершён: виновник установлен либо списано на износ
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(3)
+  resolution String?   @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office  Office  @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  waybill Waybill @relation(fields: [waybillId], references: [id], onDelete: Restrict)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  driver  Driver  @relation(fields: [driverId], references: [id], onDelete: Restrict)
+
+  @@unique([officeId, number])
+  @@index([officeId, reportedAt(sort: Desc)])
+  @@index([vehicleId])
+  @@index([driverId])
+  @@map("vehicle_condition_acts")
 }
 
 /// Задание в путевом листе — одна ездка/операция.
@@ -1255,6 +1419,7 @@ model WorkOrder {
   vehicle    Vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   contractor Counterparty? @relation(fields: [contractorId], references: [id], onDelete: SetNull)
   parts      WorkOrderPart[]
+  stockDocuments StockDocument[]
 
   @@unique([officeId, number])
   @@index([officeId, status])
@@ -1262,6 +1427,72 @@ model WorkOrder {
   @@map("work_orders")
 }
 
+enum StockCategory {
+  OIL
+  FILTER
+  TIRE
+  BATTERY
+  BRAKE
+  ELECTRIC
+  FLUID
+  SPARE
+  HARDWARE
+  TOOL
+  PPE
+  OTHER
+}
+
+/// Способ учёта позиции: количеством, поштучно с номером или партиями.
+enum StockTracking {
+  QUANTITY
+  SERIAL
+  BATCH
+}
+
+enum WarehouseKind {
+  MAIN
+  SUB
+  UTILIZATION
+}
+
+enum StockDocumentKind {
+  RECEIPT
+  ISSUE
+  RETURN
+  WRITE_OFF
+  TRANSFER
+}
+
+enum StockIssuePurpose {
+  SCHEDULED
+  REPLACEMENT
+  REPAIR
+  EMERGENCY
+  SUPPLY
+  OTHER
+}
+
+enum StockMovementType {
+  RECEIPT
+  ISSUE
+  RETURN
+  USED_RETURN
+  WRITE_OFF
+  TRANSFER_OUT
+  TRANSFER_IN
+  INVENTORY_ADJ
+}
+
+/// Номенклатура ТМЦ: масла, фильтры, шины, аккумуляторы, спецодежда.
+///
+/// Таблица называется spare_parts по историческим причинам — она заводилась
+/// под запчасти, но фактически с первого дня хранит и масло, и антифриз.
+/// Переименование стоило бы миграции всех ссылок ради названия; смысл
+/// задают category и tracking.
+///
+/// Справочник общий на страну: единая номенклатура — условие сравнимости
+/// отчётов между аэропортами. Остатки и движения, в отличие от него,
+/// разделены по офисам.
 model SparePart {
   id       Int     @id @default(autoincrement())
   code     String  @unique @db.VarChar(48)
@@ -1270,32 +1501,189 @@ model SparePart {
   /// Каталожный номер производителя
   catalogNumber String? @map("catalog_number") @db.VarChar(64)
 
+  category StockCategory @default(SPARE)
+  tracking StockTracking @default(QUANTITY)
+
+  /// Выдаётся только в обмен на сданное отработанное (аккумуляторы, шины).
+  /// Форма выдачи по этому признаку сама предлагает принять старое на склад
+  /// отработанных: иначе новое уходит, а старое исчезает.
+  exchangeRequired Boolean @default(false) @map("exchange_required")
+
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  stocks         SparePartStock[]
+  balances       StockBalance[]
+  movements      StockMovement[]
   workOrderParts WorkOrderPart[]
 
+  @@index([category])
   @@map("spare_parts")
 }
 
-/// Остаток запчасти на складе офиса.
-model SparePartStock {
-  id       Int     @id @default(autoincrement())
-  officeId Int     @map("office_id")
-  partId   Int     @map("part_id")
-  quantity Decimal @default(0) @db.Decimal(12, 3)
-  minQuantity Decimal @default(0) @map("min_quantity") @db.Decimal(12, 3)
-  avgPrice Decimal? @map("avg_price") @db.Decimal(16, 2)
+/// Место хранения внутри офиса: основной склад, кладовая, накопитель отработки.
+model Warehouse {
+  id       Int           @id @default(autoincrement())
+  officeId Int           @map("office_id")
+  code     String        @db.VarChar(16)
+  name     String        @db.VarChar(160)
+  kind     WarehouseKind @default(MAIN)
+  location String?       @db.VarChar(240)
+
+  /// Материально ответственный кладовщик
+  keeperUserId Int? @map("keeper_user_id")
+
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  keeper User?  @relation("WarehouseKeeper", fields: [keeperUserId], references: [id], onDelete: SetNull)
+
+  balances      StockBalance[]
+  documents     StockDocument[] @relation("StockDocumentWarehouse")
+  incoming      StockDocument[] @relation("StockDocumentTargetWarehouse")
+  movements     StockMovement[]
+
+  @@unique([officeId, code])
+  @@index([officeId, kind])
+  @@map("warehouses")
+}
+
+/// Остаток позиции на складе.
+///
+/// Производная величина: обязана совпадать с суммой движений по той же паре
+/// «склад — позиция». Хранится отдельно ради скорости — пересчитывать сумму
+/// журнала на каждый показ списка нельзя. Обновляется только внутри той же
+/// транзакции, что и движение, под блокировкой строки.
+model StockBalance {
+  id          Int @id @default(autoincrement())
+  officeId    Int @map("office_id")
+  warehouseId Int @map("warehouse_id")
+  partId      Int @map("part_id")
+
+  quantity    Decimal  @default(0) @db.Decimal(14, 3)
+  /// Неснижаемый запас: ниже него позиция попадает в отчёт «к заказу»
+  minQuantity Decimal  @default(0) @map("min_quantity") @db.Decimal(14, 3)
+  /// Средневзвешенная себестоимость, пересчитывается при каждом приходе
+  avgPrice    Decimal? @map("avg_price") @db.Decimal(16, 2)
 
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  office Office    @relation(fields: [officeId], references: [id], onDelete: Cascade)
-  part   SparePart @relation(fields: [partId], references: [id], onDelete: Cascade)
+  office    Office    @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  part      SparePart @relation(fields: [partId], references: [id], onDelete: Restrict)
 
-  @@unique([officeId, partId])
-  @@map("spare_part_stocks")
+  @@unique([warehouseId, partId])
+  @@index([officeId])
+  @@map("stock_balances")
+}
+
+/// Складской документ: приход, выдача, возврат, списание, перемещение.
+///
+/// Шапка документа; строки — это движения (stock_movements). Отдельной
+/// таблицы строк нет намеренно: строка документа и проводка по складу —
+/// одно и то же событие, а две таблицы с одинаковым содержимым рано или
+/// поздно разойдутся.
+model StockDocument {
+  id       Int               @id @default(autoincrement())
+  officeId Int               @map("office_id")
+  kind     StockDocumentKind
+  number   String            @db.VarChar(40)
+
+  documentDate DateTime @map("document_date") @db.Timestamptz(3)
+
+  warehouseId Int @map("warehouse_id")
+  /// Склад-приёмник: перемещение и приём отработанного при обмене
+  targetWarehouseId Int? @map("target_warehouse_id")
+
+  /// Поставщик — для прихода
+  supplierId     Int?    @map("supplier_id")
+  /// Номер накладной поставщика
+  externalNumber String? @map("external_number") @db.VarChar(64)
+
+  /// На какую технику выданы ценности. Без этого поля не собрать
+  /// стоимость владения единицей техники.
+  vehicleId Int? @map("vehicle_id")
+  /// Кто получил: водитель из картотеки либо сотрудник с учётной записью.
+  /// Ровно одно из двух обязательно для выдачи — проверяется CHECK'ом в SQL.
+  recipientDriverId Int? @map("recipient_driver_id")
+  recipientUserId   Int? @map("recipient_user_id")
+  workOrderId       Int? @map("work_order_id")
+
+  purpose StockIssuePurpose?
+
+  totalAmount Decimal? @map("total_amount") @db.Decimal(16, 2)
+
+  /// Основание списания либо причина внеплановой выдачи
+  reason String? @db.VarChar(400)
+  notes  String? @db.VarChar(400)
+
+  createdBy Int?      @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office          Office        @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  warehouse       Warehouse     @relation("StockDocumentWarehouse", fields: [warehouseId], references: [id], onDelete: Restrict)
+  targetWarehouse Warehouse?    @relation("StockDocumentTargetWarehouse", fields: [targetWarehouseId], references: [id], onDelete: Restrict)
+  supplier        Counterparty? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  vehicle         Vehicle?      @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  recipientDriver Driver?       @relation(fields: [recipientDriverId], references: [id], onDelete: Restrict)
+  recipientUser   User?         @relation("StockDocumentRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+  workOrder       WorkOrder?    @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+
+  movements StockMovement[]
+
+  @@unique([officeId, number])
+  @@index([officeId, kind, documentDate])
+  @@index([officeId, documentDate])
+  @@index([vehicleId])
+  @@index([recipientDriverId])
+  @@map("stock_documents")
+}
+
+/// Движение по складу — единственный источник правды об остатках.
+///
+/// Количество знаковое: приход со знаком плюс, расход со знаком минус.
+/// Тогда остаток равен SUM(quantity), а оборотная ведомость собирается
+/// одной группировкой без списка исключений. Знак ставит сервер по типу
+/// движения (см. signedQuantity в @gsm/shared), кладовщик всегда вводит
+/// положительное число.
+model StockMovement {
+  id          Int               @id @default(autoincrement())
+  officeId    Int               @map("office_id")
+  documentId  Int               @map("document_id")
+  warehouseId Int               @map("warehouse_id")
+  partId      Int               @map("part_id")
+  type        StockMovementType
+
+  quantity   Decimal  @db.Decimal(14, 3)
+  unitPrice  Decimal? @map("unit_price") @db.Decimal(16, 2)
+  totalAmount Decimal? @map("total_amount") @db.Decimal(16, 2)
+
+  /// Остаток склада по позиции сразу после этого движения.
+  /// Хранится, чтобы карточку складского учёта можно было напечатать
+  /// как есть, а расхождение с пересчётом журнала — обнаружить.
+  balanceAfter Decimal @map("balance_after") @db.Decimal(14, 3)
+
+  movedAt DateTime @map("moved_at") @db.Timestamptz(3)
+  notes   String?  @db.VarChar(240)
+
+  createdBy Int?     @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  office    Office        @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  document  StockDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  warehouse Warehouse     @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  part      SparePart     @relation(fields: [partId], references: [id], onDelete: Restrict)
+
+  @@index([officeId, movedAt(sort: Desc)])
+  @@index([warehouseId, partId, movedAt])
+  @@index([partId, movedAt])
+  @@index([documentId])
+  @@map("stock_movements")
 }
 
 model WorkOrderPart {
@@ -1400,14 +1788,46 @@ model TelemetryPosition {
   @@map("telemetry_positions")
 }
 
+/// Последнее известное положение единицы техники.
+///
+/// Отдельная строка на машину, а не выборка максимума из трека: живая карта
+/// спрашивает «где все прямо сейчас» каждые несколько секунд, и гнать этот
+/// вопрос по партициям с миллионами точек — самый дорогой запрос в системе.
+model TelemetryLastPosition {
+  vehicleId Int      @id @map("vehicle_id")
+  deviceId  Int?     @map("device_id")
+  ts        DateTime @db.Timestamptz(3)
+
+  latitude  Decimal  @db.Decimal(10, 7)
+  longitude Decimal  @db.Decimal(10, 7)
+  speed     Decimal? @db.Decimal(6, 2)
+  heading   Int?     @db.SmallInt
+  ignition  Boolean?
+  odometer    Decimal? @db.Decimal(12, 1)
+  engineHours Decimal? @map("engine_hours") @db.Decimal(12, 1)
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@map("telemetry_last_positions")
+}
+
 /// Геозона: перрон, стоянка техники, периметр аэропорта, топливный склад.
-/// Полигон хранится в столбце geometry(Polygon, 4326), добавляемом SQL-миграцией
-/// (Prisma не типизирует PostGIS-типы — работа через $queryRaw).
+///
+/// Полигон лежит в jsonb как кольцо координат GeoJSON — [[lon, lat], …].
+/// Не PostGIS: расширение есть не в каждой среде, а геозон у аэропорта единицы,
+/// и проверка вхождения точки считается в коде за микросекунды
+/// (см. packages/shared/src/geo.ts). Когда PostGIS доступен, SQL-скрипт
+/// зеркалит полигон в колонку geometry для пространственных запросов.
 model Geofence {
   id       Int     @id @default(autoincrement())
   officeId Int     @map("office_id")
   name     String  @db.VarChar(160)
   kind     String  @db.VarChar(32)
+  /// Кольцо [[lon, lat], …]. Первая и последняя точки могут не совпадать —
+  /// замыкание делает проверка вхождения.
+  area     Json?
   /// Ограничение скорости внутри зоны, км/ч. На перроне обычно 20–30.
   speedLimit Int?  @map("speed_limit")
   /// Поднимать алерт на въезд / на выезд
@@ -1419,10 +1839,40 @@ model Geofence {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  office Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  office Office          @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  events GeofenceEvent[]
 
   @@index([officeId])
   @@map("geofences")
+}
+
+/// Пересечение границы геозоны.
+///
+/// Отдельная таблица, а не выборка по треку: событий на порядки меньше,
+/// чем точек, и хранить их надо дольше срока жизни сырого трека — разбор
+/// инцидента на перроне может понадобиться через год после смены.
+model GeofenceEvent {
+  id         BigInt   @id @default(autoincrement())
+  officeId   Int      @map("office_id")
+  geofenceId Int      @map("geofence_id")
+  vehicleId  Int      @map("vehicle_id")
+  /// ENTRY | EXIT
+  eventType  String   @map("event_type") @db.VarChar(16)
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(3)
+
+  latitude  Decimal  @db.Decimal(10, 7)
+  longitude Decimal  @db.Decimal(10, 7)
+  speed     Decimal? @db.Decimal(6, 2)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  office   Office   @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  geofence Geofence @relation(fields: [geofenceId], references: [id], onDelete: Cascade)
+  vehicle  Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([officeId, occurredAt(sort: Desc)])
+  @@index([vehicleId, occurredAt(sort: Desc)])
+  @@map("geofence_events")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1512,6 +1962,14 @@ model AuditLog {
   entity   String      @db.VarChar(64)
   entityId String?     @map("entity_id") @db.VarChar(64)
 
+  /// Родительская запись для операций над вложенными объектами: загрузка
+  /// фотографии техники пишется как VehiclePhoto со своим идентификатором,
+  /// и без этой ссылки она не нашлась бы в журнале самой техники.
+  /// Заполняется автоматически, когда обработчик переопределяет сущность
+  /// контроллера (см. AuditInterceptor).
+  parentEntity String? @map("parent_entity") @db.VarChar(64)
+  parentId     String? @map("parent_id") @db.VarChar(64)
+
   /// Значения до и после — только изменившиеся поля
   before Json?
   after  Json?
@@ -1525,6 +1983,7 @@ model AuditLog {
 
   @@index([officeId, createdAt])
   @@index([entity, entityId])
+  @@index([parentEntity, parentId])
   @@index([userId, createdAt])
   @@map("audit_logs")
 }

@@ -22,6 +22,7 @@ import { api } from '@/api/client';
 import { useApiMutation, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
 import { StickyTable } from '@/components/StickyTable';
+import { UserAvatar } from '@/components/UserAvatar';
 import { TableCard } from '@/components/TableCard';
 
 import { RolesPanel } from './users/RolesPanel';
@@ -97,7 +98,7 @@ export function UsersPage() {
                 <Space wrap style={{ marginBottom: 12 }}>
                   <Input.Search
                     allowClear
-                    placeholder={t("ФИО или почта")}
+                    placeholder={t("Служебный номер, ФИО или почта")}
                     style={{ width: 260 }}
                     onSearch={(value) => {
                       setSearch(value);
@@ -113,9 +114,9 @@ export function UsersPage() {
                       setStatus(value);
                       setPage(1);
                     }}
-                    options={Object.entries(STATUS_LABEL).map(([value, label]) => ({
+                    options={Object.entries(STATUS_LABEL).map(([value, rawLabel]) => ({
                       value,
-                      label,
+                      label: t(rawLabel),
                     }))}
                   />
                   {multiOffice && (
@@ -164,6 +165,12 @@ export function UsersPage() {
                       dataIndex: 'fullName',
                       render: (name: string, row) => (
                         <Space>
+                          <UserAvatar
+                            userId={row.id}
+                            fullName={name}
+                            photoKey={row.photoKey}
+                            size={28}
+                          />
                           <span>{name}</span>
                           {row.bypassRls && (
                             <Tooltip title={t("Видит данные всех аэропортов")}>
@@ -174,6 +181,28 @@ export function UsersPage() {
                       ),
                     },
                     { title: t("Почта"), dataIndex: 'email', width: 240 },
+                    {
+                      // Служебный номер стоит раньше личного: внутри
+                      // предприятия набирают именно его.
+                      title: t("Основной"),
+                      dataIndex: 'internalNumber',
+                      width: 110,
+                      render: (value: string | null) =>
+                        value ? (
+                          <Typography.Text strong>{value}</Typography.Text>
+                        ) : (
+                          <Tooltip title={t("Внутренний номер не задан")}>
+                            <Typography.Text type="secondary">—</Typography.Text>
+                          </Tooltip>
+                        ),
+                    },
+                    {
+                      title: t("Телефон"),
+                      dataIndex: 'phone',
+                      width: 170,
+                      render: (value: string | null) =>
+                        value ?? <Typography.Text type="secondary">—</Typography.Text>,
+                    },
                     {
                       title: t("Офисы"),
                       width: 200,

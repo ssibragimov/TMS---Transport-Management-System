@@ -27,6 +27,7 @@ import { StorageService } from '@/common/storage/storage.service';
 import {
   CreateVehicleDto,
   MeterAdjustmentDto,
+  TechnicalInspectionDto,
   TransferVehicleDto,
   UpdateVehicleDto,
   VehicleDocumentDto,
@@ -83,6 +84,34 @@ export class VehiclesController {
     @Body() dto: MeterAdjustmentDto,
   ) {
     return this.vehicles.adjustMeter(officeId, id, dto);
+  }
+
+  @Post(':id/technical-inspections')
+  @Audited('TechnicalInspection')
+  @AuditAs(AuditAction.CREATE)
+  @RequirePermissions(PERMISSIONS.VEHICLE_TECHNICAL_INSPECT)
+  @ApiOperation({
+    summary: 'Предрейсовый контроль технического состояния',
+    description:
+      'Право vehicle.technical.inspect отделено от vehicle.update: диспетчер, ' +
+      'правящий карточку техники, не подписывает заключение о её исправности.',
+  })
+  addTechnicalInspection(
+    @CurrentOffice() officeId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: TechnicalInspectionDto,
+  ) {
+    return this.vehicles.addTechnicalInspection(officeId, id, dto);
+  }
+
+  @Get(':id/technical-clearance')
+  @RequirePermissions(PERMISSIONS.VEHICLE_READ)
+  @ApiOperation({
+    summary: 'Действующее заключение механика по технике',
+    description: 'Основание, по которому диспетчер вправе выпустить машину на линию.',
+  })
+  technicalClearance(@CurrentOffice() officeId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.vehicles.technicalClearanceOf(officeId, id);
   }
 
   @Get(':id/documents')
@@ -260,5 +289,28 @@ export class VehiclesController {
     @Param('photoId', ParseIntPipe) photoId: number,
   ) {
     return this.vehicles.removePhoto(officeId, id, photoId);
+  }
+}
+
+/**
+ * Техконтроль — рабочее место механика.
+ *
+ * Отдельный контроллер, а не вкладка в технике: механик приходит в систему
+ * за одним действием и работает в темпе очереди перед сменой.
+ */
+@ApiTags('technical')
+@Controller('technical')
+export class TechnicalController {
+  constructor(private readonly vehicles: VehiclesService) {}
+
+  @Get('queue')
+  @RequirePermissions(PERMISSIONS.VEHICLE_READ)
+  @ApiQuery({ name: 'search', required: false })
+  @ApiOperation({
+    summary: 'Очередь техконтроля: техника офиса и состояние её допуска',
+    description: 'Показывает и осмотренную, и ещё не поданную — механик видит, что ждать.',
+  })
+  queue(@CurrentOffice() officeId: number, @Query('search') search?: string) {
+    return this.vehicles.technicalQueue(officeId, search);
   }
 }

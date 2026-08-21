@@ -14,6 +14,7 @@ import dayjs from 'dayjs';
 import { useEffect } from 'react';
 import { MeterType, OwnershipType, VehicleCategory, VehicleStatus } from '@gsm/shared';
 
+import { CardTitle } from '@/components/EntityId';
 import { api } from '@/api/client';
 import { useApiMutation, useDictionaries } from '@/api/hooks';
 import {
@@ -110,7 +111,7 @@ export function VehicleFormModal({ open, initial, onClose }: Props) {
   return (
     <Modal
       open={open}
-      title={isEdit ? `Техника ${initial?.garageNumber}` : 'Постановка техники на учёт'}
+      title={<CardTitle title={isEdit ? `Техника ${initial?.garageNumber}` : 'Постановка техники на учёт'} id={initial?.id} />}
       okText={t("Сохранить")}
       cancelText={t("Отмена")}
       confirmLoading={save.isPending}

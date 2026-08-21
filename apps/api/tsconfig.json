@@ -8,6 +8,12 @@
     "composite": false,
     "declaration": false,
     "declarationMap": false,
+    // Инкрементальная сборка здесь выключена намеренно. nest-cli чистит outDir
+    // перед каждым запуском, а tsc по сохранённому tsbuildinfo решает, что
+    // пересобирать нечего, — и dist остаётся пустым: «Cannot find module
+    // dist/main» при живой сборке без единой ошибки. Выигрыш в секундах того
+    // не стоит.
+    "incremental": false,
     "strictPropertyInitialization": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,

@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { OfficeKind, UserStatus } from '@prisma/client';
+import { OfficeKind, Prisma, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomUUID } from 'node:crypto';
 import type {
@@ -375,6 +375,8 @@ export class AuthService {
       iataCode: string | null;
       timezone: string;
       kind: string;
+      latitude: Prisma.Decimal | null;
+      longitude: Prisma.Decimal | null;
     }): OfficeSummaryDto => ({
       id: o.id,
       code: o.code,
@@ -382,6 +384,9 @@ export class AuthService {
       iataCode: o.iataCode,
       timezone: o.timezone,
       kind: o.kind,
+      // Decimal из Prisma сериализуется в строку — карта ждёт число.
+      latitude: o.latitude === null ? null : Number(o.latitude),
+      longitude: o.longitude === null ? null : Number(o.longitude),
     });
 
     const availableOffices = (await this.accessibleOffices(user.id, user.bypassRls)).map(toSummary);
@@ -392,7 +397,9 @@ export class AuthService {
       id: user.id,
       email: user.email,
       fullName: user.fullName,
+      internalNumber: user.internalNumber,
       phone: user.phone,
+      photoKey: user.photoKey,
       locale: user.locale,
       activeOffice,
       availableOffices,

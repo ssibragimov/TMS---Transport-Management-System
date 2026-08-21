@@ -35,6 +35,15 @@
     {
       "files": ["apps/api/prisma/**/*.ts"],
       "rules": { "no-console": "off" }
+    },
+    {
+      // API собирается с emitDecoratorMetadata: Nest берёт типы для внедрения
+      // зависимостей из design:paramtypes. Импорт, помеченный как type,
+      // стирается при компиляции, в метаданных вместо класса остаётся Function,
+      // и приложение падает на старте: «Nest can't resolve dependencies».
+      // Автоправка этого правила уже роняла API, поэтому здесь оно выключено.
+      "files": ["apps/api/**/*.ts"],
+      "rules": { "@typescript-eslint/consistent-type-imports": "off" }
     }
   ]
 }

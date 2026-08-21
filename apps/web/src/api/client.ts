@@ -1,5 +1,7 @@
-import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
+import axios, { type AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import type { ApiErrorResponse, AuthTokens, CurrentUserDto } from '@gsm/shared';
+
+import i18n from '@/i18n';
 
 const ACCESS_KEY = 'gsm.accessToken';
 const REFRESH_KEY = 'gsm.refreshToken';
@@ -81,10 +83,27 @@ api.interceptors.response.use(
   },
 );
 
-/** Текст ошибки для показа пользователю. */
+/**
+ * Текст ошибки для показа пользователю.
+ *
+ * Сервер отдаёт и машинный код (`stock.insufficient`), и русский текст.
+ * Ищем перевод по коду, а при его отсутствии показываем серверный текст —
+ * ровно то, что было до появления переводов. Поэтому неизвестный код
+ * не ломает ничего: пользователь видит сообщение сервера как раньше.
+ *
+ * Ограничение, которое надо помнить: серверный текст часто содержит числа
+ * («на складе 63 л, требуется 99999»), а перевод по коду их не знает —
+ * сервер параметров не передаёт. Поэтому переведённые сообщения формулируются
+ * так, чтобы оставаться осмысленными без цифр, а коды, где цифры критичны,
+ * намеренно оставлены без перевода до тех пор, пока сервер не начнёт слать
+ * подстановки отдельным полем.
+ */
 export function errorMessage(error: unknown): string {
   if (axios.isAxiosError<ApiErrorResponse>(error)) {
-    return error.response?.data?.message ?? error.message;
+    const response = error.response?.data;
+    const fallback = response?.message ?? error.message;
+    if (!response?.code) return fallback;
+    return i18n.t(`error.${response.code}`, { defaultValue: fallback });
   }
-  return error instanceof Error ? error.message : 'Неизвестная ошибка';
+  return error instanceof Error ? error.message : i18n.t('Неизвестная ошибка');
 }

@@ -1,9 +1,9 @@
 import {
-  CallHandler,
-  ExecutionContext,
+  type CallHandler,
+  type ExecutionContext,
   Injectable,
   Logger,
-  NestInterceptor,
+  type NestInterceptor,
   SetMetadata,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -88,12 +88,21 @@ export class AuditInterceptor implements NestInterceptor {
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    const entity = this.reflector.getAllAndOverride<string>(AUDIT_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    // Сущности контроллера и обработчика читаются раздельно, а не через
+    // getAllAndOverride: их несовпадение и есть признак вложенного ресурса.
+    // Для POST /vehicles/:id/photos обработчик объявляет VehiclePhoto,
+    // контроллер — Vehicle, а params.id указывает на технику-родителя.
+    const handlerEntity = this.reflector.get<string>(AUDIT_KEY, context.getHandler());
+    const classEntity = this.reflector.get<string>(AUDIT_KEY, context.getClass());
+    const entity = handlerEntity ?? classEntity;
 
     const request = context.switchToHttp().getRequest<Request>();
+
+    const parentId = request.params?.id;
+    const parent =
+      handlerEntity && classEntity && handlerEntity !== classEntity && parentId
+        ? { entity: classEntity, id: String(parentId) }
+        : null;
 
     const override = this.reflector.get<AuditAction>(
       AUDIT_ACTION_KEY,
@@ -103,7 +112,10 @@ export class AuditInterceptor implements NestInterceptor {
 
     if (!entity || !action) return next.handle();
 
-    const entityId = request.params?.id;
+    // Снимок «до» имеет смысл только для операции над самой записью:
+    // у вложенного ресурса params.id указывает на родителя, и снимок
+    // родителя выдавался бы за прежнее состояние вложенного объекта.
+    const entityId = parent ? undefined : request.params?.id;
     const capturesBefore =
       entityId !== undefined &&
       (action === AuditAction.UPDATE ||
@@ -121,7 +133,7 @@ export class AuditInterceptor implements NestInterceptor {
       switchMap((before) =>
         next.handle().pipe(
           tap((result) => {
-            void this.write(entity, action, request, result, before);
+            void this.write(entity, action, request, result, before, parent);
           }),
         ),
       ),
@@ -161,12 +173,17 @@ export class AuditInterceptor implements NestInterceptor {
     request: Request,
     result: unknown,
     before: Record<string, unknown> | null,
+    parent: { entity: string; id: string } | null,
   ): Promise<void> {
     const context = TenantStore.get();
     if (!context) return;
 
+    // У вложенного ресурса params.id — это родитель, поэтому в запасной
+    // вариант он не годится: иначе фотография записалась бы под номером
+    // техники и нашлась бы как операция над самой техникой.
     const entityId =
-      this.extractId(result) ?? (request.params?.id as string | undefined) ?? null;
+      this.extractId(result) ??
+      (parent ? null : ((request.params?.id as string | undefined) ?? null));
 
     // Для изменений сохраняем только реально изменившиеся поля: полный
     // снимок сущности на каждую правку раздувает журнал и прячет суть.
@@ -184,6 +201,8 @@ export class AuditInterceptor implements NestInterceptor {
           action,
           entity,
           entityId: entityId ? String(entityId) : null,
+          parentEntity: parent?.entity ?? null,
+          parentId: parent?.id ?? null,
           before: diff ? diff.before : (before ?? undefined),
           after: diff ? diff.after : (after ?? undefined),
           ipAddress: context.ipAddress ?? null,
