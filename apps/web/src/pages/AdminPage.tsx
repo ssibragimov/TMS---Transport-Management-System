@@ -53,6 +53,15 @@ interface DepartmentRow {
   _count: { vehicles: number; drivers: number };
 }
 
+interface DriverPositionRow {
+  id: number;
+  departmentId: number;
+  code: string;
+  name: string;
+  isActive: boolean;
+  _count: { drivers: number };
+}
+
 interface CounterpartyRow {
   id: number;
   name: string;
@@ -300,6 +309,78 @@ export function AdminPage() {
                     </Form.Item>
                     {isEdit && (
                       <Form.Item name="isActive" label={t("Активно")} valuePropName="checked">
+                        <Switch />
+                      </Form.Item>
+                    )}
+                  </>
+                )}
+              />
+            ),
+          },
+          {
+            key: 'driver-positions',
+            label: t("Должности водителей"),
+            children: (
+              <CrudPanel<DriverPositionRow>
+                url="/dictionaries/driver-positions"
+                queryKey="driver-positions"
+                title={t("Должность водителя")}
+                canManage={canManage}
+                description={t("Список должностей свой у каждого подразделения: водитель легкового транспорта в службе спецтранспорта и водитель погрузчика на складе — разные записи, даже если оба «водитель».")}
+                columns={[
+                  {
+                    title: t("Подразделение"),
+                    dataIndex: 'departmentId',
+                    width: 200,
+                    render: (value: number) =>
+                      dictionaries.data?.departments.find((d) => d.id === value)?.name ?? '—',
+                  },
+                  { title: t("Код"), dataIndex: 'code', width: 140 },
+                  { title: t("Наименование"), dataIndex: 'name' },
+                  {
+                    title: t("Используется"),
+                    width: 130,
+                    align: 'right',
+                    render: (_: unknown, row: DriverPositionRow) => row._count.drivers,
+                  },
+                  { title: t("Статус"), dataIndex: 'isActive', width: 110, render: activeTag },
+                ]}
+                formFields={(isEdit) => (
+                  <>
+                    <Form.Item
+                      name="departmentId"
+                      label={t("Подразделение")}
+                      rules={[{ required: true, message: t("Обязательное поле") }]}
+                    >
+                      <Select
+                        disabled={isEdit}
+                        showSearch
+                        optionFilterProp="label"
+                        options={(dictionaries.data?.departments ?? []).map((department) => ({
+                          value: department.id,
+                          label: department.name,
+                        }))}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name="code"
+                      label={t("Код")}
+                      tooltip={t("После создания не меняется: на него ссылаются выгрузки")}
+                      rules={[
+                        { required: true, message: t("Обязательное поле") },
+                        {
+                          pattern: /^[A-Z0-9-]+$/,
+                          message: t("Заглавные латинские буквы, цифры и дефис"),
+                        },
+                      ]}
+                    >
+                      <Input disabled={isEdit} placeholder="FORKLIFT" />
+                    </Form.Item>
+                    <Form.Item name="name" label={t("Наименование")} rules={[{ required: true }]}>
+                      <Input placeholder={t("Водитель вилочного погрузчика")} />
+                    </Form.Item>
+                    {isEdit && (
+                      <Form.Item name="isActive" label={t("Активна")} valuePropName="checked">
                         <Switch />
                       </Form.Item>
                     )}

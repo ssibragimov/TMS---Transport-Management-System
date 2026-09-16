@@ -58,6 +58,12 @@ export class CreateDriverDto {
   @IsPositive()
   departmentId?: number;
 
+  @ApiPropertyOptional({ description: 'Должность внутри подразделения' })
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  positionId?: number;
+
   @ApiPropertyOptional({ format: 'date' })
   @IsOptional()
   @IsDateString()

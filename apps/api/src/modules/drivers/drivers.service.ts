@@ -1,5 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CheckResult, PermitZone, Prisma } from '@prisma/client';
+import { extname } from 'node:path';
+import type { Readable } from 'node:stream';
 import {
   CLEARANCE_LABEL,
   clearanceValidUntil,
@@ -11,6 +13,7 @@ import {
 import { paginate } from '@/common/dto/pagination.dto';
 import { PrismaService } from '@/common/prisma/prisma.service';
 import { TenantStore } from '@/common/tenancy/tenant-context';
+import { StorageService } from '@/common/storage/storage.service';
 
 import type {
   CreateDriverDto,
@@ -42,7 +45,10 @@ export interface EligibilityIssue {
 
 @Injectable()
 export class DriversService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   async list(officeId: number, query: DriverQueryDto): Promise<PaginatedResult<unknown>> {
     const where: Prisma.DriverWhereInput = {
@@ -67,6 +73,7 @@ export class DriversService {
         orderBy: query.orderBy(SORTABLE, 'lastName'),
         include: {
           department: { select: { id: true, name: true } },
+          position: { select: { id: true, name: true } },
           licenses: {
             where: { deletedAt: null },
             orderBy: { expiresAt: 'desc' },
@@ -90,6 +97,7 @@ export class DriversService {
       where: { id, officeId, deletedAt: null },
       include: {
         department: { select: { id: true, name: true } },
+        position: { select: { id: true, name: true } },
         licenses: { where: { deletedAt: null }, orderBy: { expiresAt: 'desc' } },
         permits: { where: { deletedAt: null }, orderBy: { expiresAt: 'desc' } },
         medicalChecks: { orderBy: { checkedAt: 'desc' }, take: 20 },
@@ -135,6 +143,9 @@ export class DriversService {
 
   async create(officeId: number, dto: CreateDriverDto) {
     await this.assertPersonnelNumberFree(officeId, dto.personnelNumber);
+    if (dto.positionId !== undefined && dto.positionId !== null) {
+      await this.assertPositionInDepartment(officeId, dto.positionId, dto.departmentId ?? null);
+    }
 
     return this.prisma.db.driver.create({
       data: {
@@ -146,6 +157,7 @@ export class DriversService {
         birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
         phone: dto.phone ?? null,
         departmentId: dto.departmentId ?? null,
+        positionId: dto.positionId ?? null,
         hireDate: dto.hireDate ? new Date(dto.hireDate) : null,
         notes: dto.notes ?? null,
       },
@@ -153,7 +165,7 @@ export class DriversService {
   }
 
   async update(officeId: number, id: number, dto: UpdateDriverDto) {
-    await this.ensureExists(officeId, id);
+    const current = await this.ensureExists(officeId, id);
 
     // Табельный номер меняется вместе с остальной карточкой, по праву
     // driver.update: в отделе кадров номера переприсваивают — при переводе
@@ -162,6 +174,10 @@ export class DriversService {
     // от смены номера не рвётся.
     if (dto.personnelNumber !== undefined) {
       await this.assertPersonnelNumberFree(officeId, dto.personnelNumber, id);
+    }
+    if (dto.positionId !== undefined && dto.positionId !== null) {
+      const department = dto.departmentId !== undefined ? dto.departmentId : current.departmentId;
+      await this.assertPositionInDepartment(officeId, dto.positionId, department);
     }
 
     return this.prisma.db.driver.update({
@@ -173,6 +189,7 @@ export class DriversService {
         ...(dto.middleName !== undefined && { middleName: dto.middleName }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
         ...(dto.departmentId !== undefined && { departmentId: dto.departmentId }),
+        ...(dto.positionId !== undefined && { positionId: dto.positionId }),
         ...(dto.birthDate !== undefined && {
           birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
         }),
@@ -634,10 +651,37 @@ export class DriversService {
     return alerts.sort((a, b) => a.daysLeft - b.daysLeft);
   }
 
-  private async ensureExists(officeId: number, id: number): Promise<void> {
+  /**
+   * Должность — справочник конкретного подразделения (см. DriverPosition
+   * в схеме), поэтому мало проверить, что она вообще существует в этом
+   * офисе: она обязана принадлежать именно тому подразделению, которое
+   * указано у водителя, иначе в карточке окажется «водитель погрузчика»
+   * в службе, где погрузчиков нет.
+   */
+  private async assertPositionInDepartment(
+    officeId: number,
+    positionId: number,
+    departmentId: number | null,
+  ): Promise<void> {
+    const position = await this.prisma.db.driverPosition.findFirst({
+      where: { id: positionId, deletedAt: null, department: { officeId } },
+      select: { departmentId: true },
+    });
+    if (!position || position.departmentId !== departmentId) {
+      throw new NotFoundException({
+        code: 'driver.position_not_in_department',
+        message: 'Должность не найдена в выбранном подразделении',
+      });
+    }
+  }
+
+  private async ensureExists(
+    officeId: number,
+    id: number,
+  ): Promise<{ id: number; photoKey: string | null; departmentId: number | null }> {
     const found = await this.prisma.db.driver.findFirst({
       where: { id, officeId, deletedAt: null },
-      select: { id: true },
+      select: { id: true, photoKey: true, departmentId: true },
     });
     if (!found) {
       throw new NotFoundException({
@@ -645,5 +689,69 @@ export class DriversService {
         message: 'Водитель не найден',
       });
     }
+    return found;
+  }
+
+  /** MIME по расширению сохранённого ключа. */
+  private static readonly PHOTO_MIME = new Map<string, string>([
+    ['.jpg', 'image/jpeg'],
+    ['.jpeg', 'image/jpeg'],
+    ['.png', 'image/png'],
+    ['.webp', 'image/webp'],
+    ['.heic', 'image/heic'],
+  ]);
+
+  private photoMimeTypeFromKey(key: string): string {
+    const ext = extname(key).toLowerCase();
+    return DriversService.PHOTO_MIME.get(ext) ?? 'image/jpeg';
+  }
+
+  /** Ключ фотографии водителя в хранилище. */
+  async setPhoto(officeId: number, driverId: number, file: Express.Multer.File): Promise<{ photoKey: string }> {
+    const driver = await this.ensureExists(officeId, driverId);
+
+    const stored = await this.storage.saveImage(`drivers/${driverId}`, file);
+
+    await this.prisma.systemTransaction(async (tx) =>
+      tx.driver.update({
+        where: { id: driverId },
+        data: { photoKey: stored.key },
+        select: { id: true, lastName: true, firstName: true, photoKey: true },
+      }),
+    );
+
+    if (driver.photoKey) {
+      await this.storage.remove(driver.photoKey);
+    }
+
+    return { photoKey: stored.key };
+  }
+
+  async readPhoto(officeId: number, driverId: number): Promise<{ stream: Readable; mimeType: string }> {
+    const driver = await this.ensureExists(officeId, driverId);
+
+    if (!driver.photoKey) {
+      throw new NotFoundException({
+        code: 'driver.photo_not_found',
+        message: 'У водителя нет фотографии',
+      });
+    }
+
+    const { stream } = this.storage.createReadStream(driver.photoKey);
+    return { stream, mimeType: this.photoMimeTypeFromKey(driver.photoKey) };
+  }
+
+  async removePhoto(officeId: number, driverId: number): Promise<void> {
+    const driver = await this.ensureExists(officeId, driverId);
+    if (!driver.photoKey) return;
+
+    await this.prisma.systemTransaction(async (tx) =>
+      tx.driver.update({
+        where: { id: driverId },
+        data: { photoKey: null },
+      }),
+    );
+
+    await this.storage.remove(driver.photoKey);
   }
 }

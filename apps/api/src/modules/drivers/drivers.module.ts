@@ -9,8 +9,14 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  StreamableFile,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { PERMISSIONS } from '@gsm/shared';
 
 import { Audited } from '@/common/audit/audit.interceptor';
@@ -163,7 +169,7 @@ export class DriversController {
     return this.drivers.addMedicalCheck(officeId, id, dto);
   }
 
-  @Get(':id/medical-clearance')
+@Get(':id/medical-clearance')
   @RequirePermissions(PERMISSIONS.DRIVER_READ)
   @ApiOperation({
     summary: 'Действующий предрейсовый допуск водителя',
@@ -171,6 +177,50 @@ export class DriversController {
   })
   medicalClearance(@CurrentOffice() officeId: number, @Param('id', ParseIntPipe) id: number) {
     return this.drivers.medicalClearanceOf(officeId, id);
+  }
+
+  @Post(':id/photo')
+  @RequirePermissions(PERMISSIONS.DRIVER_CLEARANCE_MANAGE)
+  @ApiOperation({ summary: 'Загрузить фото водителя' })
+  @UseInterceptors(FileInterceptor('file'))
+  uploadPhoto(
+    @CurrentOffice() officeId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.drivers.setPhoto(officeId, id, file);
+  }
+
+  /**
+   * Файл отдаётся через API, а не статикой: фотография водителя — это
+   * персональные данные, и получить её, угадав ссылку, быть не должно.
+   * StreamableFile обязателен: без него Nest попытался бы сериализовать
+   * { stream, mimeType } в JSON, и браузер получил бы 200 с пустым телом
+   * вместо байтов картинки.
+   */
+  @Get(':id/photo')
+  @RequirePermissions(PERMISSIONS.DRIVER_READ)
+  @ApiOperation({ summary: 'Получить фото водителя' })
+  async getPhoto(
+    @CurrentOffice() officeId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { stream, mimeType } = await this.drivers.readPhoto(officeId, id);
+
+    res.setHeader('Content-Type', mimeType);
+    // Приватный кэш: снимок принадлежит водителю, промежуточным прокси
+    // его хранить нельзя, а в браузере пользователя — можно.
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+
+    return new StreamableFile(stream);
+  }
+
+  @Delete(':id/photo')
+  @RequirePermissions(PERMISSIONS.DRIVER_CLEARANCE_MANAGE)
+  @ApiOperation({ summary: 'Удалить фото водителя' })
+  removePhoto(@CurrentOffice() officeId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.drivers.removePhoto(officeId, id);
   }
 }
 

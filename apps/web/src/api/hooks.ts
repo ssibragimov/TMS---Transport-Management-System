@@ -18,6 +18,7 @@ export interface Dictionaries {
     seats: number | null;
   }>;
   departments: Array<{ id: number; code: string; name: string }>;
+  driverPositions: Array<{ id: number; departmentId: number; code: string; name: string }>;
   counterparties: Array<{ id: number; name: string; inn: string | null }>;
 }
 

@@ -113,6 +113,7 @@ DECLARE
     ARRAY['driver_licenses',        'driver_id',   'drivers'],
     ARRAY['driver_permits',         'driver_id',   'drivers'],
     ARRAY['medical_checks',         'driver_id',   'drivers'],
+    ARRAY['driver_positions',       'department_id', 'departments'],
     ARRAY['waybill_tasks',          'waybill_id',  'waybills'],
     ARRAY['work_order_parts',       'work_order_id', 'work_orders']
   ];

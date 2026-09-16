@@ -43,6 +43,8 @@ interface DriverRow {
   notes: string | null;
   departmentId: number | null;
   department: { name: string } | null;
+  positionId: number | null;
+  position: { name: string } | null;
   licenses: Array<{ expiresAt: string }>;
   permits: Array<{ expiresAt: string }>;
 }
@@ -66,6 +68,7 @@ export function DriversPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<DriverRow | null>(null);
   const [form] = Form.useForm();
+  const watchedDepartmentId = Form.useWatch<number | undefined>('departmentId', form);
 
   const query = usePaged<DriverRow>(['drivers'], '/drivers', {
     page,
@@ -91,6 +94,12 @@ export function DriversPage() {
     async (values: Record<string, unknown>) => {
       const payload = {
         ...values,
+        // Очищенный Select отдаёт undefined, а не null, и JSON.stringify
+        // молча вырезает такие поля из тела запроса — бэкенд решил бы, что
+        // поле вообще не прислали, и не тронул бы прежнее значение. Явный
+        // null долетает и действительно снимает подразделение/должность.
+        departmentId: values.departmentId ?? null,
+        positionId: values.positionId ?? null,
         birthDate: values.birthDate ? (values.birthDate as dayjs.Dayjs).format('YYYY-MM-DD') : undefined,
         hireDate: values.hireDate ? (values.hireDate as dayjs.Dayjs).format('YYYY-MM-DD') : undefined,
         dismissDate: values.dismissDate
@@ -197,6 +206,11 @@ export function DriversPage() {
             title: t('Подразделение'),
             dataIndex: 'department',
             render: (department: DriverRow['department']) => department?.name ?? '—',
+          },
+          {
+            title: t('Должность'),
+            dataIndex: 'position',
+            render: (position: DriverRow['position']) => position?.name ?? '—',
           },
           { title: t('Телефон'), dataIndex: 'phone', width: 160 },
           {
@@ -324,11 +338,28 @@ export function DriversPage() {
                     value: d.id,
                     label: d.name,
                   }))}
+                  // Должности принадлежат конкретному подразделению: при его
+                  // смене прежний выбор мог перестать существовать в новом.
+                  onChange={() => form.setFieldValue('positionId', undefined)}
                 />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="positionId" label={t('Должность')}>
+                <Select
+                  allowClear
+                  disabled={!watchedDepartmentId}
+                  placeholder={
+                    watchedDepartmentId ? undefined : t('Сначала выберите подразделение')
+                  }
+                  options={(dictionaries.data?.driverPositions ?? [])
+                    .filter((position) => position.departmentId === watchedDepartmentId)
+                    .map((position) => ({ value: position.id, label: position.name }))}
+                />
+              </Form.Item>
+            </Col>
             <Col span={8}>
               <Form.Item name="birthDate" label={t('Дата рождения')}>
                 <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />

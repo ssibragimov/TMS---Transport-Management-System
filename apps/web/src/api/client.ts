@@ -107,3 +107,17 @@ export function errorMessage(error: unknown): string {
   }
   return error instanceof Error ? error.message : i18n.t('Неизвестная ошибка');
 }
+
+/** Фото водителя */
+export const driverPhoto = {
+  upload: (driverId: number, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post<{ photoKey: string | null }>(
+      `/drivers/${driverId}/photo`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+  },
+  remove: (driverId: number) => api.delete(`/drivers/${driverId}/photo`),
+};

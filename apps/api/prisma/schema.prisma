@@ -124,10 +124,34 @@ model Department {
   office   Office    @relation(fields: [officeId], references: [id], onDelete: Restrict)
   vehicles Vehicle[]
   drivers  Driver[]
+  driverPositions DriverPosition[]
 
   @@unique([officeId, code])
   @@index([officeId])
   @@map("departments")
+}
+
+/// Должность водителя внутри подразделения: водитель легкового транспорта,
+/// водитель вилочного погрузчика и т.д. Один и тот же человек в другом
+/// подразделении мог бы называться иначе, поэтому список должностей привязан
+/// к Department, а не является общим справочником по всему офису.
+model DriverPosition {
+  id           Int    @id @default(autoincrement())
+  departmentId Int    @map("department_id")
+  code         String @db.VarChar(24)
+  name         String @db.VarChar(160)
+
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  drivers    Driver[]
+
+  @@unique([departmentId, code])
+  @@index([departmentId])
+  @@map("driver_positions")
 }
 
 enum UserStatus {
@@ -628,6 +652,7 @@ model Driver {
   id           Int  @id @default(autoincrement())
   officeId     Int  @map("office_id")
   departmentId Int? @map("department_id")
+  positionId   Int? @map("position_id")
   /// Учётка в системе, если водитель пользуется мобильным приложением.
   userId       Int? @unique @map("user_id")
 
@@ -648,9 +673,10 @@ model Driver {
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  office     Office      @relation(fields: [officeId], references: [id], onDelete: Restrict)
-  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  office     Office          @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  department Department?     @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  position   DriverPosition? @relation(fields: [positionId], references: [id], onDelete: SetNull)
+  user       User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   licenses       DriverLicense[]
   permits        DriverPermit[]

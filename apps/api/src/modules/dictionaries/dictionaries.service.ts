@@ -5,10 +5,12 @@ import { PrismaService } from '@/common/prisma/prisma.service';
 import type {
   CounterpartyDto,
   DepartmentDto,
+  DriverPositionDto,
   FuelTypeDto,
   SparePartDto,
   UpdateCounterpartyDto,
   UpdateDepartmentDto,
+  UpdateDriverPositionDto,
   UpdateFuelTypeDto,
   UpdateSparePartDto,
   UpdateVehicleModelDto,
@@ -252,6 +254,76 @@ export class DictionariesService {
     });
   }
 
+  // ─── Должности водителей (офисные, через подразделение) ─────────────────
+  //
+  // У DriverPosition нет собственного office_id — принадлежность офису
+  // проверяется через департамент, поэтому здесь свой, а не общий
+  // ensureOfficeScoped метод.
+
+  driverPositions(officeId: number, departmentId?: number, includeInactive = false) {
+    return this.prisma.db.driverPosition.findMany({
+      where: {
+        department: { officeId },
+        deletedAt: null,
+        ...(departmentId && { departmentId }),
+        ...(includeInactive ? {} : { isActive: true }),
+      },
+      orderBy: [{ departmentId: 'asc' }, { name: 'asc' }],
+      select: {
+        id: true,
+        departmentId: true,
+        code: true,
+        name: true,
+        isActive: true,
+        _count: { select: { drivers: true } },
+      },
+    });
+  }
+
+  async createDriverPosition(officeId: number, dto: DriverPositionDto) {
+    await this.ensureDepartmentInOffice(officeId, dto.departmentId);
+
+    const existing = await this.prisma.db.driverPosition.findFirst({
+      where: { departmentId: dto.departmentId, code: dto.code, deletedAt: null },
+    });
+    if (existing) {
+      throw new ConflictException({
+        code: 'dictionary.code_taken',
+        message: `Должность с кодом ${dto.code} уже есть в этом подразделении`,
+      });
+    }
+
+    return this.prisma.db.driverPosition.create({
+      data: {
+        departmentId: dto.departmentId,
+        code: dto.code,
+        name: dto.name,
+        isActive: dto.isActive ?? true,
+      },
+    });
+  }
+
+  async updateDriverPosition(officeId: number, id: number, dto: UpdateDriverPositionDto) {
+    await this.ensureDriverPositionInOffice(officeId, id);
+
+    return this.prisma.db.driverPosition.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      },
+    });
+  }
+
+  async removeDriverPosition(officeId: number, id: number) {
+    await this.ensureDriverPositionInOffice(officeId, id);
+
+    return this.prisma.db.driverPosition.update({
+      where: { id },
+      data: { deletedAt: new Date(), isActive: false },
+    });
+  }
+
   // ─── Контрагенты (офисные) ───────────────────────────────────────────────
 
   counterparties(officeId: number, kind?: 'fuel' | 'service', includeInactive = false) {
@@ -376,13 +448,15 @@ export class DictionariesService {
 
   /** Всё сразу — один запрос вместо пяти при открытии формы. */
   async all(officeId: number) {
-    const [fuelTypes, vehicleModels, departments, counterparties] = await Promise.all([
-      this.fuelTypes(),
-      this.vehicleModels(),
-      this.departments(officeId),
-      this.counterparties(officeId),
-    ]);
-    return { fuelTypes, vehicleModels, departments, counterparties };
+    const [fuelTypes, vehicleModels, departments, driverPositions, counterparties] =
+      await Promise.all([
+        this.fuelTypes(),
+        this.vehicleModels(),
+        this.departments(officeId),
+        this.driverPositions(officeId),
+        this.counterparties(officeId),
+      ]);
+    return { fuelTypes, vehicleModels, departments, driverPositions, counterparties };
   }
 
   // ─── Внутреннее ──────────────────────────────────────────────────────────
@@ -420,6 +494,29 @@ export class DictionariesService {
             select: { id: true },
           });
 
+    if (!found) {
+      throw new NotFoundException({ code: 'dictionary.not_found', message: 'Запись не найдена' });
+    }
+  }
+
+  private async ensureDepartmentInOffice(officeId: number, departmentId: number): Promise<void> {
+    const found = await this.prisma.db.department.findFirst({
+      where: { id: departmentId, officeId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!found) {
+      throw new NotFoundException({
+        code: 'dictionary.not_found',
+        message: 'Подразделение не найдено',
+      });
+    }
+  }
+
+  private async ensureDriverPositionInOffice(officeId: number, id: number): Promise<void> {
+    const found = await this.prisma.db.driverPosition.findFirst({
+      where: { id, deletedAt: null, department: { officeId } },
+      select: { id: true },
+    });
     if (!found) {
       throw new NotFoundException({ code: 'dictionary.not_found', message: 'Запись не найдена' });
     }

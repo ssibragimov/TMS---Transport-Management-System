@@ -19,14 +19,17 @@ import {
   Tag,
 } from 'antd';
 import dayjs from 'dayjs';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { CheckResult, LicenseCategory, PERMISSIONS, PermitZone } from '@gsm/shared';
 
 import { EntityAuditLog } from '@/components/EntityAuditLog';
 import { EntityId } from '@/components/EntityId';
+import { PhotoCropModal } from '@/components/PhotoCropModal';
 import { api } from '@/api/client';
-import { useApiMutation } from '@/api/hooks';
+import { useApiMutation, useAuthedImage } from '@/api/hooks';
+import { driverPhoto } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
+import { colorOf, initials } from '@/lib/avatar';
 import { PERMIT_ZONE_LABEL } from '@/lib/labels';
 
 interface Props {
@@ -47,6 +50,7 @@ interface DriverDetail {
   isActive: boolean;
   notes: string | null;
   department: { name: string } | null;
+  position: { name: string } | null;
   licenses: Array<{
     id: number;
     number: string;
@@ -69,6 +73,7 @@ interface DriverDetail {
     isPreTrip: boolean;
     doctorName: string | null;
   }>;
+  photoKey: string | null;
 }
 
 interface EligibilityIssue {
@@ -91,6 +96,9 @@ export function DriverDrawer({ driverId, onClose }: Props) {
   const { can } = useAuth();
   const [modal, setModal] = useState<'license' | 'permit' | 'medical' | null>(null);
   const [form] = Form.useForm();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const openPhotoPicker = (): void => photoInputRef.current?.click();
 
   const open = driverId !== null;
   const manage = can(PERMISSIONS.DRIVER_CLEARANCE_MANAGE);
@@ -164,6 +172,19 @@ export function DriverDrawer({ driverId, onClose }: Props) {
     { successMessage: t("Удалено"), invalidate },
   );
 
+  const uploadPhoto = useApiMutation(
+    async (file: File) => {
+      const { data } = await driverPhoto.upload(driverId!, file);
+      return data;
+    },
+    { successMessage: t("Фото загружено"), invalidate: [['driver']] },
+  );
+
+  const removePhoto = useApiMutation(
+    async () => (await driverPhoto.remove(driverId!)).data,
+    { successMessage: t("Фото удалено"), invalidate: [['driver']] },
+  );
+
   const submit = (): void => {
     void form.validateFields().then((values) => {
       const done = { onSuccess: () => setModal(null) };
@@ -175,6 +196,11 @@ export function DriverDrawer({ driverId, onClose }: Props) {
 
   const d = driver.data;
   const issues = eligibility.data ?? [];
+  const fullName = d ? `${d.lastName} ${d.firstName} ${d.middleName ?? ''}`.trim() : undefined;
+
+  // Обычный <img src="/api/..."> не приложит токен авторизации, и сервер
+  // ответит 401 — снимок запрашивается этим авторизованным хуком.
+  const photoSrc = useAuthedImage(d?.photoKey ? `/drivers/${d.id}/photo` : null);
 
   return (
     <Drawer
@@ -182,33 +208,85 @@ export function DriverDrawer({ driverId, onClose }: Props) {
       onClose={onClose}
       width={820}
       loading={driver.isLoading}
-      title={d ? `${d.lastName} ${d.firstName} ${d.middleName ?? ''}`.trim() : 'Карточка водителя'}
+      title={d ? fullName : 'Карточка водителя'}
       extra={<EntityId id={d?.id} />}
     >
       {d && (
         <>
-          {issues.length > 0 ? (
-            <Alert
-              type="error"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message="Водитель не допущен к работе"
-              description={
-                <ul style={{ margin: 0, paddingLeft: 18 }}>
-                  {issues.map((issue) => (
-                    <li key={issue.code}>{issue.message}</li>
-                  ))}
-                </ul>
-              }
-            />
-          ) : (
-            <Alert
-              type="success"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message="Допуск к работе действителен"
-            />
-          )}
+          {/*
+            Фото рядом с допуском намеренно крупное и на самом видном месте:
+            это и есть тот момент, ради которого карточку открывают чаще
+            всего, — узнать человека и сразу увидеть, допущен ли он.
+            Блок всегда строго квадратный (width=height, не stretch по высоте
+            алерта): у алерта с несколькими замечаниями высота растёт с
+            текстом, а фото при этом обязано остаться квадратом, а не
+            вытягиваться в прямоугольник.
+          */}
+          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', marginBottom: 16 }}>
+            {issues.length > 0 ? (
+              <Alert
+                type="error"
+                showIcon
+                style={{ flex: 1, minWidth: 0 }}
+                message="Водитель не допущен к работе"
+                description={
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    {issues.map((issue) => (
+                      <li key={issue.code}>{issue.message}</li>
+                    ))}
+                  </ul>
+                }
+              />
+            ) : (
+              <Alert
+                type="success"
+                showIcon
+                style={{ flex: 1, minWidth: 0 }}
+                message="Допуск к работе действителен"
+              />
+            )}
+
+            <div
+              role={manage ? 'button' : undefined}
+              tabIndex={manage ? 0 : undefined}
+              onClick={manage ? openPhotoPicker : undefined}
+              title={manage ? t('Загрузить или заменить фото') : undefined}
+              style={{
+                width: 110,
+                height: 110,
+                flex: 'none',
+                borderRadius: 10,
+                overflow: 'hidden',
+                cursor: manage ? 'pointer' : 'default',
+                border: '1px solid #f0f0f0',
+              }}
+            >
+              {d.photoKey ? (
+                photoSrc && (
+                  <img
+                    src={photoSrc}
+                    alt={t('Фото водителя')}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                )
+              ) : (
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'grid',
+                    placeItems: 'center',
+                    background: colorOf(fullName),
+                    color: '#fff',
+                    fontSize: 28,
+                    fontWeight: 600,
+                  }}
+                >
+                  {initials(fullName)}
+                </div>
+              )}
+            </div>
+          </div>
 
           <Tabs
             items={[
@@ -219,6 +297,45 @@ export function DriverDrawer({ driverId, onClose }: Props) {
                   <Descriptions bordered size="small" column={2}>
                     <Descriptions.Item label={t("Табельный номер")}>{d.personnelNumber}</Descriptions.Item>
                     <Descriptions.Item label={t("Подразделение")}>{d.department?.name ?? '—'}</Descriptions.Item>
+                    {/*
+                      span=2 намеренно, а не в паре с соседним полем: список
+                      должностей свой у каждого подразделения (см. AdminPage),
+                      и добавление любого нового двухколоночного поля здесь
+                      не должно требовать пересчёта чётности перед Фото ниже.
+                    */}
+                    <Descriptions.Item label={t("Должность")} span={2}>
+                      {d.position?.name ?? '—'}
+                    </Descriptions.Item>
+                    {/*
+                      Сам снимок уже виден крупно вверху карточки, рядом
+                      с допуском (см. фото-блок над вкладками) — здесь только
+                      управление, без дублирующего превью.
+
+                      Фото — на всю строку (span=2), поэтому стоит сразу после
+                      пары полей, кратной column={2}: иначе строка переполняется
+                      и antd ругается в консоли на несовпадение span.
+                    */}
+                    <Descriptions.Item label={t("Фото")} span={2}>
+                      {d.photoKey ? (
+                        <Space>
+                          <Button size="small" onClick={openPhotoPicker}>
+                            {t('Заменить')}
+                          </Button>
+                          <Button
+                            type="link"
+                            danger
+                            size="small"
+                            onClick={() => removePhoto.mutate(d.id)}
+                          >
+                            {t('Удалить')}
+                          </Button>
+                        </Space>
+                      ) : (
+                        <Button type="primary" size="small" onClick={openPhotoPicker}>
+                          {t('Загрузить')}
+                        </Button>
+                      )}
+                    </Descriptions.Item>
                     <Descriptions.Item label={t("Телефон")}>{d.phone ?? '—'}</Descriptions.Item>
                     <Descriptions.Item label={t("Дата рождения")}>
                       {d.birthDate ? dayjs(d.birthDate).format('DD.MM.YYYY') : '—'}
@@ -523,6 +640,33 @@ export function DriverDrawer({ driverId, onClose }: Props) {
           )}
         </Form>
       </Modal>
+
+      {/*
+        Файл выбирается скрытым input'ом, а не отдельным модальным окном:
+        сразу после выбора открывается кроппер — промежуточный диалог
+        только добавил бы лишний клик.
+      */}
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/heic"
+        style={{ display: 'none' }}
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null;
+          event.target.value = '';
+          if (file) setSelectedFile(file);
+        }}
+      />
+      <PhotoCropModal
+        open={selectedFile !== null}
+        file={selectedFile}
+        title={t('Загрузка фото водителя')}
+        confirmLoading={uploadPhoto.isPending}
+        onCancel={() => setSelectedFile(null)}
+        onConfirm={(croppedFile) => {
+          uploadPhoto.mutate(croppedFile, { onSuccess: () => setSelectedFile(null) });
+        }}
+      />
     </Drawer>
   );
 }

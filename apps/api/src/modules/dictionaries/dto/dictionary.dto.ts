@@ -116,6 +116,30 @@ export class DepartmentDto {
 
 export class UpdateDepartmentDto extends PartialType(DepartmentDto) {}
 
+export class DriverPositionDto {
+  @ApiProperty({ description: 'Подразделение, внутри которого действует эта должность' })
+  @IsInt()
+  @IsPositive()
+  departmentId: number;
+
+  @ApiProperty({ example: 'FORKLIFT' })
+  @IsString()
+  @MaxLength(24)
+  code: string;
+
+  @ApiProperty({ example: 'Водитель вилочного погрузчика' })
+  @IsString()
+  @MaxLength(160)
+  name: string;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateDriverPositionDto extends PartialType(DriverPositionDto) {}
+
 export class CounterpartyDto {
   @ApiProperty()
   @IsString()

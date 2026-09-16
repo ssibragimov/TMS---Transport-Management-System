@@ -20,10 +20,12 @@ import { DictionariesService } from './dictionaries.service';
 import {
   CounterpartyDto,
   DepartmentDto,
+  DriverPositionDto,
   FuelTypeDto,
   SparePartDto,
   UpdateCounterpartyDto,
   UpdateDepartmentDto,
+  UpdateDriverPositionDto,
   UpdateFuelTypeDto,
   UpdateSparePartDto,
   UpdateVehicleModelDto,
@@ -168,6 +170,56 @@ export class DictionariesController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.dictionaries.removeDepartment(officeId, id);
+  }
+
+  // ─── Должности водителей ─────────────────────────────────────────────────
+
+  @Get('driver-positions')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_READ)
+  @ApiQuery({ name: 'departmentId', required: false })
+  @ApiQuery({ name: 'includeInactive', required: false })
+  @ApiOperation({ summary: 'Должности водителей активного офиса' })
+  driverPositions(
+    @CurrentOffice() officeId: number,
+    @Query('departmentId') departmentId?: string,
+    @Query('includeInactive') includeInactive?: string,
+  ) {
+    return this.dictionaries.driverPositions(
+      officeId,
+      departmentId ? Number(departmentId) : undefined,
+      inactive(includeInactive),
+    );
+  }
+
+  @Post('driver-positions')
+  @Audited('DriverPosition')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_MANAGE)
+  @ApiOperation({ summary: 'Добавление должности водителя' })
+  createDriverPosition(@CurrentOffice() officeId: number, @Body() dto: DriverPositionDto) {
+    return this.dictionaries.createDriverPosition(officeId, dto);
+  }
+
+  @Patch('driver-positions/:id')
+  @Audited('DriverPosition')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_MANAGE)
+  @ApiOperation({ summary: 'Изменение должности водителя' })
+  updateDriverPosition(
+    @CurrentOffice() officeId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateDriverPositionDto,
+  ) {
+    return this.dictionaries.updateDriverPosition(officeId, id, dto);
+  }
+
+  @Delete('driver-positions/:id')
+  @Audited('DriverPosition')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_MANAGE)
+  @ApiOperation({ summary: 'Удаление должности водителя' })
+  removeDriverPosition(
+    @CurrentOffice() officeId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.dictionaries.removeDriverPosition(officeId, id);
   }
 
   // ─── Контрагенты ─────────────────────────────────────────────────────────

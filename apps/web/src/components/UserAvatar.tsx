@@ -1,6 +1,7 @@
 import { Avatar } from 'antd';
 
 import { useAuthedImage } from '@/api/hooks';
+import { colorOf, initials } from '@/lib/avatar';
 
 /**
  * Аватар сотрудника.
@@ -18,29 +19,6 @@ interface UserAvatarProps {
   /** Ключ файла из профиля. null или undefined — показываем инициалы. */
   photoKey?: string | null;
   size?: number;
-}
-
-/**
- * Инициалы из ФИО: «Каримов Азиз Рустамович» → «КА».
- * Берём фамилию и имя — отчество в кружке уже не читается.
- */
-function initials(fullName: string | undefined): string {
-  if (!fullName) return '?';
-  const parts = fullName.trim().split(/\s+/).slice(0, 2);
-  return parts.map((part) => part[0]?.toUpperCase() ?? '').join('') || '?';
-}
-
-/**
- * Цвет подложки выводится из имени, а не случайный: у одного человека он
- * одинаков во всех списках, и по нему глаз находит строку быстрее, чем по тексту.
- */
-const PALETTE = ['#0b3d6b', '#14507f', '#4fa8ae', '#5cb87f', '#a88ad8', '#e07b5f', '#d48806'];
-
-function colorOf(fullName: string | undefined): string {
-  if (!fullName) return PALETTE[0];
-  let hash = 0;
-  for (const char of fullName) hash = (hash * 31 + char.charCodeAt(0)) | 0;
-  return PALETTE[Math.abs(hash) % PALETTE.length];
 }
 
 export function UserAvatar({ userId, fullName, photoKey, size = 32 }: UserAvatarProps) {

@@ -180,7 +180,11 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
   ),
 
   [SYSTEM_ROLES.FLEET_MANAGER]: [
-    P.OFFICE_READ, P.DICTIONARY_READ, P.USER_READ,
+    P.OFFICE_READ, P.USER_READ,
+    // Справочники (включая подразделения и должности водителей внутри них)
+    // ведёт начальник автослужбы наравне с администратором офиса — более
+    // узкого права на один конкретный справочник в модели прав нет.
+    P.DICTIONARY_READ, P.DICTIONARY_MANAGE,
     P.VEHICLE_READ, P.VEHICLE_CREATE, P.VEHICLE_UPDATE, P.VEHICLE_TRANSFER,
     P.VEHICLE_DOCUMENT_MANAGE, P.VEHICLE_METER_ADJUST,
     P.DRIVER_READ, P.DRIVER_CREATE, P.DRIVER_UPDATE, P.DRIVER_CLEARANCE_MANAGE,
