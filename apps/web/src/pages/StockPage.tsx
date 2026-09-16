@@ -35,7 +35,7 @@ import {
   STOCK_MOVEMENT_LABEL,
   STOCK_PURPOSE_LABEL,
   STOCK_TRACKING_LABEL,
-  StockCategory,
+  type StockCategory,
   StockDocumentKind,
   WAREHOUSE_KIND_LABEL,
 } from '@gsm/shared';

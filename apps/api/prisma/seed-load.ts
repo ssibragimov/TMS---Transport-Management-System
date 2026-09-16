@@ -24,7 +24,6 @@ import './env';
 
 import {
   CheckResult,
-  MeterSource,
   PrismaClient,
   VehicleCategory,
   VehicleCondition,

@@ -10,7 +10,7 @@
  * те правила, что действовали НА ДАТУ путевого листа, а не текущие.
  */
 
-import { NormType, NormAdjustmentKind } from './enums';
+import { NormType, type NormAdjustmentKind } from './enums';
 import { isWinterMonth } from './airports';
 
 /** Базовое правило нормы. Одна техника может иметь несколько правил разных типов. */
