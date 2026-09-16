@@ -21,12 +21,15 @@ export const uz: Record<string, string> = {
   'Журнал действий': 'Amallar jurnali',
   'Свернуть меню': 'Menyuni yig‘ish',
   'Развернуть меню': 'Menyuni ochish',
+  'Версия платформы': 'Platforma versiyasi',
   Выйти: 'Chiqish',
 
   // ─── Общие действия и подписи ────────────────────────────────────────────
   Сохранить: 'Saqlash',
   Отмена: 'Bekor qilish',
   Удалить: 'O‘chirish',
+  Заменить: 'Almashtirish',
+  'Загрузить или заменить фото': 'Suratni yuklash yoki almashtirish',
   Изменить: 'Tahrirlash',
   Создать: 'Yaratish',
   Добавить: 'Qo‘shish',
@@ -67,10 +70,15 @@ export const uz: Record<string, string> = {
 
   // ─── Вход ────────────────────────────────────────────────────────────────
   'Вход в систему': 'Tizimga kirish',
-  'Учёт спецтранспорта и ГСМ': 'Maxsus transport va YoMM hisobi',
+  'Учёт и контроль спецтранспорта аэропортов': 'Aeroport maxsus transportini hisobga olish va nazorat qilish',
+  'например, chief.tas@gsm.local': 'masalan, chief.tas@gsm.local',
   'Электронная почта': 'Elektron pochta',
   Пароль: 'Parol',
   Войти: 'Kirish',
+  'Нет доступа?': 'Kirish huquqi yo‘qmi?',
+  'Обратитесь к администратору вашего офиса': 'Ofisingiz administratoriga murojaat qiling',
+  'учётные записи заводятся вручную, самостоятельной регистрации в системе нет.':
+    'hisob yozuvlari qo‘lda yaratiladi, tizimda mustaqil ro‘yxatdan o‘tish yo‘q.',
 
   // ─── Главная ─────────────────────────────────────────────────────────────
   'Единиц техники': 'Texnika birligi',
@@ -124,6 +132,15 @@ export const uz: Record<string, string> = {
   'Нет прав на просмотр водителей': 'Haydovchilarni ko‘rish huquqi yo‘q',
   'Дата приёма': 'Qabul sanasi',
   'Дата увольнения': 'Bo‘shatish sanasi',
+  Должность: 'Lavozim',
+  'Должность водителя': 'Haydovchi lavozimi',
+  'Должности водителей': 'Haydovchilar lavozimlari',
+  'Список должностей свой у каждого подразделения: водитель легкового транспорта в службе спецтранспорта и водитель погрузчика на складе — разные записи, даже если оба «водитель».':
+    'Har bir bo‘limning o‘z lavozimlar ro‘yxati bor: maxsus transport xizmatidagi yengil avtomobil haydovchisi va ombordagi pogruzchik haydovchisi — ikkalasi ham "haydovchi" bo‘lsa-da, alohida yozuvlar.',
+  'Сначала выберите подразделение': 'Avval bo‘limni tanlang',
+  Масштаб: 'Masshtab',
+  'Перетащите фото и настройте масштаб, чтобы выбрать область для квадратного снимка':
+    'Kvadrat surat uchun hududni tanlash uchun rasmni suring va masshtabni sozlang',
   Фамилия: 'Familiya',
   Имя: 'Ism',
   Отчество: 'Otasining ismi',
@@ -148,6 +165,12 @@ export const uz: Record<string, string> = {
   'Факт, л': 'Amalda, l',
   Отклонение: 'Chetlanish',
   'Нет прав на просмотр путевых листов': 'Yo‘l varaqalarini ko‘rish huquqi yo‘q',
+  'Нет прав на печать путевых листов': 'Yo‘l varaqalarini chop etish huquqi yo‘q',
+  'Путевой лист не найден': 'Yo‘l varaqasi topilmadi',
+  'Совет: чтобы сохранить в PDF, в диалоге печати выберите «Сохранить как PDF»':
+    'Maslahat: PDF sifatida saqlash uchun chop etish oynasida "PDF sifatida saqlash"ni tanlang',
+  Диспетчер: 'Dispetcher',
+  Сформировано: 'Shakllantirildi',
 
   // ─── Категории техники ───────────────────────────────────────────────────
   'Перронный автобус': 'Perron avtobusi',

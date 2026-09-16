@@ -18,12 +18,15 @@ export const en: Record<string, string> = {
   'Журнал действий': 'Audit log',
   'Свернуть меню': 'Collapse menu',
   'Развернуть меню': 'Expand menu',
+  'Версия платформы': 'Platform version',
   Выйти: 'Sign out',
 
   // ─── Общие действия и подписи ────────────────────────────────────────────
   Сохранить: 'Save',
   Отмена: 'Cancel',
   Удалить: 'Delete',
+  Заменить: 'Replace',
+  'Загрузить или заменить фото': 'Upload or replace photo',
   Изменить: 'Edit',
   Создать: 'Create',
   Добавить: 'Add',
@@ -63,10 +66,15 @@ export const en: Record<string, string> = {
 
   // ─── Вход ────────────────────────────────────────────────────────────────
   'Вход в систему': 'Sign in',
-  'Учёт спецтранспорта и ГСМ': 'Ground support equipment and fuel accounting',
+  'Учёт и контроль спецтранспорта аэропортов': 'Airport ground support fleet management',
+  'например, chief.tas@gsm.local': 'e.g. chief.tas@gsm.local',
   'Электронная почта': 'Email',
   Пароль: 'Password',
   Войти: 'Sign in',
+  'Нет доступа?': 'No access?',
+  'Обратитесь к администратору вашего офиса': 'Contact your office administrator',
+  'учётные записи заводятся вручную, самостоятельной регистрации в системе нет.':
+    'accounts are created manually — there is no self-service registration.',
 
   // ─── Главная ─────────────────────────────────────────────────────────────
   'Единиц техники': 'Vehicles',
@@ -120,6 +128,15 @@ export const en: Record<string, string> = {
   'Нет прав на просмотр водителей': 'No permission to view drivers',
   'Дата приёма': 'Hire date',
   'Дата увольнения': 'Dismissal date',
+  Должность: 'Position',
+  'Должность водителя': 'Driver position',
+  'Должности водителей': 'Driver positions',
+  'Список должностей свой у каждого подразделения: водитель легкового транспорта в службе спецтранспорта и водитель погрузчика на складе — разные записи, даже если оба «водитель».':
+    'Each department keeps its own list of positions: a car driver in the ground fleet service and a forklift driver in the warehouse are separate entries, even though both are "drivers".',
+  'Сначала выберите подразделение': 'Select a department first',
+  Масштаб: 'Zoom',
+  'Перетащите фото и настройте масштаб, чтобы выбрать область для квадратного снимка':
+    'Drag the photo and adjust the zoom to choose the area for the square photo',
   Фамилия: 'Last name',
   Имя: 'First name',
   Отчество: 'Middle name',
@@ -144,6 +161,13 @@ export const en: Record<string, string> = {
   'Факт, л': 'Actual, L',
   Отклонение: 'Deviation',
   'Нет прав на просмотр путевых листов': 'No permission to view waybills',
+  'Нет прав на печать путевых листов': 'No permission to print waybills',
+  'Путевой лист': 'Waybill',
+  'Путевой лист не найден': 'Waybill not found',
+  'Совет: чтобы сохранить в PDF, в диалоге печати выберите «Сохранить как PDF»':
+    'Tip: to save as PDF, choose "Save as PDF" in the print dialog',
+  Диспетчер: 'Dispatcher',
+  Сформировано: 'Generated',
 
   // ─── Категории техники ───────────────────────────────────────────────────
   'Перронный автобус': 'Apron bus',
