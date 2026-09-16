@@ -1,6 +1,14 @@
-import react from '@vitejs/plugin-react';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+
+// Версия платформы читается из корневого package.json один раз при сборке —
+// единый источник правды. Хранить её отдельной строкой ещё и здесь означало
+// бы синхронизировать два места руками и рано или поздно получить разъезд.
+const rootPackage = JSON.parse(
+  readFileSync(resolve(__dirname, '../../package.json'), 'utf-8'),
+) as { version: string };
 
 export default defineConfig({
   // На GitHub Pages сайт живёт в подкаталоге /<имя-репозитория>/, поэтому пути
@@ -12,6 +20,9 @@ export default defineConfig({
   // молча подставлял значения по умолчанию — VITE_API_URL и ключ карты
   // из корневого файла не доходили бы до приложения вовсе.
   envDir: resolve(__dirname, '../..'),
+  define: {
+    __APP_VERSION__: JSON.stringify(rootPackage.version),
+  },
   plugins: [react()],
   resolve: {
     alias: {

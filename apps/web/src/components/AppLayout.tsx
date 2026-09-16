@@ -273,6 +273,15 @@ export function AppLayout() {
               </div>
             </Space>
           </Dropdown>
+
+          {/* Версия платформы — техническая подпись в самом углу экрана,
+              а не пункт интерфейса: полезна в основном при обращении
+              в поддержку («на какой версии вы работаете»). */}
+          <Tooltip title={t('Версия платформы')}>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              v{__APP_VERSION__}
+            </Typography.Text>
+          </Tooltip>
         </Space>
       </Header>
 
