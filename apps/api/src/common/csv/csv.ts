@@ -1,3 +1,5 @@
+import type { Response } from 'express';
+
 /**
  * Выгрузка в CSV.
  *
@@ -7,6 +9,10 @@
  *   • разделитель — точка с запятой (в ru-локали Excel запятая занята
  *     под десятичный разделитель);
  *   • в начало файла пишется BOM, иначе Excel читает UTF-8 как ANSI.
+ *
+ * Общий модуль, а не локальный файл отчётов: с появлением выгрузки путевых
+ * листов у него стало два потребителя (reports и waybills), и раздельные
+ * копии разошлись бы при первой же правке одной из них.
  */
 
 export interface CsvColumn<T> {
@@ -54,4 +60,14 @@ export function toCsv<T extends object>(rows: T[], columns: CsvColumn<T>[]): str
 export function csvFileName(prefix: string, from: Date, to: Date): string {
   const date = (value: Date): string => value.toISOString().slice(0, 10);
   return `${prefix}_${date(from)}_${date(to)}.csv`;
+}
+
+/** Заголовки ответа, при которых браузер сохраняет тело как файл нужного имени. */
+export function sendCsv(res: Response, body: string, fileName: string): void {
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  // Иначе браузер не увидит имя файла: заголовок не входит в список
+  // разрешённых по умолчанию при запросе с другого origin.
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+  res.send(body);
 }

@@ -1,3 +1,4 @@
+import { FileExcelOutlined, PrinterOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
@@ -30,7 +31,7 @@ import {
 import { EntityAuditLog } from '@/components/EntityAuditLog';
 import { EntityId } from '@/components/EntityId';
 import { api } from '@/api/client';
-import { useApiMutation } from '@/api/hooks';
+import { useApiMutation, useDownload } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
 import { MedicalClearanceCard } from './MedicalClearanceCard';
 import { TechnicalClearanceCard } from './TechnicalClearanceCard';
@@ -114,6 +115,7 @@ export function WaybillDrawer({ waybillId, onClose }: Props) {
   const { t } = useTranslation();
 
   const { can } = useAuth();
+  const download = useDownload();
   const [action, setAction] = useState<ActionKind>(null);
   // Состояние допуска приходит из карточки: от него зависит, спрашивать ли
   // причину обхода и показывать ли предупреждение о недопуске.
@@ -198,6 +200,27 @@ export function WaybillDrawer({ waybillId, onClose }: Props) {
             {/* Идентификатор перед кнопками: действия должны оставаться
                 у самого края, куда тянется рука. */}
             <EntityId id={w.id} />
+            {can(PERMISSIONS.WAYBILL_PRINT) && (
+              <>
+                {/* Печать открывает отдельную страницу-документ: там же,
+                    через диалог печати браузера, лист сохраняется в PDF —
+                    отдельная кнопка «Скачать PDF» не нужна. */}
+                <Button
+                  icon={<PrinterOutlined />}
+                  onClick={() => window.open(`/waybills/${w.id}/print`, '_blank', 'noopener')}
+                >
+                  {t('Печать')}
+                </Button>
+                <Button
+                  icon={<FileExcelOutlined />}
+                  onClick={() =>
+                    void download(`/waybills/${w.id}/export.csv`, {}, `waybill-${w.number}.csv`)
+                  }
+                >
+                  Excel
+                </Button>
+              </>
+            )}
             {status === WaybillStatus.DRAFT && can(PERMISSIONS.WAYBILL_ISSUE) && (
               <Button type="primary" onClick={() => openAction('issue')}>
                 {t("Выдать водителю")}

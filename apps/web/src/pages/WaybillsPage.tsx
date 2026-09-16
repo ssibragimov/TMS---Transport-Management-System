@@ -1,11 +1,11 @@
-import { PlusOutlined } from '@ant-design/icons';
+import { FileExcelOutlined, PlusOutlined } from '@ant-design/icons';
 import { Button, DatePicker, Input, Select, Space, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PERMISSIONS, WaybillStatus } from '@gsm/shared';
 
-import { usePaged } from '@/api/hooks';
+import { useDownload, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
 import { StickyTable } from '@/components/StickyTable';
 import { TableCard } from '@/components/TableCard';
@@ -47,15 +47,19 @@ export function WaybillsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
 
-  const query = usePaged<WaybillRow>(['waybills'], '/waybills', {
-    page,
-    pageSize,
+  const download = useDownload();
+
+  // Общие с журналом фильтры: кнопка «Excel» выгружает ровно то, что видно
+  // на экране, а не журнал целиком под другим именем.
+  const filters = {
     search: search || undefined,
     status,
     dateFrom: range?.[0]?.format('YYYY-MM-DD'),
     dateTo: range?.[1]?.format('YYYY-MM-DD'),
     deviationOver: onlyOverrun ? 10 : undefined,
-  });
+  };
+
+  const query = usePaged<WaybillRow>(['waybills'], '/waybills', { page, pageSize, ...filters });
 
   if (!can(PERMISSIONS.WAYBILL_READ)) {
     return <Typography.Text type="danger">{t('Нет прав на просмотр путевых листов')}</Typography.Text>;
@@ -107,6 +111,14 @@ export function WaybillsPage() {
           >
             {t('Только перерасход')}
           </Button>
+          {can(PERMISSIONS.WAYBILL_PRINT) && (
+            <Button
+              icon={<FileExcelOutlined />}
+              onClick={() => void download('/waybills/export.csv', filters, 'putevye-listy.csv')}
+            >
+              Excel
+            </Button>
+          )}
           {can(PERMISSIONS.WAYBILL_CREATE) && (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setFormOpen(true)}>
               {t('Создать')}

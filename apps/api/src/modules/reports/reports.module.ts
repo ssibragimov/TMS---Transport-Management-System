@@ -13,7 +13,7 @@ import { DriversService } from '@/modules/drivers/drivers.service';
 import { VehiclesModule } from '@/modules/vehicles/vehicles.module';
 import { VehiclesService } from '@/modules/vehicles/vehicles.service';
 
-import { csvFileName, toCsv, type CsvColumn } from './csv';
+import { csvFileName, sendCsv, toCsv, type CsvColumn } from '@/common/csv/csv';
 import {
   ReportsService,
   type DriverActivityRow,
@@ -166,7 +166,7 @@ export class ReportsController {
       category: query.category,
       departmentId: query.departmentId,
     });
-    this.sendCsv(res, toCsv(rows, CONSUMPTION_COLUMNS), csvFileName('rashod-gsm', period.dateFrom, period.dateTo));
+    sendCsv(res, toCsv(rows, CONSUMPTION_COLUMNS), csvFileName('rashod-gsm', period.dateFrom, period.dateTo));
   }
 
   @Get('driver-activity.csv')
@@ -181,7 +181,7 @@ export class ReportsController {
   ): Promise<void> {
     const period = this.period(query);
     const rows = await this.reports.driverActivity(officeId, period);
-    this.sendCsv(res, toCsv(rows, DRIVER_COLUMNS), csvFileName('voditeli', period.dateFrom, period.dateTo));
+    sendCsv(res, toCsv(rows, DRIVER_COLUMNS), csvFileName('voditeli', period.dateFrom, period.dateTo));
   }
 
   @Get('fuel-movement.csv')
@@ -196,16 +196,7 @@ export class ReportsController {
   ): Promise<void> {
     const period = this.period(query);
     const rows = await this.reports.fuelMovement(officeId, period);
-    this.sendCsv(res, toCsv(rows, MOVEMENT_COLUMNS), csvFileName('dvizhenie-gsm', period.dateFrom, period.dateTo));
-  }
-
-  private sendCsv(res: Response, body: string, fileName: string): void {
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    // Иначе браузер не увидит имя файла: заголовок не входит в список
-    // разрешённых по умолчанию при запросе с другого origin.
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
-    res.send(body);
+    sendCsv(res, toCsv(rows, MOVEMENT_COLUMNS), csvFileName('dvizhenie-gsm', period.dateFrom, period.dateTo));
   }
 }
 

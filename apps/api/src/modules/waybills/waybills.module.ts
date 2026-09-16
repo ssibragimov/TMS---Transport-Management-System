@@ -7,12 +7,15 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuditAction } from '@prisma/client';
+import type { Response } from 'express';
 import { PERMISSIONS } from '@gsm/shared';
 
 import { AuditAs, Audited } from '@/common/audit/audit.interceptor';
+import { csvFileName, sendCsv } from '@/common/csv/csv';
 import { CurrentOffice, RequirePermissions } from '@/common/decorators';
 import { PaginationDto } from '@/common/dto/pagination.dto';
 import { DriversModule } from '@/modules/drivers/drivers.module';
@@ -42,6 +45,27 @@ export class WaybillsController {
     return this.waybills.list(officeId, query);
   }
 
+  /*
+   * Статический путь объявлен раньше ':id' намеренно: иначе Express примет
+   * "export.csv" за значение параметра id, и ParseIntPipe в findOne() ниже
+   * отклонит запрос ещё до того, как дело дойдёт до этого обработчика.
+   */
+  @Get('export.csv')
+  @Audited('Waybill')
+  @AuditAs(AuditAction.EXPORT)
+  @RequirePermissions(PERMISSIONS.WAYBILL_PRINT)
+  @ApiOperation({ summary: 'Выгрузка журнала путевых листов в Excel (CSV)' })
+  async exportList(
+    @CurrentOffice() officeId: number,
+    @Query() query: WaybillQueryDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const csv = await this.waybills.exportList(officeId, query);
+    const from = query.dateFrom ? new Date(query.dateFrom) : new Date();
+    const to = query.dateTo ? new Date(query.dateTo) : new Date();
+    sendCsv(res, csv, csvFileName('putevye-listy', from, to));
+  }
+
   @Get(':id')
   @RequirePermissions(PERMISSIONS.WAYBILL_READ)
   @ApiOperation({ summary: 'Путевой лист с заданиями и заправками' })
@@ -54,6 +78,20 @@ export class WaybillsController {
   @ApiOperation({ summary: 'Данные для печатной формы' })
   print(@CurrentOffice() officeId: number, @Param('id', ParseIntPipe) id: number) {
     return this.waybills.printData(officeId, id);
+  }
+
+  @Get(':id/export.csv')
+  @Audited('Waybill')
+  @AuditAs(AuditAction.EXPORT)
+  @RequirePermissions(PERMISSIONS.WAYBILL_PRINT)
+  @ApiOperation({ summary: 'Выгрузка одного путевого листа в Excel (CSV)' })
+  async exportOne(
+    @CurrentOffice() officeId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ): Promise<void> {
+    const { csv, number } = await this.waybills.exportOne(officeId, id);
+    sendCsv(res, csv, `waybill-${number}.csv`);
   }
 
   @Post()

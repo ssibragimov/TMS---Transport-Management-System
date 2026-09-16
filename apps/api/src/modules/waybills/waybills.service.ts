@@ -25,6 +25,7 @@ import {
   type WorkVolume,
 } from '@gsm/shared';
 
+import { toCsv, type CsvColumn } from '@/common/csv/csv';
 import { paginate } from '@/common/dto/pagination.dto';
 import { PrismaService } from '@/common/prisma/prisma.service';
 import { DocumentNumberService } from '@/common/services/document-number.service';
@@ -55,6 +56,78 @@ const TRANSITIONS: Record<WaybillStatus, WaybillStatus[]> = {
   CANCELLED: [],
 };
 
+/**
+ * Русские подписи статусов для выгрузки.
+ *
+ * Не берём WAYBILL_STATUS_LABEL с фронтенда — он живёт в apps/web как
+ * подпись интерфейса, а не как общая с бэкендом бизнес-логика (в отличие,
+ * например, от CLEARANCE_LABEL в @gsm/shared). Шесть строк, меняются не
+ * чаще, чем сам жизненный цикл листа, — дублировать ради этого схему
+ * зависимостей не стоит.
+ */
+const STATUS_LABEL_RU: Record<WaybillStatus, string> = {
+  DRAFT: 'Черновик',
+  ISSUED: 'Выдан',
+  IN_PROGRESS: 'В работе',
+  SUBMITTED: 'Сдан',
+  CLOSED: 'Закрыт',
+  CANCELLED: 'Аннулирован',
+};
+
+/** Один путевой лист в выгрузке: что в таблице списка, плюс полная топливная раскладка. */
+interface WaybillCsvRow {
+  number: string;
+  status: string;
+  validFrom: string;
+  validTo: string;
+  vehicle: string;
+  driver: string;
+  personnelNumber: string;
+  odometerStart: number | null;
+  odometerEnd: number | null;
+  distanceKm: number | null;
+  engineHours: number | null;
+  fuelOpening: number | null;
+  fuelIssued: number | null;
+  fuelConsumed: number | null;
+  fuelClosing: number | null;
+  fuelNorm: number | null;
+  fuelDeviationPct: number | null;
+  notes: string;
+}
+
+const WAYBILL_CSV_COLUMNS: CsvColumn<WaybillCsvRow>[] = [
+  { key: 'number', title: 'Номер' },
+  { key: 'status', title: 'Статус' },
+  { key: 'validFrom', title: 'Начало' },
+  { key: 'validTo', title: 'Окончание' },
+  { key: 'vehicle', title: 'Техника' },
+  { key: 'driver', title: 'Водитель' },
+  { key: 'personnelNumber', title: 'Табельный номер' },
+  { key: 'odometerStart', title: 'Одометр на выезд, км' },
+  { key: 'odometerEnd', title: 'Одометр на возврат, км' },
+  { key: 'distanceKm', title: 'Пробег, км' },
+  { key: 'engineHours', title: 'Моточасы' },
+  { key: 'fuelOpening', title: 'Топливо на начало, л' },
+  { key: 'fuelIssued', title: 'Выдано за смену, л' },
+  { key: 'fuelConsumed', title: 'Расход факт, л' },
+  { key: 'fuelClosing', title: 'Остаток на конец, л' },
+  { key: 'fuelNorm', title: 'Расход по норме, л' },
+  { key: 'fuelDeviationPct', title: 'Отклонение, %' },
+  { key: 'notes', title: 'Примечание' },
+];
+
+/** DD.MM.YYYY HH:mm — тот же формат, что и в интерфейсе (см. dayjs в карточке листа). */
+function formatDateTime(value: Date): string {
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `${pad(value.getDate())}.${pad(value.getMonth() + 1)}.${value.getFullYear()} ${pad(value.getHours())}:${pad(value.getMinutes())}`;
+}
+
+function toNumberOrNull(value: Prisma.Decimal | number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  return Number(value);
+}
+
 @Injectable()
 export class WaybillsService {
   private readonly logger = new Logger(WaybillsService.name);
@@ -68,24 +141,7 @@ export class WaybillsService {
   ) {}
 
   async list(officeId: number, query: WaybillQueryDto): Promise<PaginatedResult<unknown>> {
-    const where: Prisma.WaybillWhereInput = {
-      officeId,
-      deletedAt: null,
-      ...(query.status && { status: query.status }),
-      ...(query.type && { type: query.type }),
-      ...(query.vehicleId && { vehicleId: query.vehicleId }),
-      ...(query.driverId && { driverId: query.driverId }),
-      ...(query.deviationOver !== undefined && {
-        fuelDeviationPct: { gte: query.deviationOver },
-      }),
-      ...((query.dateFrom || query.dateTo) && {
-        validFrom: {
-          ...(query.dateFrom && { gte: new Date(query.dateFrom) }),
-          ...(query.dateTo && { lte: new Date(query.dateTo) }),
-        },
-      }),
-      ...(query.search && { number: { contains: query.search, mode: 'insensitive' } }),
-    };
+    const where = this.buildWhere(officeId, query);
 
     const [items, total] = await Promise.all([
       this.prisma.db.waybill.findMany({
@@ -103,6 +159,99 @@ export class WaybillsService {
     ]);
 
     return paginate(items, total, query);
+  }
+
+  /**
+   * Выгрузка журнала в Excel (CSV) — тот же набор фильтров, что и у списка,
+   * поэтому «скачать то, что вижу на экране» работает буквально.
+   *
+   * Лимит без пагинации: реальный полугодовой журнал одного офиса — это
+   * низкие тысячи листов, страница Excel не рассчитана на порядки больше.
+   */
+  async exportList(officeId: number, query: WaybillQueryDto): Promise<string> {
+    const where = this.buildWhere(officeId, query);
+
+    const items = await this.prisma.db.waybill.findMany({
+      where,
+      take: 5000,
+      orderBy: query.orderBy(SORTABLE, 'validFrom'),
+      include: {
+        vehicle: { select: { garageNumber: true, plateNumber: true } },
+        driver: { select: { lastName: true, firstName: true, personnelNumber: true } },
+      },
+    });
+
+    return toCsv(items.map((item) => this.toCsvRow(item)), WAYBILL_CSV_COLUMNS);
+  }
+
+  /** Выгрузка одного путевого листа в Excel (CSV) — та же строка, что и в журнале. */
+  async exportOne(officeId: number, id: number): Promise<{ csv: string; number: string }> {
+    const waybill = await this.findOne(officeId, id);
+    return { csv: toCsv([this.toCsvRow(waybill)], WAYBILL_CSV_COLUMNS), number: waybill.number };
+  }
+
+  private buildWhere(officeId: number, query: WaybillQueryDto): Prisma.WaybillWhereInput {
+    return {
+      officeId,
+      deletedAt: null,
+      ...(query.status && { status: query.status }),
+      ...(query.type && { type: query.type }),
+      ...(query.vehicleId && { vehicleId: query.vehicleId }),
+      ...(query.driverId && { driverId: query.driverId }),
+      ...(query.deviationOver !== undefined && {
+        fuelDeviationPct: { gte: query.deviationOver },
+      }),
+      ...((query.dateFrom || query.dateTo) && {
+        validFrom: {
+          ...(query.dateFrom && { gte: new Date(query.dateFrom) }),
+          ...(query.dateTo && { lte: new Date(query.dateTo) }),
+        },
+      }),
+      ...(query.search && { number: { contains: query.search, mode: 'insensitive' } }),
+    };
+  }
+
+  private toCsvRow(waybill: {
+    number: string;
+    status: WaybillStatus;
+    validFrom: Date;
+    validTo: Date;
+    vehicle: { garageNumber: string; plateNumber: string | null } | null;
+    driver: { lastName: string; firstName: string; personnelNumber: string } | null;
+    odometerStart: Prisma.Decimal | null;
+    odometerEnd: Prisma.Decimal | null;
+    distanceKm: Prisma.Decimal | null;
+    engineHours: Prisma.Decimal | null;
+    fuelOpening: Prisma.Decimal;
+    fuelIssued: Prisma.Decimal;
+    fuelConsumed: Prisma.Decimal | null;
+    fuelClosing: Prisma.Decimal | null;
+    fuelNorm: Prisma.Decimal | null;
+    fuelDeviationPct: Prisma.Decimal | null;
+    notes: string | null;
+  }): WaybillCsvRow {
+    return {
+      number: waybill.number,
+      status: STATUS_LABEL_RU[waybill.status] ?? waybill.status,
+      validFrom: formatDateTime(waybill.validFrom),
+      validTo: formatDateTime(waybill.validTo),
+      vehicle: waybill.vehicle
+        ? [waybill.vehicle.garageNumber, waybill.vehicle.plateNumber].filter(Boolean).join(' / ')
+        : '—',
+      driver: waybill.driver ? `${waybill.driver.lastName} ${waybill.driver.firstName}` : '—',
+      personnelNumber: waybill.driver?.personnelNumber ?? '—',
+      odometerStart: toNumberOrNull(waybill.odometerStart),
+      odometerEnd: toNumberOrNull(waybill.odometerEnd),
+      distanceKm: toNumberOrNull(waybill.distanceKm),
+      engineHours: toNumberOrNull(waybill.engineHours),
+      fuelOpening: toNumberOrNull(waybill.fuelOpening),
+      fuelIssued: toNumberOrNull(waybill.fuelIssued),
+      fuelConsumed: toNumberOrNull(waybill.fuelConsumed),
+      fuelClosing: toNumberOrNull(waybill.fuelClosing),
+      fuelNorm: toNumberOrNull(waybill.fuelNorm),
+      fuelDeviationPct: toNumberOrNull(waybill.fuelDeviationPct),
+      notes: waybill.notes ?? '',
+    };
   }
 
   /** Акты о повреждении техники — журнал для разбора и удержаний. */

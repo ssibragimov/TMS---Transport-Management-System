@@ -17,6 +17,7 @@ import { StockPage } from '@/pages/StockPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { VehiclesPage } from '@/pages/VehiclesPage';
 import { WaybillsPage } from '@/pages/WaybillsPage';
+import { WaybillPrintPage } from '@/pages/waybills/WaybillPrintPage';
 
 /**
  * Телеметрия грузится отдельным куском.
@@ -43,6 +44,16 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+
+      {/*
+        Печатная форма — вне AppLayout: открывается в новой вкладке
+        и должна показывать только сам документ, без тёмного сайдбара
+        и шапки, которые иначе попали бы в печать вместе с ним.
+      */}
+      <Route
+        path="/waybills/:id/print"
+        element={user ? <WaybillPrintPage /> : <Navigate to="/login" replace />}
+      />
 
       <Route element={user ? <AppLayout /> : <Navigate to="/login" replace />}>
         <Route path="/" element={<DashboardPage />} />
