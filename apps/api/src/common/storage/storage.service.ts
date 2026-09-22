@@ -27,7 +27,19 @@ export interface StoredFile {
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
-  private readonly root = resolve(process.cwd(), '../../storage');
+  /*
+   * Путь считается от __dirname, а не от process.cwd(): в докере
+   * entrypoint.sh делает `cd /app` перед запуском (см. docker-entrypoint.sh),
+   * и process.cwd() там оказывается на уровень выше, чем в локальной
+   * разработке (apps/api). Из-за этого путь съезжал на /storage — вне
+   * /app, куда процесс под пользователем node не может писать, и
+   * загрузка любого файла падала 500-й ошибкой.
+   *
+   * __dirname у собранного файла (dist/common/storage) лежит на той же
+   * глубине от корня репозитория, что и исходник (src/common/storage) —
+   * тот же приём, что и в health.module.ts для чтения package.json.
+   */
+  private readonly root = resolve(__dirname, '../../../../../storage');
 
   /** Разрешённые типы изображений. Список белый, а не чёрный. */
   private static readonly IMAGE_MIME = new Map<string, string>([
