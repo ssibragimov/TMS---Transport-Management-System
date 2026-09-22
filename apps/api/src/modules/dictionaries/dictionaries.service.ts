@@ -14,7 +14,9 @@ import type {
   UpdateFuelTypeDto,
   UpdateSparePartDto,
   UpdateVehicleModelDto,
+  UpdateViolationTypeDto,
   VehicleModelDto,
+  ViolationTypeDto,
 } from './dto/dictionary.dto';
 
 /**
@@ -324,6 +326,71 @@ export class DictionariesService {
     });
   }
 
+  // ─── Виды нарушений (офисные) — служба безопасности дорог ───────────────
+
+  violationTypes(officeId: number, includeInactive = false) {
+    return this.prisma.db.violationType.findMany({
+      where: {
+        officeId,
+        deletedAt: null,
+        ...(includeInactive ? {} : { isActive: true }),
+      },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        defaultFineAmount: true,
+        isActive: true,
+        _count: { select: { violations: true } },
+      },
+    });
+  }
+
+  async createViolationType(officeId: number, dto: ViolationTypeDto) {
+    const existing = await this.prisma.db.violationType.findFirst({
+      where: { officeId, code: dto.code, deletedAt: null },
+    });
+    if (existing) {
+      throw new ConflictException({
+        code: 'dictionary.code_taken',
+        message: `Вид нарушения с кодом ${dto.code} уже есть в этом офисе`,
+      });
+    }
+
+    return this.prisma.db.violationType.create({
+      data: {
+        officeId,
+        code: dto.code,
+        name: dto.name,
+        defaultFineAmount: dto.defaultFineAmount ?? null,
+        isActive: dto.isActive ?? true,
+      },
+    });
+  }
+
+  async updateViolationType(officeId: number, id: number, dto: UpdateViolationTypeDto) {
+    await this.ensureOfficeScoped('violationType', officeId, id);
+
+    return this.prisma.db.violationType.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.defaultFineAmount !== undefined && { defaultFineAmount: dto.defaultFineAmount }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      },
+    });
+  }
+
+  async removeViolationType(officeId: number, id: number) {
+    await this.ensureOfficeScoped('violationType', officeId, id);
+
+    return this.prisma.db.violationType.update({
+      where: { id },
+      data: { deletedAt: new Date(), isActive: false },
+    });
+  }
+
   // ─── Контрагенты (офисные) ───────────────────────────────────────────────
 
   counterparties(officeId: number, kind?: 'fuel' | 'service', includeInactive = false) {
@@ -446,17 +513,18 @@ export class DictionariesService {
     return this.prisma.db.sparePart.update({ where: { id }, data: { isActive: false } });
   }
 
-  /** Всё сразу — один запрос вместо пяти при открытии формы. */
+  /** Всё сразу — один запрос вместо шести при открытии формы. */
   async all(officeId: number) {
-    const [fuelTypes, vehicleModels, departments, driverPositions, counterparties] =
+    const [fuelTypes, vehicleModels, departments, driverPositions, counterparties, violationTypes] =
       await Promise.all([
         this.fuelTypes(),
         this.vehicleModels(),
         this.departments(officeId),
         this.driverPositions(officeId),
         this.counterparties(officeId),
+        this.violationTypes(officeId),
       ]);
-    return { fuelTypes, vehicleModels, departments, driverPositions, counterparties };
+    return { fuelTypes, vehicleModels, departments, driverPositions, counterparties, violationTypes };
   }
 
   // ─── Внутреннее ──────────────────────────────────────────────────────────
@@ -479,7 +547,7 @@ export class DictionariesService {
    * чужую строку: осмысленное «не найдено» лучше, чем немой отказ в записи.
    */
   private async ensureOfficeScoped(
-    model: 'department' | 'counterparty',
+    model: 'department' | 'counterparty' | 'violationType',
     officeId: number,
     id: number,
   ): Promise<void> {
@@ -489,10 +557,15 @@ export class DictionariesService {
             where: { id, officeId, deletedAt: null },
             select: { id: true },
           })
-        : await this.prisma.db.counterparty.findFirst({
-            where: { id, officeId, deletedAt: null },
-            select: { id: true },
-          });
+        : model === 'counterparty'
+          ? await this.prisma.db.counterparty.findFirst({
+              where: { id, officeId, deletedAt: null },
+              select: { id: true },
+            })
+          : await this.prisma.db.violationType.findFirst({
+              where: { id, officeId, deletedAt: null },
+              select: { id: true },
+            });
 
     if (!found) {
       throw new NotFoundException({ code: 'dictionary.not_found', message: 'Запись не найдена' });

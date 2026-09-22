@@ -157,15 +157,22 @@ export function VehiclePhotos({ vehicleId }: { vehicleId: number }) {
             >
               <Space direction="vertical" size={2} style={{ width: '100%' }}>
                 <Space style={{ justifyContent: 'space-between', width: '100%' }}>
-                  {photo.isPrimary ? (
-                    <Tag color="gold" icon={<StarFilled />}>
-                      главное
-                    </Tag>
-                  ) : (
+                  {/*
+                    Раньше дата пряталась за тегом «главное»: у самого
+                    просматриваемого фото (оно и есть главное) дата загрузки
+                    вообще не была видна. Теперь тег и дата показываются
+                    вместе, а не одно вместо другого.
+                  */}
+                  <Space size={4}>
+                    {photo.isPrimary && (
+                      <Tag color="gold" icon={<StarFilled />} style={{ marginInlineEnd: 0 }}>
+                        главное
+                      </Tag>
+                    )}
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      {dayjs(photo.createdAt).format('DD.MM.YYYY')}
+                      {dayjs(photo.createdAt).format('DD.MM.YYYY HH:mm')}
                     </Typography.Text>
-                  )}
+                  </Space>
                   {manage && (
                     <Space size={0}>
                       {!photo.isPrimary && (

@@ -41,7 +41,7 @@ import {
 } from '@gsm/shared';
 
 import { api } from '@/api/client';
-import { usePaged } from '@/api/hooks';
+import { useDebouncedValue, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
 import { StickyTable } from '@/components/StickyTable';
 import { TableCard } from '@/components/TableCard';
@@ -85,7 +85,8 @@ export function StockPage() {
 
   const [warehouseId, setWarehouseId] = useState<number | undefined>();
   const [category, setCategory] = useState<StockCategory | undefined>();
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const search = useDebouncedValue(searchInput);
   const [stockFilter, setStockFilter] = useState<'all' | 'inStock' | 'belowMin'>('inStock');
   const [documentKind, setDocumentKind] = useState<StockDocumentKind | null>(null);
   const [editingItem, setEditingItem] = useState<StockItem | null>(null);
@@ -298,7 +299,8 @@ export function StockPage() {
                       allowClear
                       placeholder={t('Наименование или код')}
                       style={{ width: 260 }}
-                      onSearch={setSearch}
+                      value={searchInput}
+                      onChange={(event) => setSearchInput(event.target.value)}
                     />
                     <Select
                       allowClear

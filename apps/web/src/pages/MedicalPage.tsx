@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { PERMISSIONS, type ClearanceState } from '@gsm/shared';
 
 import { api } from '@/api/client';
-import { useApiMutation } from '@/api/hooks';
+import { useApiMutation, useDebouncedValue } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
 
 /**
@@ -66,7 +66,8 @@ export function MedicalPage() {
   const { t } = useTranslation();
   const { can } = useAuth();
 
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const search = useDebouncedValue(searchInput);
   const [filter, setFilter] = useState<'all' | 'pending' | 'admitted'>('all');
   const [exam, setExam] = useState<QueueRow | null>(null);
   const [form] = Form.useForm();
@@ -136,7 +137,8 @@ export function MedicalPage() {
               allowClear
               placeholder={t('Табельный номер или фамилия')}
               style={{ width: 260 }}
-              onSearch={setSearch}
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
             />
             <Segmented
               value={filter}

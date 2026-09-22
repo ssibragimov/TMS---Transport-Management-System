@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { MeterSource, Prisma, VehicleStatus } from '@prisma/client';
+import { MeterSource, Prisma, VehicleStatus, WaybillStatus } from '@prisma/client';
 import {
   TECHNICAL_DEFAULT_HOURS,
   TECHNICAL_LABEL,
@@ -121,6 +121,26 @@ export class VehiclesService {
           include: { adjustments: true },
         },
         gpsDevices: { where: { removedAt: null } },
+        // Кто сейчас за рулём — вопрос руководства «кому в моменте выдана
+        // эта техника». ISSUED/IN_PROGRESS и есть определение «в работе»:
+        // тем же статусом waybills.service.ts проверяет, что технику нельзя
+        // выдать по двум листам одновременно, поэтому здесь не больше одной
+        // записи.
+        waybills: {
+          where: { deletedAt: null, status: { in: [WaybillStatus.ISSUED, WaybillStatus.IN_PROGRESS] } },
+          orderBy: { validFrom: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            number: true,
+            status: true,
+            validFrom: true,
+            validTo: true,
+            driver: {
+              select: { id: true, lastName: true, firstName: true, middleName: true, personnelNumber: true },
+            },
+          },
+        },
       },
     });
 
@@ -130,7 +150,9 @@ export class VehiclesService {
         message: 'Единица техники не найдена',
       });
     }
-    return vehicle;
+
+    const { waybills, ...rest } = vehicle;
+    return { ...rest, currentWaybill: waybills[0] ?? null };
   }
 
   async create(officeId: number, dto: CreateVehicleDto) {

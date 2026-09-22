@@ -98,6 +98,9 @@ export const en: Record<string, string> = {
   'В баке, л': 'In tank, L',
   Фото: 'Photo',
   'Показать фото': 'Show photo',
+  Загружено: 'Uploaded',
+  'Сейчас за рулём': 'Currently driven by',
+  Свободна: 'Available',
   'Списать технику с учёта?': 'Decommission this vehicle?',
   'Документы за прошлые периоды сохранятся.': 'Records for past periods are kept.',
   Списать: 'Decommission',
@@ -130,6 +133,8 @@ export const en: Record<string, string> = {
   'Дата увольнения': 'Dismissal date',
   Должность: 'Position',
   'Должность водителя': 'Driver position',
+  'Сейчас на технике': 'Currently driving',
+  'Не за рулём': 'Not on duty',
   'Должности водителей': 'Driver positions',
   'Список должностей свой у каждого подразделения: водитель легкового транспорта в службе спецтранспорта и водитель погрузчика на складе — разные записи, даже если оба «водитель».':
     'Each department keeps its own list of positions: a car driver in the ground fleet service and a forklift driver in the warehouse are separate entries, even though both are "drivers".',
@@ -168,6 +173,26 @@ export const en: Record<string, string> = {
     'Tip: to save as PDF, choose "Save as PDF" in the print dialog',
   Диспетчер: 'Dispatcher',
   Сформировано: 'Generated',
+
+  // ─── Нарушения (служба безопасности дорог) ───────────────────────────────
+  Нарушения: 'Violations',
+  'Нет прав на просмотр нарушений': 'No permission to view violations',
+  'Оформление нарушения': 'Recording a violation',
+  'Оформить нарушение': 'Record violation',
+  'Вид нарушения': 'Violation type',
+  'Виды нарушений': 'Violation types',
+  'Сумма штрафа': 'Fine amount',
+  Штраф: 'Fine',
+  'Штраф по умолчанию': 'Default fine amount',
+  Описание: 'Description',
+  'Фото/вложение': 'Photo/attachment',
+  'Выбрать файл': 'Choose file',
+  'Нарушение оформлено': 'Violation recorded',
+  'Запись удалена': 'Record deleted',
+  'Удалить запись о нарушении?': 'Delete this violation record?',
+  Оформил: 'Recorded by',
+  'Справочник службы безопасности дорог. Свой у каждого аэропорта: перечень нарушений и суммы штрафов по умолчанию могут отличаться.':
+    'Road safety service directory. Each airport keeps its own: the list of violations and default fine amounts may differ.',
 
   // ─── Категории техники ───────────────────────────────────────────────────
   'Перронный автобус': 'Apron bus',

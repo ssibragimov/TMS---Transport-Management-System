@@ -19,7 +19,7 @@ import { useState } from 'react';
 import { PERMISSIONS } from '@gsm/shared';
 
 import { api } from '@/api/client';
-import { useApiMutation, usePaged } from '@/api/hooks';
+import { useApiMutation, useDebouncedValue, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
 import { StickyTable } from '@/components/StickyTable';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -46,7 +46,8 @@ export function UsersPage() {
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const search = useDebouncedValue(searchInput);
   const [status, setStatus] = useState<string | undefined>();
   const [allOffices, setAllOffices] = useState(false);
 
@@ -100,8 +101,9 @@ export function UsersPage() {
                     allowClear
                     placeholder={t("Служебный номер, ФИО или почта")}
                     style={{ width: 260 }}
-                    onSearch={(value) => {
-                      setSearch(value);
+                    value={searchInput}
+                    onChange={(event) => {
+                      setSearchInput(event.target.value);
                       setPage(1);
                     }}
                   />

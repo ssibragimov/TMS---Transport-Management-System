@@ -81,6 +81,15 @@ interface SparePartRow {
   isActive: boolean;
 }
 
+interface ViolationTypeRow {
+  id: number;
+  code: string;
+  name: string;
+  defaultFineAmount: string | null;
+  isActive: boolean;
+  _count: { violations: number };
+}
+
 const activeTag = (isActive: boolean) =>
   isActive ? <Tag color="green">активен</Tag> : <Tag>отключён</Tag>;
 
@@ -434,6 +443,66 @@ export function AdminPage() {
                     </Form.Item>
                     <Form.Item name="address" label={t("Адрес")}>
                       <Input.TextArea rows={2} />
+                    </Form.Item>
+                    {isEdit && (
+                      <Form.Item name="isActive" label={t("Активен")} valuePropName="checked">
+                        <Switch />
+                      </Form.Item>
+                    )}
+                  </>
+                )}
+              />
+            ),
+          },
+          {
+            key: 'violation-types',
+            label: t("Виды нарушений"),
+            children: (
+              <CrudPanel<ViolationTypeRow>
+                url="/dictionaries/violation-types"
+                queryKey="violation-types"
+                title={t("Вид нарушения")}
+                canManage={canManage}
+                description={t("Справочник службы безопасности дорог. Свой у каждого аэропорта: перечень нарушений и суммы штрафов по умолчанию могут отличаться.")}
+                columns={[
+                  { title: t("Код"), dataIndex: 'code', width: 140 },
+                  { title: t("Наименование"), dataIndex: 'name' },
+                  {
+                    title: t("Штраф по умолчанию"),
+                    dataIndex: 'defaultFineAmount',
+                    width: 170,
+                    align: 'right',
+                    render: (value: string | null) => fmt(value),
+                  },
+                  {
+                    title: t("Используется"),
+                    width: 130,
+                    align: 'right',
+                    render: (_: unknown, row: ViolationTypeRow) => row._count.violations,
+                  },
+                  { title: t("Статус"), dataIndex: 'isActive', width: 110, render: activeTag },
+                ]}
+                formFields={(isEdit) => (
+                  <>
+                    <Form.Item
+                      name="code"
+                      label={t("Код")}
+                      tooltip={t("После создания не меняется: на него ссылаются выгрузки")}
+                      rules={[
+                        { required: true, message: t("Обязательное поле") },
+                        {
+                          pattern: /^[A-Z0-9-]+$/,
+                          message: t("Заглавные латинские буквы, цифры и дефис"),
+                        },
+                      ]}
+                    >
+                      <Input disabled={isEdit} placeholder="SPEEDING" />
+                    </Form.Item>
+                    <Form.Item name="name" label={t("Наименование")} rules={[{ required: true }]}>
+                      <Input placeholder={t("Превышение скорости на перроне")} />
+                    </Form.Item>
+                    <Form.Item name="defaultFineAmount" label={t("Штраф по умолчанию")}>
+                      <InputNumber min={0} max={100_000_000} style={{ width: '100%' }} />
                     </Form.Item>
                     {isEdit && (
                       <Form.Item name="isActive" label={t("Активен")} valuePropName="checked">

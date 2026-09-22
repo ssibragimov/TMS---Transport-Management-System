@@ -20,6 +20,7 @@ export interface Dictionaries {
   departments: Array<{ id: number; code: string; name: string }>;
   driverPositions: Array<{ id: number; departmentId: number; code: string; name: string }>;
   counterparties: Array<{ id: number; name: string; inn: string | null }>;
+  violationTypes: Array<{ id: number; code: string; name: string; defaultFineAmount: string | null }>;
 }
 
 /**
@@ -35,6 +36,26 @@ export function useDictionaries() {
       return data;
     },
   });
+}
+
+/**
+ * Значение с задержкой — то, что реально уходит в запрос на сервер.
+ *
+ * Без неё поле поиска слало бы отдельный запрос на каждую нажатую букву:
+ * пока пользователь печатает «Юсупов», сервер получил бы «Ю», «Юс», «Юсу»
+ * и так далее. Задержка гасит промежуточные значения и в запрос попадает
+ * только то, на чём пользователь остановился — при этом поле уже реагирует
+ * на каждое нажатие, ждать полного слова или нажатия Enter не нужно.
+ */
+export function useDebouncedValue<T>(value: T, delayMs = 300): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+
+  return debounced;
 }
 
 /** Списочный запрос с пагинацией. */

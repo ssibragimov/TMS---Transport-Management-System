@@ -103,6 +103,7 @@ model Office {
   alerts             Alert[]
   documentSequences  DocumentSequence[]
   counterparties     Counterparty[]
+  violationTypes     ViolationType[]
 
   @@index([parentId])
   @@index([isActive])
@@ -214,6 +215,7 @@ model User {
   technicalInspectionsPerformed TechnicalInspection[] @relation("TechnicalInspectionsPerformed")
   warehousesKept         Warehouse[]     @relation("WarehouseKeeper")
   stockReceived          StockDocument[] @relation("StockDocumentRecipient")
+  violationsIssued       Violation[]     @relation("ViolationsIssued")
 
   @@index([status])
   @@index([defaultOfficeId])
@@ -484,6 +486,7 @@ model Vehicle {
   conditionActs  VehicleConditionAct[]
   stockDocuments StockDocument[]
   alerts         Alert[]
+  violations     Violation[]
 
   @@unique([officeId, garageNumber])
   @@index([officeId, status])
@@ -681,6 +684,7 @@ model Driver {
   licenses       DriverLicense[]
   permits        DriverPermit[]
   medicalChecks  MedicalCheck[]
+  violations     Violation[]
   waybills       Waybill[]
   conditionActs  VehicleConditionAct[]
   fuelIssues     FuelIssue[]
@@ -770,6 +774,63 @@ model MedicalCheck {
   @@index([driverId, isPreTrip, checkedAt(sort: Desc)])
   @@index([validUntil])
   @@map("medical_checks")
+}
+
+/// Вид нарушения службы безопасности дорог. Справочник офисный, а не общий:
+/// у каждого аэропорта может быть свой перечень и своя сумма штрафа по умолчанию.
+model ViolationType {
+  id       Int    @id @default(autoincrement())
+  officeId Int    @map("office_id")
+  code     String @db.VarChar(24)
+  name     String @db.VarChar(160)
+  /// Сумма штрафа по умолчанию — сотрудник БД может изменить при оформлении.
+  defaultFineAmount Decimal? @map("default_fine_amount") @db.Decimal(12, 2)
+
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office     Office      @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  violations Violation[]
+
+  @@unique([officeId, code])
+  @@index([officeId])
+  @@map("violation_types")
+}
+
+/// Нарушение, зафиксированное службой безопасности дорог аэропорта.
+/// Простой журнал без статусной модели: запись оформляется на месте
+/// (в перспективе — с планшета) и хранится как есть. Исправить ошибку
+/// можно только удалением записи тем, у кого есть право violation.manage.
+model Violation {
+  id        Int  @id @default(autoincrement())
+  driverId  Int  @map("driver_id")
+  vehicleId Int? @map("vehicle_id")
+  typeId    Int  @map("type_id")
+
+  occurredAt  DateTime @map("occurred_at") @db.Timestamptz(3)
+  fineAmount  Decimal? @map("fine_amount") @db.Decimal(12, 2)
+  description String?  @db.VarChar(400)
+  /// Фото/вложение с места нарушения — доказательство для оспаривания.
+  photoKey    String?  @map("photo_key") @db.VarChar(400)
+
+  /// Кто оформил — сотрудник службы безопасности дорог.
+  issuedByUserId Int? @map("issued_by_user_id")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  driver       Driver        @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle?      @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  type         ViolationType @relation(fields: [typeId], references: [id], onDelete: Restrict)
+  issuedByUser User?         @relation("ViolationsIssued", fields: [issuedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([driverId, occurredAt(sort: Desc)])
+  @@index([vehicleId])
+  @@index([typeId])
+  @@map("violations")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

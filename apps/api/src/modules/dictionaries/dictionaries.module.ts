@@ -29,7 +29,9 @@ import {
   UpdateFuelTypeDto,
   UpdateSparePartDto,
   UpdateVehicleModelDto,
+  UpdateViolationTypeDto,
   VehicleModelDto,
+  ViolationTypeDto,
 } from './dto/dictionary.dto';
 
 /** `?includeInactive=true` — показать в том числе отключённые записи. */
@@ -220,6 +222,50 @@ export class DictionariesController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.dictionaries.removeDriverPosition(officeId, id);
+  }
+
+  // ─── Виды нарушений ──────────────────────────────────────────────────────
+
+  @Get('violation-types')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_READ)
+  @ApiQuery({ name: 'includeInactive', required: false })
+  @ApiOperation({ summary: 'Виды нарушений активного офиса' })
+  violationTypes(
+    @CurrentOffice() officeId: number,
+    @Query('includeInactive') includeInactive?: string,
+  ) {
+    return this.dictionaries.violationTypes(officeId, inactive(includeInactive));
+  }
+
+  @Post('violation-types')
+  @Audited('ViolationType')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_MANAGE)
+  @ApiOperation({ summary: 'Добавление вида нарушения' })
+  createViolationType(@CurrentOffice() officeId: number, @Body() dto: ViolationTypeDto) {
+    return this.dictionaries.createViolationType(officeId, dto);
+  }
+
+  @Patch('violation-types/:id')
+  @Audited('ViolationType')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_MANAGE)
+  @ApiOperation({ summary: 'Изменение вида нарушения' })
+  updateViolationType(
+    @CurrentOffice() officeId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateViolationTypeDto,
+  ) {
+    return this.dictionaries.updateViolationType(officeId, id, dto);
+  }
+
+  @Delete('violation-types/:id')
+  @Audited('ViolationType')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_MANAGE)
+  @ApiOperation({ summary: 'Удаление вида нарушения' })
+  removeViolationType(
+    @CurrentOffice() officeId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.dictionaries.removeViolationType(officeId, id);
   }
 
   // ─── Контрагенты ─────────────────────────────────────────────────────────

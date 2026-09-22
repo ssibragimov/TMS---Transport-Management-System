@@ -92,6 +92,29 @@ const randFloat = (min: number, max: number, digits = 2): number =>
 const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)];
 const chance = (probability: number): boolean => random() < probability;
 
+/**
+ * Виды нарушений для демонстрации службы безопасности дорог.
+ * Один и тот же перечень заводится в каждом офисе отдельными записями
+ * (справочник офисный — см. модель ViolationType), но код и суммы одни
+ * и те же, чтобы данные разных аэропортов было удобно сравнивать на глаз.
+ */
+const VIOLATION_TYPE_CATALOG = [
+  { code: 'SPEEDING', name: 'Превышение скорости на перроне', fine: 200_000 },
+  { code: 'NO_VEST', name: 'Отсутствие сигнального жилета', fine: 100_000 },
+  { code: 'WRONG_PARKING', name: 'Стоянка в неположенном месте', fine: 150_000 },
+  { code: 'ROUTE_VIOLATION', name: 'Нарушение установленной схемы движения', fine: 250_000 },
+  { code: 'NO_PERMIT', name: 'Выезд в контролируемую зону без действующего допуска', fine: 400_000 },
+  { code: 'PHONE_USE', name: 'Использование телефона за рулём во время движения', fine: 150_000 },
+] as const;
+
+const VIOLATION_NOTES = [
+  'Зафиксировано визуально нарядом БД',
+  'Замечание вынесено по результату видеофиксации',
+  'Повторное нарушение в течение месяца',
+  null,
+  null,
+] as const;
+
 const round2 = (value: number): number => Math.round(value * 100) / 100;
 const daysAgo = (days: number): Date => {
   const date = new Date();
@@ -416,6 +439,9 @@ async function resetOperationalData(officeIds: number[]): Promise<void> {
     // «один активный трекер на единицу техники», и повторный прогон
     // без очистки упирался бы в него.
     prisma.gpsDevice.deleteMany({ where: { vehicleId: { in: vehicleIds } } }),
+    // Нарушения — операционный шум БД, как и путевые листы: пересоздаются
+    // на каждом прогоне, а не копятся. Виды нарушений (справочник) остаются.
+    prisma.violation.deleteMany({ where: { driver: { officeId: { in: officeIds } } } }),
     prisma.documentSequence.deleteMany({ where: { officeId: { in: officeIds } } }),
     // Госномера освобождаются до переназначения: на plate_number висит
     // уникальный индекс по всей стране, и номер, оставшийся от прошлого
@@ -766,6 +792,9 @@ async function seedOffice(plan: OfficePlan): Promise<void> {
     { role: SYSTEM_ROLES.STOREKEEPER, login: 'store', name: 'Кладовщик' },
     { role: SYSTEM_ROLES.ACCOUNTANT, login: 'accountant', name: 'Бухгалтер' },
     { role: SYSTEM_ROLES.FLEET_MANAGER, login: 'chief', name: 'Начальник автослужбы' },
+    // Без учётки БД некому подписать демо-нарушения ниже: issuedByUserId
+    // должен указывать на реального сотрудника офиса, а не на админа страны.
+    { role: SYSTEM_ROLES.ROAD_SAFETY_OFFICER, login: 'roadsafety', name: 'Служба безопасности дорог' },
   ];
 
   const staffIds = new Map<string, number>();
@@ -1180,6 +1209,50 @@ async function seedOffice(plan: OfficePlan): Promise<void> {
       create: { officeId: office.id, kind, year: Number(yearStr), lastValue: value },
     });
   }
+
+  // ─── Нарушения (служба безопасности дорог) ──────────────────────────────
+  // В самом конце функции намеренно: расход генератора случайных чисел
+  // здесь не должен сдвигать данные склада и наряд-заказов выше по коду.
+  const violationTypeIds = new Map<string, number>();
+  for (const item of VIOLATION_TYPE_CATALOG) {
+    const type = await prisma.violationType.upsert({
+      where: { officeId_code: { officeId: office.id, code: item.code } },
+      update: { name: item.name, defaultFineAmount: item.fine },
+      create: {
+        officeId: office.id,
+        code: item.code,
+        name: item.name,
+        defaultFineAmount: item.fine,
+      },
+    });
+    violationTypeIds.set(item.code, type.id);
+  }
+
+  const roadSafetyUserId = staffIds.get('roadsafety') ?? null;
+  const violationCount = randInt(3, 7);
+  for (let i = 0; i < violationCount; i += 1) {
+    const driver = pick(drivers);
+    const withVehicle = chance(0.7);
+    const vehicle = withVehicle ? pick(vehicles) : null;
+    const item = pick(VIOLATION_TYPE_CATALOG);
+    const typeId = violationTypeIds.get(item.code)!;
+
+    const occurredAt = daysAgo(randInt(0, HISTORY_DAYS));
+    occurredAt.setHours(randInt(6, 20), randInt(0, 59), 0, 0);
+
+    await prisma.violation.create({
+      data: {
+        driverId: driver.id,
+        vehicleId: vehicle?.id ?? null,
+        typeId,
+        occurredAt,
+        fineAmount: item.fine,
+        description: pick(VIOLATION_NOTES),
+        issuedByUserId: roadSafetyUserId,
+      },
+    });
+  }
+  console.log(`  нарушения: ${violationCount}`);
 }
 
 /**
@@ -1539,7 +1612,7 @@ async function main(): Promise<void> {
   console.log('\nГотово. Учётные записи офисов:');
   for (const plan of OFFICE_PLANS) {
     const code = plan.code.toLowerCase();
-    console.log(`  ${plan.code}: dispatcher.${code}@gsm.local, chief.${code}@gsm.local, fuel.${code}@gsm.local — пароль ${DEMO_PASSWORD}`);
+    console.log(`  ${plan.code}: dispatcher.${code}@gsm.local, chief.${code}@gsm.local, fuel.${code}@gsm.local, roadsafety.${code}@gsm.local — пароль ${DEMO_PASSWORD}`);
   }
   console.log('  Все офисы: admin@gsm.local');
 }

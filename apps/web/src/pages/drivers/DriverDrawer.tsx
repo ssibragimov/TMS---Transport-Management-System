@@ -1,4 +1,10 @@
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import {
+  CameraOutlined,
+  DeleteOutlined,
+  FileExcelOutlined,
+  PlusOutlined,
+  PrinterOutlined,
+} from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -17,6 +23,7 @@ import {
   Table,
   Tabs,
   Tag,
+  Tooltip,
 } from 'antd';
 import dayjs from 'dayjs';
 import { useRef, useState } from 'react';
@@ -26,11 +33,16 @@ import { EntityAuditLog } from '@/components/EntityAuditLog';
 import { EntityId } from '@/components/EntityId';
 import { PhotoCropModal } from '@/components/PhotoCropModal';
 import { api } from '@/api/client';
-import { useApiMutation, useAuthedImage } from '@/api/hooks';
+import { useApiMutation, useAuthedImage, useDownload } from '@/api/hooks';
 import { driverPhoto } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
 import { colorOf, initials } from '@/lib/avatar';
-import { PERMIT_ZONE_LABEL } from '@/lib/labels';
+import { fmt, PERMIT_ZONE_LABEL, WAYBILL_STATUS_COLOR, WAYBILL_STATUS_LABEL } from '@/lib/labels';
+import { ViolationFormModal } from '@/pages/violations/ViolationFormModal';
+import {
+  ViolationPhotoPreview,
+  useViolationPhotoPreview,
+} from '@/pages/violations/ViolationPhotoPreview';
 
 interface Props {
   driverId: number | null;
@@ -74,11 +86,31 @@ interface DriverDetail {
     doctorName: string | null;
   }>;
   photoKey: string | null;
+  currentWaybill: {
+    id: number;
+    number: string;
+    status: string;
+    validFrom: string;
+    validTo: string;
+    vehicle: { id: number; garageNumber: string; plateNumber: string | null } | null;
+  } | null;
 }
 
 interface EligibilityIssue {
   code: string;
   message: string;
+}
+
+interface DriverViolationRow {
+  id: number;
+  occurredAt: string;
+  fineAmount: string | null;
+  description: string | null;
+  photoKey: string | null;
+  createdAt: string;
+  vehicle: { id: number; garageNumber: string; plateNumber: string | null } | null;
+  type: { id: number; name: string };
+  issuedByUser: { id: number; fullName: string } | null;
 }
 
 /** Дата со сроком: просроченная — красная, истекающая в месяц — оранжевая. */
@@ -99,9 +131,13 @@ export function DriverDrawer({ driverId, onClose }: Props) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const openPhotoPicker = (): void => photoInputRef.current?.click();
+  const [violationFormOpen, setViolationFormOpen] = useState(false);
+  const violationPhotoPreview = useViolationPhotoPreview();
+  const download = useDownload();
 
   const open = driverId !== null;
   const manage = can(PERMISSIONS.DRIVER_CLEARANCE_MANAGE);
+  const canManageViolations = can(PERMISSIONS.VIOLATION_MANAGE);
 
   const driver = useQuery({
     queryKey: ['driver', driverId],
@@ -120,6 +156,21 @@ export function DriverDrawer({ driverId, onClose }: Props) {
     queryFn: async () => {
       const { data } = await api.get<EligibilityIssue[]>(`/drivers/${driverId}/eligibility`);
       return data;
+    },
+  });
+
+  // Не встроено в /drivers/:id, как медосмотры: список нарушений
+  // потенциально растёт годами и обслуживается отдельным правом
+  // (violation.read/manage), поэтому у него собственный запрос
+  // с пагинацией, как у журнала действий ниже.
+  const violations = useQuery({
+    queryKey: ['driver-violations', driverId],
+    enabled: open && can(PERMISSIONS.VIOLATION_READ),
+    queryFn: async () => {
+      const { data } = await api.get<{ items: DriverViolationRow[] }>('/violations', {
+        params: { driverId, pageSize: 50 },
+      });
+      return data.items;
     },
   });
 
@@ -295,6 +346,33 @@ export function DriverDrawer({ driverId, onClose }: Props) {
                 label: t("Общие сведения"),
                 children: (
                   <Descriptions bordered size="small" column={2}>
+                    {/*
+                      Первым пунктом и на всю ширину — обратная сторона того
+                      же вопроса, что и в карточке техники: какая машина сейчас
+                      закреплена за этим водителем.
+                    */}
+                    <Descriptions.Item label={t("Сейчас на технике")} span={2}>
+                      {d.currentWaybill ? (
+                        <Space>
+                          <Tag color={WAYBILL_STATUS_COLOR[d.currentWaybill.status]}>
+                            {t(WAYBILL_STATUS_LABEL[d.currentWaybill.status] ?? d.currentWaybill.status)}
+                          </Tag>
+                          <span>
+                            {d.currentWaybill.vehicle
+                              ? `${d.currentWaybill.vehicle.garageNumber}${d.currentWaybill.vehicle.plateNumber ? ` (${d.currentWaybill.vehicle.plateNumber})` : ''}`
+                              : '—'}
+                          </span>
+                          <span style={{ color: '#999' }}>
+                            · {t("Путевой лист")} № {d.currentWaybill.number},{' '}
+                            {dayjs(d.currentWaybill.validFrom).format('DD.MM.YYYY HH:mm')}
+                            {' → '}
+                            {dayjs(d.currentWaybill.validTo).format('DD.MM.YYYY HH:mm')}
+                          </span>
+                        </Space>
+                      ) : (
+                        <Tag>{t("Не за рулём")}</Tag>
+                      )}
+                    </Descriptions.Item>
                     <Descriptions.Item label={t("Табельный номер")}>{d.personnelNumber}</Descriptions.Item>
                     <Descriptions.Item label={t("Подразделение")}>{d.department?.name ?? '—'}</Descriptions.Item>
                     {/*
@@ -524,6 +602,100 @@ export function DriverDrawer({ driverId, onClose }: Props) {
                   </>
                 ),
               },
+              ...(can(PERMISSIONS.VIOLATION_READ)
+                ? [
+                    {
+                      key: 'violations',
+                      label: t('Нарушения'),
+                      children: (
+                        <>
+                          {canManageViolations && (
+                            <Button
+                              type="primary"
+                              icon={<PlusOutlined />}
+                              style={{ marginBottom: 12 }}
+                              onClick={() => setViolationFormOpen(true)}
+                            >
+                              {t('Оформить нарушение')}
+                            </Button>
+                          )}
+                          <Table<DriverViolationRow>
+                            size="small"
+                            rowKey="id"
+                            loading={violations.isLoading}
+                            pagination={{ pageSize: 10 }}
+                            dataSource={violations.data ?? []}
+                            columns={[
+                              {
+                                title: t('Дата'),
+                                dataIndex: 'occurredAt',
+                                render: (date: string) => dayjs(date).format('DD.MM.YYYY HH:mm'),
+                              },
+                              {
+                                title: t('Вид нарушения'),
+                                render: (_, row) => row.type.name,
+                              },
+                              {
+                                title: t('Техника'),
+                                render: (_, row) =>
+                                  row.vehicle
+                                    ? `${row.vehicle.garageNumber}${row.vehicle.plateNumber ? ` · ${row.vehicle.plateNumber}` : ''}`
+                                    : '—',
+                              },
+                              {
+                                title: t('Штраф'),
+                                dataIndex: 'fineAmount',
+                                align: 'right',
+                                render: (value: string | null) => (value ? fmt(value) : '—'),
+                              },
+                              {
+                                title: '',
+                                width: 110,
+                                render: (_, row) => (
+                                  <Space size={0}>
+                                    {row.photoKey && (
+                                      <Tooltip
+                                        title={`${t('Показать фото')} · ${t('Загружено')} ${dayjs(row.createdAt).format('DD.MM.YYYY HH:mm')}`}
+                                      >
+                                        <Button
+                                          type="text"
+                                          icon={<CameraOutlined />}
+                                          onClick={() => violationPhotoPreview.open(row.id)}
+                                        />
+                                      </Tooltip>
+                                    )}
+                                    <Tooltip title={t('Печать')}>
+                                      <Button
+                                        type="text"
+                                        icon={<PrinterOutlined />}
+                                        onClick={() =>
+                                          window.open(`/violations/${row.id}/print`, '_blank', 'noopener')
+                                        }
+                                      />
+                                    </Tooltip>
+                                    <Tooltip title="Excel">
+                                      <Button
+                                        type="text"
+                                        icon={<FileExcelOutlined />}
+                                        onClick={() =>
+                                          download(
+                                            `/violations/${row.id}/export.csv`,
+                                            {},
+                                            `narushenie-${row.id}.csv`,
+                                          )
+                                        }
+                                      />
+                                    </Tooltip>
+                                  </Space>
+                                ),
+                              },
+                            ]}
+                          />
+                        </>
+                      ),
+                    },
+                  ]
+                : []),
               {
                 key: 'audit',
                 label: t("Журнал действий"),
@@ -667,6 +839,23 @@ export function DriverDrawer({ driverId, onClose }: Props) {
           uploadPhoto.mutate(croppedFile, { onSuccess: () => setSelectedFile(null) });
         }}
       />
+
+      {d && (
+        <ViolationFormModal
+          open={violationFormOpen}
+          driverId={d.id}
+          onClose={() => setViolationFormOpen(false)}
+          invalidate={[['driver-violations', d.id]]}
+        />
+      )}
+
+      {violationPhotoPreview.target !== null && (
+        <ViolationPhotoPreview
+          violationId={violationPhotoPreview.target}
+          open
+          onClose={violationPhotoPreview.close}
+        />
+      )}
     </Drawer>
   );
 }

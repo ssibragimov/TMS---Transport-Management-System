@@ -1,4 +1,5 @@
 import {
+  AlertOutlined,
   BarChartOutlined,
   CarOutlined,
   DashboardOutlined,
@@ -93,6 +94,12 @@ export function AppLayout() {
       icon: <MedicineBoxOutlined />,
       label: t('Здравпункт'),
       permission: PERMISSIONS.DRIVER_READ,
+    },
+    {
+      key: '/violations',
+      icon: <AlertOutlined />,
+      label: t('Нарушения'),
+      permission: PERMISSIONS.VIOLATION_READ,
     },
     {
       key: '/technical',

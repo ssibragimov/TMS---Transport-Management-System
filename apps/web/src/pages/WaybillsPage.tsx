@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PERMISSIONS, WaybillStatus } from '@gsm/shared';
 
-import { useDownload, usePaged } from '@/api/hooks';
+import { useDebouncedValue, useDownload, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
 import { StickyTable } from '@/components/StickyTable';
 import { TableCard } from '@/components/TableCard';
@@ -39,7 +39,8 @@ export function WaybillsPage() {
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const search = useDebouncedValue(searchInput);
   const [status, setStatus] = useState<string | undefined>();
   const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [onlyOverrun, setOnlyOverrun] = useState(false);
@@ -74,8 +75,9 @@ export function WaybillsPage() {
             allowClear
             placeholder={t('Номер листа')}
             style={{ width: 200 }}
-            onSearch={(value) => {
-              setSearch(value);
+            value={searchInput}
+            onChange={(event) => {
+              setSearchInput(event.target.value);
               setPage(1);
             }}
           />

@@ -22,7 +22,7 @@ import { PERMISSIONS } from '@gsm/shared';
 
 import { CardTitle } from '@/components/EntityId';
 import { api } from '@/api/client';
-import { useApiMutation, useDictionaries, usePaged } from '@/api/hooks';
+import { useApiMutation, useDebouncedValue, useDictionaries, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
 import { StickyTable } from '@/components/StickyTable';
 import { TableCard } from '@/components/TableCard';
@@ -62,7 +62,8 @@ export function DriversPage() {
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const search = useDebouncedValue(searchInput);
   const [departmentId, setDepartmentId] = useState<number | undefined>();
   const [detailId, setDetailId] = useState<number | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -139,8 +140,9 @@ export function DriversPage() {
             allowClear
             placeholder={t('Фамилия или табельный номер')}
             style={{ width: 260 }}
-            onSearch={(value) => {
-              setSearch(value);
+            value={searchInput}
+            onChange={(event) => {
+              setSearchInput(event.target.value);
               setPage(1);
             }}
           />

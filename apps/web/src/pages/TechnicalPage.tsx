@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { PERMISSIONS, TECHNICAL_CHECKLIST, type ClearanceState } from '@gsm/shared';
 
 import { api } from '@/api/client';
-import { useApiMutation } from '@/api/hooks';
+import { useApiMutation, useDebouncedValue } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
 import { CATEGORY_LABEL } from '@/lib/labels';
 
@@ -69,7 +69,8 @@ export function TechnicalPage() {
   const { t } = useTranslation();
   const { can } = useAuth();
 
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const search = useDebouncedValue(searchInput);
   const [filter, setFilter] = useState<'all' | 'pending' | 'released'>('all');
   const [exam, setExam] = useState<QueueRow | null>(null);
   const [form] = Form.useForm();
@@ -150,7 +151,8 @@ export function TechnicalPage() {
               allowClear
               placeholder={t('Гаражный или госномер')}
               style={{ width: 240 }}
-              onSearch={setSearch}
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
             />
             <Segmented
               value={filter}

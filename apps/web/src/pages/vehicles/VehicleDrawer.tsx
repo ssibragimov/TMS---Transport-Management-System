@@ -34,6 +34,8 @@ import {
   OWNERSHIP_LABEL,
   STATUS_COLOR,
   STATUS_LABEL,
+  WAYBILL_STATUS_COLOR,
+  WAYBILL_STATUS_LABEL,
   fmt,
 } from '@/lib/labels';
 
@@ -71,6 +73,14 @@ interface VehicleDetail {
     validFrom: string;
     validTo: string | null;
   }>;
+  currentWaybill: {
+    id: number;
+    number: string;
+    status: string;
+    validFrom: string;
+    validTo: string;
+    driver: { id: number; lastName: string; firstName: string; middleName: string | null; personnelNumber: string };
+  } | null;
 }
 
 interface DocumentRow {
@@ -190,6 +200,33 @@ export function VehicleDrawer({ vehicleId, onClose }: Props) {
               children: (
                 <>
                   <Descriptions bordered size="small" column={2}>
+                    {/*
+                      Первым пунктом и на всю ширину: это тот самый вопрос
+                      «кто сейчас управляет этой техникой», ради которого
+                      руководство открывает карточку — остальные поля
+                      справочные и могут подождать.
+                    */}
+                    <Descriptions.Item label={t("Сейчас за рулём")} span={2}>
+                      {v.currentWaybill ? (
+                        <Space>
+                          <Tag color={WAYBILL_STATUS_COLOR[v.currentWaybill.status]}>
+                            {t(WAYBILL_STATUS_LABEL[v.currentWaybill.status] ?? v.currentWaybill.status)}
+                          </Tag>
+                          <span>
+                            {`${v.currentWaybill.driver.lastName} ${v.currentWaybill.driver.firstName} ${v.currentWaybill.driver.middleName ?? ''}`.trim()}
+                            {' '}({v.currentWaybill.driver.personnelNumber})
+                          </span>
+                          <span style={{ color: '#999' }}>
+                            · {t("Путевой лист")} № {v.currentWaybill.number},{' '}
+                            {dayjs(v.currentWaybill.validFrom).format('DD.MM.YYYY HH:mm')}
+                            {' → '}
+                            {dayjs(v.currentWaybill.validTo).format('DD.MM.YYYY HH:mm')}
+                          </span>
+                        </Space>
+                      ) : (
+                        <Tag>{t("Свободна")}</Tag>
+                      )}
+                    </Descriptions.Item>
                     <Descriptions.Item label={t("Госномер")}>{v.plateNumber ?? '—'}</Descriptions.Item>
                     <Descriptions.Item label={t("Инвентарный")}>{v.inventoryNumber ?? '—'}</Descriptions.Item>
                     <Descriptions.Item label={t("Модель")}>

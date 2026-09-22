@@ -95,7 +95,8 @@ DECLARE
     'geofence_events',
     'vehicle_condition_acts',
     'alerts',
-    'document_sequences'
+    'document_sequences',
+    'violation_types'
   ];
 
   -- Дочерние таблицы: office_id берётся у родителя.
@@ -114,6 +115,7 @@ DECLARE
     ARRAY['driver_permits',         'driver_id',   'drivers'],
     ARRAY['medical_checks',         'driver_id',   'drivers'],
     ARRAY['driver_positions',       'department_id', 'departments'],
+    ARRAY['violations',             'driver_id',   'drivers'],
     ARRAY['waybill_tasks',          'waybill_id',  'waybills'],
     ARRAY['work_order_parts',       'work_order_id', 'work_orders']
   ];

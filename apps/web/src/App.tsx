@@ -16,6 +16,8 @@ import { ReportsPage } from '@/pages/ReportsPage';
 import { StockPage } from '@/pages/StockPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { VehiclesPage } from '@/pages/VehiclesPage';
+import { ViolationsPage } from '@/pages/ViolationsPage';
+import { ViolationPrintPage } from '@/pages/violations/ViolationPrintPage';
 import { WaybillsPage } from '@/pages/WaybillsPage';
 import { WaybillPrintPage } from '@/pages/waybills/WaybillPrintPage';
 
@@ -54,6 +56,10 @@ export default function App() {
         path="/waybills/:id/print"
         element={user ? <WaybillPrintPage /> : <Navigate to="/login" replace />}
       />
+      <Route
+        path="/violations/:id/print"
+        element={user ? <ViolationPrintPage /> : <Navigate to="/login" replace />}
+      />
 
       <Route element={user ? <AppLayout /> : <Navigate to="/login" replace />}>
         <Route path="/" element={<DashboardPage />} />
@@ -62,6 +68,7 @@ export default function App() {
         <Route path="/fuel" element={<FuelPage />} />
         <Route path="/waybills" element={<WaybillsPage />} />
         <Route path="/medical" element={<MedicalPage />} />
+        <Route path="/violations" element={<ViolationsPage />} />
         <Route path="/technical" element={<TechnicalPage />} />
         <Route path="/stock" element={<StockPage />} />
         <Route

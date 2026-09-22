@@ -182,6 +182,33 @@ export class CounterpartyDto {
 
 export class UpdateCounterpartyDto extends PartialType(CounterpartyDto) {}
 
+export class ViolationTypeDto {
+  @ApiProperty({ example: 'SPEEDING' })
+  @IsString()
+  @MaxLength(24)
+  @Matches(/^[A-Z0-9-]+$/, { message: 'Код — заглавные латинские буквы, цифры и дефис' })
+  code: string;
+
+  @ApiProperty({ example: 'Превышение скорости на перроне' })
+  @IsString()
+  @MaxLength(160)
+  name: string;
+
+  @ApiPropertyOptional({ description: 'Сумма штрафа по умолчанию, можно изменить при оформлении' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100_000_000)
+  defaultFineAmount?: number;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateViolationTypeDto extends PartialType(ViolationTypeDto) {}
+
 export class SparePartDto {
   @ApiProperty({ example: 'FLT-OIL-01' })
   @IsString()

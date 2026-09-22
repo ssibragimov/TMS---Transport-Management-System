@@ -121,3 +121,16 @@ export const driverPhoto = {
   },
   remove: (driverId: number) => api.delete(`/drivers/${driverId}/photo`),
 };
+
+/** Фото/вложение с места нарушения */
+export const violationPhoto = {
+  upload: (violationId: number, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post<{ photoKey: string | null }>(
+      `/violations/${violationId}/photo`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+  },
+};

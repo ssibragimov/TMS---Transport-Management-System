@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { PERMISSIONS, VehicleCategory, VehicleStatus } from '@gsm/shared';
 
 import { api } from '@/api/client';
-import { useApiMutation, useDictionaries, usePaged } from '@/api/hooks';
+import { useApiMutation, useDebouncedValue, useDictionaries, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
 import { StickyTable } from '@/components/StickyTable';
 import { TableCard } from '@/components/TableCard';
@@ -67,7 +67,8 @@ export function VehiclesPage() {
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const search = useDebouncedValue(searchInput);
   const [status, setStatus] = useState<string | undefined>();
   const [category, setCategory] = useState<string | undefined>();
   const [departmentId, setDepartmentId] = useState<number | undefined>();
@@ -122,8 +123,9 @@ export function VehiclesPage() {
             allowClear
             placeholder={t('Гаражный номер, госномер, VIN')}
             style={{ width: 260 }}
-            onSearch={(value) => {
-              setSearch(value);
+            value={searchInput}
+            onChange={(event) => {
+              setSearchInput(event.target.value);
               setPage(1);
             }}
           />

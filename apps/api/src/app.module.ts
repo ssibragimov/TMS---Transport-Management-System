@@ -26,6 +26,7 @@ import { StockModule } from '@/modules/stock/stock.module';
 import { TelemetryModule } from '@/modules/telemetry/telemetry.module';
 import { UsersModule } from '@/modules/users/users.module';
 import { VehiclesModule } from '@/modules/vehicles/vehicles.module';
+import { ViolationsModule } from '@/modules/violations/violations.module';
 import { WaybillsModule } from '@/modules/waybills/waybills.module';
 
 @Module({
@@ -47,6 +48,7 @@ import { WaybillsModule } from '@/modules/waybills/waybills.module';
     DictionariesModule,
     VehiclesModule,
     DriversModule,
+    ViolationsModule,
     FuelModule,
     WaybillsModule,
     StockModule,

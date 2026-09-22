@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { CheckResult, PermitZone, Prisma } from '@prisma/client';
+import { CheckResult, PermitZone, Prisma, WaybillStatus } from '@prisma/client';
 import { extname } from 'node:path';
 import type { Readable } from 'node:stream';
 import {
@@ -101,6 +101,23 @@ export class DriversService {
         licenses: { where: { deletedAt: null }, orderBy: { expiresAt: 'desc' } },
         permits: { where: { deletedAt: null }, orderBy: { expiresAt: 'desc' } },
         medicalChecks: { orderBy: { checkedAt: 'desc' }, take: 20 },
+        // Какая техника сейчас закреплена — обратная сторона того же вопроса,
+        // что и в карточке техники (см. VehiclesService.findOne).
+        waybills: {
+          where: { deletedAt: null, status: { in: [WaybillStatus.ISSUED, WaybillStatus.IN_PROGRESS] } },
+          orderBy: { validFrom: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            number: true,
+            status: true,
+            validFrom: true,
+            validTo: true,
+            vehicle: {
+              select: { id: true, garageNumber: true, plateNumber: true, category: true },
+            },
+          },
+        },
       },
     });
 
@@ -110,7 +127,9 @@ export class DriversService {
         message: 'Водитель не найден',
       });
     }
-    return driver;
+
+    const { waybills, ...rest } = driver;
+    return { ...rest, currentWaybill: waybills[0] ?? null };
   }
 
   /**

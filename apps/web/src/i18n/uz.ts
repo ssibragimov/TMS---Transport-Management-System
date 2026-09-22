@@ -102,6 +102,9 @@ export const uz: Record<string, string> = {
   'В баке, л': 'Bakda, l',
   Фото: 'Foto',
   'Показать фото': 'Fotoni ko‘rsatish',
+  Загружено: 'Yuklandi',
+  'Сейчас за рулём': 'Hozir boshqarmoqda',
+  Свободна: 'Bo‘sh',
   'Списать технику с учёта?': 'Texnika hisobdan chiqarilsinmi?',
   'Документы за прошлые периоды сохранятся.': 'O‘tgan davr hujjatlari saqlanadi.',
   Списать: 'Hisobdan chiqarish',
@@ -134,6 +137,8 @@ export const uz: Record<string, string> = {
   'Дата увольнения': 'Bo‘shatish sanasi',
   Должность: 'Lavozim',
   'Должность водителя': 'Haydovchi lavozimi',
+  'Сейчас на технике': 'Hozir texnikada',
+  'Не за рулём': 'Boshqarmayapti',
   'Должности водителей': 'Haydovchilar lavozimlari',
   'Список должностей свой у каждого подразделения: водитель легкового транспорта в службе спецтранспорта и водитель погрузчика на складе — разные записи, даже если оба «водитель».':
     'Har bir bo‘limning o‘z lavozimlar ro‘yxati bor: maxsus transport xizmatidagi yengil avtomobil haydovchisi va ombordagi pogruzchik haydovchisi — ikkalasi ham "haydovchi" bo‘lsa-da, alohida yozuvlar.',
@@ -171,6 +176,25 @@ export const uz: Record<string, string> = {
     'Maslahat: PDF sifatida saqlash uchun chop etish oynasida "PDF sifatida saqlash"ni tanlang',
   Диспетчер: 'Dispetcher',
   Сформировано: 'Shakllantirildi',
+
+  // ─── Нарушения (служба безопасности дорог) ───────────────────────────────
+  Нарушения: 'Buzilishlar',
+  'Нет прав на просмотр нарушений': 'Buzilishlarni ko‘rish huquqi yo‘q',
+  'Оформление нарушения': 'Buzilishni rasmiylashtirish',
+  'Оформить нарушение': 'Buzilishni rasmiylashtirish',
+  'Вид нарушения': 'Buzilish turi',
+  'Виды нарушений': 'Buzilish turlari',
+  'Сумма штрафа': 'Jarima summasi',
+  Штраф: 'Jarima',
+  'Штраф по умолчанию': 'Standart jarima summasi',
+  Описание: 'Tavsif',
+  'Фото/вложение': 'Foto/ilova',
+  'Выбрать файл': 'Faylni tanlash',
+  'Нарушение оформлено': 'Buzilish rasmiylashtirildi',
+  'Удалить запись о нарушении?': 'Buzilish yozuvi o‘chirilsinmi?',
+  Оформил: 'Rasmiylashtirdi',
+  'Справочник службы безопасности дорог. Свой у каждого аэропорта: перечень нарушений и суммы штрафов по умолчанию могут отличаться.':
+    'Yo‘l xavfsizligi xizmati ma’lumotnomasi. Har bir aeroportda o‘ziniki: buzilishlar ro‘yxati va standart jarima summalari farq qilishi mumkin.',
 
   // ─── Категории техники ───────────────────────────────────────────────────
   'Перронный автобус': 'Perron avtobusi',

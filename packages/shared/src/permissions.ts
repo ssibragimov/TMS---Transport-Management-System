@@ -55,6 +55,11 @@ export const PERMISSIONS = {
    */
   DRIVER_MEDICAL_MANAGE: 'driver.medical.manage',
 
+  // ─── Нарушения (служба безопасности дорог) ───────────────────────────
+  VIOLATION_READ: 'violation.read',
+  /** Оформление нарушения — право сотрудника службы безопасности дорог */
+  VIOLATION_MANAGE: 'violation.manage',
+
   // ─── ГСМ ──────────────────────────────────────────────────────────────
   FUEL_READ: 'fuel.read',
   /** Оприходование топлива в ёмкость */
@@ -158,6 +163,8 @@ export const SYSTEM_ROLES = {
   MECHANIC: 'MECHANIC',
   /** Медработник здравпункта — предрейсовые осмотры и допуск к смене */
   MEDIC: 'MEDIC',
+  /** Служба безопасности дорог аэропорта — оформляет нарушения водителей */
+  ROAD_SAFETY_OFFICER: 'ROAD_SAFETY_OFFICER',
   /** Кладовщик — приём, хранение и выдача ТМЦ */
   STOREKEEPER: 'STOREKEEPER',
   /** Бухгалтер — читает всё, правит ничего, выгружает отчёты */
@@ -188,6 +195,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
     P.VEHICLE_READ, P.VEHICLE_CREATE, P.VEHICLE_UPDATE, P.VEHICLE_TRANSFER,
     P.VEHICLE_DOCUMENT_MANAGE, P.VEHICLE_METER_ADJUST,
     P.DRIVER_READ, P.DRIVER_CREATE, P.DRIVER_UPDATE, P.DRIVER_CLEARANCE_MANAGE,
+    // Видит нарушения своих водителей, но не оформляет их — это работа БД.
+    P.VIOLATION_READ,
     P.FUEL_READ, P.FUEL_NORM_MANAGE, P.FUEL_INVENTORY_MANAGE,
     P.WAYBILL_READ, P.WAYBILL_CREATE, P.WAYBILL_ISSUE, P.WAYBILL_CLOSE,
     P.WAYBILL_CANCEL, P.WAYBILL_PRINT, P.WAYBILL_REOPEN,
@@ -237,6 +246,19 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
   ],
 
   /*
+   * Служба безопасности дорог: видит водителей и технику (нужны для карточки
+   * нарушения — «кто» и «на чём»), оформляет и хранит нарушения. Управлять
+   * справочником видов нарушений и суммами по умолчанию — не её работа:
+   * это, как и остальные справочники, ведёт администратор офиса вместе
+   * с начальником автослужбы (см. DICTIONARY_MANAGE у FLEET_MANAGER).
+   */
+  [SYSTEM_ROLES.ROAD_SAFETY_OFFICER]: [
+    P.OFFICE_READ, P.DICTIONARY_READ,
+    P.DRIVER_READ, P.VEHICLE_READ,
+    P.VIOLATION_READ, P.VIOLATION_MANAGE,
+  ],
+
+  /*
    * Кладовщик: номенклатура, склады, приход, выдача, возврат.
    *
    * Списания среди прав нет намеренно — см. комментарий к STOCK_WRITE_OFF.
@@ -265,7 +287,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
   [SYSTEM_ROLES.VIEWER]: [
     P.OFFICE_READ, P.DICTIONARY_READ, P.VEHICLE_READ, P.DRIVER_READ,
     P.FUEL_READ, P.WAYBILL_READ, P.MAINTENANCE_READ, P.STOCK_READ,
-    P.REPORT_READ,
+    P.VIOLATION_READ, P.REPORT_READ,
   ],
 };
 
@@ -278,6 +300,7 @@ export const ROLE_LABELS: Record<SystemRole, { ru: string; uz: string; en: strin
   [SYSTEM_ROLES.FUEL_OPERATOR]: { ru: 'Оператор ГСМ', uz: 'YoMM operatori', en: 'Fuel operator' },
   [SYSTEM_ROLES.MECHANIC]: { ru: 'Механик', uz: 'Mexanik', en: 'Mechanic' },
   [SYSTEM_ROLES.MEDIC]: { ru: 'Медработник', uz: 'Tibbiyot xodimi', en: 'Medic' },
+  [SYSTEM_ROLES.ROAD_SAFETY_OFFICER]: { ru: 'Служба безопасности дорог', uz: 'Yo‘l xavfsizligi xizmati', en: 'Road safety officer' },
   [SYSTEM_ROLES.STOREKEEPER]: { ru: 'Кладовщик', uz: 'Omborchi', en: 'Storekeeper' },
   [SYSTEM_ROLES.ACCOUNTANT]: { ru: 'Бухгалтер', uz: 'Buxgalter', en: 'Accountant' },
   [SYSTEM_ROLES.DRIVER]: { ru: 'Водитель', uz: 'Haydovchi', en: 'Driver' },
