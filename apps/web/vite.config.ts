@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
 // Версия платформы читается из корневого package.json один раз при сборке —
 // единый источник правды. Хранить её отдельной строкой ещё и здесь означало
@@ -23,7 +24,50 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(rootPackage.version),
   },
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Делает сайт устанавливаемым как приложение (иконка на экране планшета,
+    // запуск без адресной строки) и кеширует интерфейс service worker'ом —
+    // нужно сотрудникам БД, оформляющим нарушения в поле с планшета.
+    // API-запросы этот кеш не трогает: перехватываются только файлы сборки
+    // (JS/CSS/иконки), поэтому данные всегда идут напрямую к серверу и не
+    // могут "протухнуть" или показать чужой офис из кеша.
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.svg'],
+      manifest: {
+        name: 'ГСМ — учёт спецтранспорта аэропортов',
+        short_name: 'ГСМ',
+        description: 'Учёт спецтранспорта, топлива и нарушений на территории аэропорта',
+        lang: 'ru',
+        theme_color: '#0b3d6b',
+        background_color: '#0b3d6b',
+        display: 'standalone',
+        start_url: '.',
+        scope: '.',
+        icons: [
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          {
+            src: 'icons/icon-512-maskable.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+      workbox: {
+        // Каждый деплой меняет содержимое сборки, поэтому старый precache
+        // сразу заменяется новым при следующем открытии — без этого
+        // сотрудник мог бы неделями работать со старой версией экрана.
+        cleanupOutdatedCaches: true,
+        // Главный JS-бандл (карта, графики) больше дефолтного лимита 2 МБ —
+        // без этого workbox молча не кладёт его в precache вообще, и сайт
+        // без сети не откроется.
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+      },
+    }),
+  ],
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),

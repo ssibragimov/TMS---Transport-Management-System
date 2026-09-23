@@ -186,7 +186,7 @@ export const en: Record<string, string> = {
   'Штраф по умолчанию': 'Default fine amount',
   Описание: 'Description',
   'Фото/вложение': 'Photo/attachment',
-  'Выбрать файл': 'Choose file',
+  'Сфотографировать / выбрать файл': 'Take photo / choose file',
   'Нарушение оформлено': 'Violation recorded',
   'Запись удалена': 'Record deleted',
   'Удалить запись о нарушении?': 'Delete this violation record?',

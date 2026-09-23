@@ -189,7 +189,7 @@ export const uz: Record<string, string> = {
   'Штраф по умолчанию': 'Standart jarima summasi',
   Описание: 'Tavsif',
   'Фото/вложение': 'Foto/ilova',
-  'Выбрать файл': 'Faylni tanlash',
+  'Сфотографировать / выбрать файл': 'Suratga olish / faylni tanlash',
   'Нарушение оформлено': 'Buzilish rasmiylashtirildi',
   'Удалить запись о нарушении?': 'Buzilish yozuvi o‘chirilsinmi?',
   Оформил: 'Rasmiylashtirdi',

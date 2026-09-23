@@ -187,11 +187,16 @@ export function ViolationFormModal({ open, onClose, driverId, invalidate = [] }:
             listType="picture"
             maxCount={1}
             accept="image/jpeg,image/png,image/webp,image/heic"
+            // На телефоне/планшете сразу открывает камеру, а не только галерею —
+            // сотрудник БД фиксирует нарушение на месте, без файлов на устройстве.
+            // На десктопе браузер этот атрибут игнорирует и открывает обычный
+            // выбор файла, так что это ничего не ломает.
+            capture="environment"
             fileList={fileList}
             beforeUpload={() => false}
             onChange={({ fileList: next }) => setFileList(next.slice(-1))}
           >
-            <Button icon={<UploadOutlined />}>{t('Выбрать файл')}</Button>
+            <Button icon={<UploadOutlined />}>{t('Сфотографировать / выбрать файл')}</Button>
           </Upload>
         </Form.Item>
       </Form>
