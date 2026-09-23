@@ -37,9 +37,11 @@ services:
       - key: JWT_REFRESH_SECRET
         generateValue: true
 
-      # Домен GitHub Pages, откуда браузер обращается к API.
+      # Домены, откуда браузеру разрешено обращаться к API. GitHub Pages пока
+      # оставлен на время переезда фронтенда на gsm-web — уберём, когда
+      # репозиторий станет приватным и Pages перестанет отдавать сайт.
       - key: API_CORS_ORIGINS
-        value: https://ssibragimov.github.io
+        value: https://ssibragimov.github.io,https://gsm-web-7vb2.onrender.com
 
       # Хранилище файлов не развёрнуто: конфигурация требует эти переменные при
       # старте, поэтому заданы заглушки. Загрузка сканов и фото работать не
