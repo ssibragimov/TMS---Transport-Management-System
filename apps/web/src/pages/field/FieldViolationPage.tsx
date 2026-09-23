@@ -1,19 +1,21 @@
-import { CameraOutlined, LogoutOutlined, PlusOutlined } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
 import {
-  Button,
-  DatePicker,
-  Form,
-  Input,
-  InputNumber,
-  Result,
-  Select,
-  Typography,
-  Upload,
-} from 'antd';
+  CameraOutlined,
+  CarOutlined,
+  CheckOutlined,
+  ClockCircleOutlined,
+  DollarOutlined,
+  FileTextOutlined,
+  LogoutOutlined,
+  PlusOutlined,
+  UserOutlined,
+  WarningOutlined,
+} from '@ant-design/icons';
+import { useQuery } from '@tanstack/react-query';
+import { DatePicker, Form, Input, InputNumber, Result, Select, Upload } from 'antd';
 import type { UploadFile } from 'antd';
 import dayjs from 'dayjs';
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PERMISSIONS } from '@gsm/shared';
 
@@ -32,6 +34,16 @@ interface VehicleOption {
   id: number;
   garageNumber: string;
   plateNumber: string | null;
+}
+
+/** Подпись поля с иконкой — единый приём для всех полей формы на этом экране. */
+function FieldLabel({ icon, text }: { icon: ReactNode; text: string }) {
+  return (
+    <span className="gsm-field-label">
+      {icon}
+      {text}
+    </span>
+  );
 }
 
 /**
@@ -100,13 +112,15 @@ export function FieldViolationPage() {
   if (!can(PERMISSIONS.VIOLATION_MANAGE)) {
     return (
       <div className="gsm-field-page">
-        <FieldHeader userName={user?.fullName} onLogout={logout} />
+        <FieldHeader user={user} onLogout={logout} />
         <div className="gsm-field-body">
-          <Result
-            status="403"
-            title={t('Нет доступа')}
-            subTitle={t('У вашей учётной записи нет прав на оформление нарушений')}
-          />
+          <div className="gsm-field-card">
+            <Result
+              status="403"
+              title={t('Нет доступа')}
+              subTitle={t('У вашей учётной записи нет прав на оформление нарушений')}
+            />
+          </div>
         </div>
       </div>
     );
@@ -114,26 +128,21 @@ export function FieldViolationPage() {
 
   return (
     <div className="gsm-field-page">
-      <FieldHeader userName={user?.fullName} onLogout={logout} />
+      <FieldHeader user={user} onLogout={logout} />
 
       <div className="gsm-field-body">
         <div className="gsm-field-card">
           {justSubmitted ? (
-            <Result
-              status="success"
-              title={t('Нарушение оформлено')}
-              extra={
-                <Button
-                  type="primary"
-                  size="large"
-                  icon={<PlusOutlined />}
-                  className="gsm-field-submit"
-                  onClick={startNext}
-                >
-                  {t('Оформить ещё одно')}
-                </Button>
-              }
-            />
+            <div className="gsm-field-success">
+              <div className="gsm-field-success-badge">
+                <CheckOutlined />
+              </div>
+              <div className="gsm-field-success-title">{t('Нарушение оформлено')}</div>
+              <button type="button" className="gsm-field-submit" onClick={startNext}>
+                <PlusOutlined />
+                {t('Оформить ещё одно')}
+              </button>
+            </div>
           ) : (
             <Form
               form={form}
@@ -142,9 +151,11 @@ export function FieldViolationPage() {
               initialValues={{ occurredAt: dayjs() }}
               scrollToFirstError
             >
+              <div className="gsm-field-section-title">{t('Участники')}</div>
+
               <Form.Item
                 name="driverId"
-                label={t('Водитель')}
+                label={<FieldLabel icon={<UserOutlined />} text={t('Водитель')} />}
                 rules={[{ required: true, message: t('Обязательное поле') }]}
               >
                 <Select
@@ -159,7 +170,10 @@ export function FieldViolationPage() {
                 />
               </Form.Item>
 
-              <Form.Item name="vehicleId" label={t('Техника')}>
+              <Form.Item
+                name="vehicleId"
+                label={<FieldLabel icon={<CarOutlined />} text={t('Техника')} />}
+              >
                 <Select
                   allowClear
                   showSearch
@@ -173,9 +187,11 @@ export function FieldViolationPage() {
                 />
               </Form.Item>
 
+              <div className="gsm-field-section-title">{t('Нарушение')}</div>
+
               <Form.Item
                 name="typeId"
-                label={t('Вид нарушения')}
+                label={<FieldLabel icon={<WarningOutlined />} text={t('Вид нарушения')} />}
                 rules={[{ required: true, message: t('Обязательное поле') }]}
               >
                 <Select
@@ -195,46 +211,56 @@ export function FieldViolationPage() {
 
               <Form.Item
                 name="occurredAt"
-                label={t('Дата и время')}
+                label={<FieldLabel icon={<ClockCircleOutlined />} text={t('Дата и время')} />}
                 rules={[{ required: true, message: t('Обязательное поле') }]}
               >
                 <DatePicker showTime format="DD.MM.YYYY HH:mm" style={{ width: '100%' }} />
               </Form.Item>
 
-              <Form.Item name="fineAmount" label={t('Сумма штрафа')}>
+              <Form.Item
+                name="fineAmount"
+                label={<FieldLabel icon={<DollarOutlined />} text={t('Сумма штрафа')} />}
+              >
                 <InputNumber min={0} max={100_000_000} style={{ width: '100%' }} />
               </Form.Item>
 
-              <Form.Item name="description" label={t('Описание')}>
+              <Form.Item
+                name="description"
+                label={<FieldLabel icon={<FileTextOutlined />} text={t('Описание')} />}
+              >
                 <Input.TextArea rows={3} maxLength={400} />
               </Form.Item>
 
-              <Form.Item label={t('Фото/вложение')}>
+              <div className="gsm-field-section-title">{t('Доказательство')}</div>
+
+              <Form.Item>
                 <Upload
-                  listType="picture"
+                  listType="picture-card"
                   maxCount={1}
                   accept="image/jpeg,image/png,image/webp,image/heic"
                   capture="environment"
                   fileList={fileList}
+                  className="gsm-field-photo-upload"
                   beforeUpload={() => false}
                   onChange={({ fileList: next }) => setFileList(next.slice(-1))}
                 >
-                  <Button block size="large" icon={<CameraOutlined />}>
-                    {t('Сфотографировать / выбрать файл')}
-                  </Button>
+                  {fileList.length === 0 && (
+                    <span className="gsm-field-photo-placeholder">
+                      <CameraOutlined />
+                      {t('Сфотографировать')}
+                    </span>
+                  )}
                 </Upload>
               </Form.Item>
 
-              <Button
-                type="primary"
-                size="large"
-                block
+              <button
+                type="button"
                 className="gsm-field-submit"
-                loading={create.isPending}
+                disabled={create.isPending}
                 onClick={submit}
               >
-                {t('Сохранить')}
-              </Button>
+                {create.isPending ? t('Сохранение…') : t('Сохранить')}
+              </button>
             </Form>
           )}
         </div>
@@ -243,21 +269,35 @@ export function FieldViolationPage() {
   );
 }
 
-function FieldHeader({ userName, onLogout }: { userName?: string; onLogout: () => void }) {
+function FieldHeader({
+  user,
+  onLogout,
+}: {
+  user: { fullName: string; activeOffice: { name: string } } | null;
+  onLogout: () => void;
+}) {
   const { t } = useTranslation();
+  const initial = user?.fullName?.trim().charAt(0).toUpperCase() ?? '?';
+
   return (
     <div className="gsm-field-header">
-      <Typography.Text className="gsm-field-header-title">
-        {t('Оформление нарушения')}
-      </Typography.Text>
+      <div className="gsm-field-header-brand">
+        <img src="/favicon.svg" alt="" className="gsm-field-header-logo" />
+        <div className="gsm-field-header-titles">
+          <span className="gsm-field-header-title">{t('Оформление нарушения')}</span>
+          {user && <span className="gsm-field-header-subtitle">{user.activeOffice.name}</span>}
+        </div>
+      </div>
       <div className="gsm-field-header-user">
-        {userName && <span className="gsm-field-header-name">{userName}</span>}
-        <Button
-          type="text"
-          icon={<LogoutOutlined />}
+        <span className="gsm-field-avatar">{initial}</span>
+        <button
+          type="button"
           className="gsm-field-header-logout"
+          aria-label={t('Выйти')}
           onClick={() => void onLogout()}
-        />
+        >
+          <LogoutOutlined />
+        </button>
       </div>
     </div>
   );

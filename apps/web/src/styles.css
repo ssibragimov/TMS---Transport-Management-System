@@ -483,12 +483,16 @@ body {
  * в обычных формах: 48px высоты и 16px шрифта достаточно, чтобы iOS Safari
  * не увеличивал страницу при фокусе на поле (это происходит у полей мельче
  * 16px) и чтобы попасть пальцем без промаха на ходу, в поле, а не за столом.
+ *
+ * Палитра и градиент шапки — не новая тема, а те же токены, что и на экране
+ * входа (.gsm-login-*) и в иконке приложения (favicon.svg): продолжение
+ * фирменного синего, а не отдельный стиль для одного экрана.
  */
 .gsm-field-page {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f0f3f8;
+  background: #eef2f8;
 }
 
 .gsm-field-header {
@@ -499,41 +503,86 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px;
-  background: #0b3d6b;
+  padding: 16px 18px;
+  background: linear-gradient(135deg, #12507f 0%, #0b3d6b 100%);
+  box-shadow: 0 6px 18px -10px rgba(7, 17, 34, 0.55);
   color: #fff;
 }
 
+.gsm-field-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.gsm-field-header-logo {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 9px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.gsm-field-header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
 .gsm-field-header-title {
-  color: #fff !important;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gsm-field-header-subtitle {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .gsm-field-header-user {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.gsm-field-header-name {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.75);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 40vw;
-}
-
-.gsm-field-header-logout.ant-btn {
-  color: #fff;
+  gap: 10px;
   flex: none;
 }
 
-.gsm-field-header-logout.ant-btn:hover {
+.gsm-field-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.gsm-field-header-logout {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.12);
   color: #fff;
-  background: rgba(255, 255, 255, 0.14);
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.gsm-field-header-logout:hover {
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .gsm-field-body {
@@ -548,15 +597,47 @@ body {
   max-width: 480px;
   height: fit-content;
   background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 8px 28px -14px rgba(11, 61, 107, 0.28);
-  padding: 20px 18px 24px;
+  border-radius: 20px;
+  box-shadow: 0 12px 32px -16px rgba(11, 61, 107, 0.32);
+  padding: 24px 20px 26px;
+  animation: gsm-login-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Эйбрау-подпись группы полей: "кто участвовал" / "что произошло" / "чем
+   подтверждено" — деление отражает реальную структуру формы, а не просто
+   режет её на произвольные куски. Первая идёт без отступа сверху. */
+.gsm-field-section-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6e84a0;
+  margin: 22px 0 10px;
+}
+
+.gsm-field-section-title:first-child {
+  margin-top: 0;
+}
+
+.gsm-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.gsm-field-label .anticon {
+  color: #2f7dc4;
+  font-size: 14px;
 }
 
 .gsm-field-form .ant-form-item-label > label {
   font-size: 14.5px;
   font-weight: 600;
   color: #24425f;
+}
+
+.gsm-field-form .ant-form-item {
+  margin-bottom: 16px;
 }
 
 .gsm-field-form .ant-select-selector,
@@ -566,6 +647,7 @@ body {
 .gsm-field-form .ant-input-number-input {
   min-height: 48px;
   font-size: 16px;
+  border-radius: 10px;
 }
 
 .gsm-field-form .ant-select-selector {
@@ -578,17 +660,97 @@ body {
   font-size: 16px;
 }
 
-.gsm-field-form .ant-upload.ant-upload-select .ant-btn {
-  height: 52px;
-  font-size: 16px;
+/* Плитка фото: увеличенный picture-card antd — квадрат под большой палец,
+   а не мелкая строка со скрепкой, как в десктопной форме. */
+.gsm-field-photo-upload.ant-upload-wrapper .ant-upload-select,
+.gsm-field-photo-upload.ant-upload-wrapper .ant-upload-list-item-container {
+  width: 128px !important;
+  height: 128px !important;
 }
 
-.gsm-field-submit.ant-btn {
+.gsm-field-photo-upload .ant-upload-select {
+  border-radius: 14px !important;
+  border: 1.5px dashed #a9c2dc !important;
+  background: #f5f9fd !important;
+}
+
+.gsm-field-photo-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #4a6178;
+}
+
+.gsm-field-photo-placeholder .anticon {
+  font-size: 24px;
+  color: #2f7dc4;
+}
+
+/* Обычная кнопка, а не antd Button: полный контроль над градиентом и
+   нажатием без перебивания !important-ов темы antd на каждый штрих. */
+.gsm-field-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
   height: 56px;
-  font-size: 17px;
+  margin-top: 6px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #2f7dc4 0%, #1c5a96 100%);
+  box-shadow: 0 14px 28px -12px rgba(28, 90, 150, 0.55);
+  color: #fff;
+  font-size: 16.5px;
   font-weight: 600;
-  border-radius: 10px;
-  margin-top: 4px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
+}
+
+.gsm-field-submit:not(:disabled):hover {
+  filter: brightness(1.06);
+  box-shadow: 0 18px 34px -12px rgba(28, 90, 150, 0.6);
+}
+
+.gsm-field-submit:not(:disabled):active {
+  transform: scale(0.98);
+  filter: brightness(0.96);
+}
+
+.gsm-field-submit:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.gsm-field-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 20px 4px 4px;
+}
+
+.gsm-field-success-badge {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: linear-gradient(160deg, #35c07a 0%, #1f9b5c 100%);
+  color: #fff;
+  font-size: 30px;
+  box-shadow: 0 14px 28px -12px rgba(31, 155, 92, 0.55);
+  margin-bottom: 18px;
+  animation: gsm-login-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.gsm-field-success-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1b2b3a;
+  margin-bottom: 24px;
 }
 
 /* ─── Перестановка колонок ─────────────────────────────────────────────── */
