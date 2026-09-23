@@ -191,6 +191,14 @@ export const uz: Record<string, string> = {
   'Фото/вложение': 'Foto/ilova',
   'Сфотографировать / выбрать файл': 'Suratga olish / faylni tanlash',
   'Нарушение оформлено': 'Buzilish rasmiylashtirildi',
+  'Мобильный режим': 'Mobil rejim',
+  'Открыть мобильный экран для оформления в поле': 'Joyida rasmiylashtirish uchun mobil ekranni ochish',
+  'Оформить ещё одно': 'Yana birini rasmiylashtirish',
+  'Начните вводить фамилию': 'Familiyani kiriting',
+  'Гаражный номер или госномер': 'Garaj raqami yoki davlat raqami',
+  'Нет доступа': 'Ruxsat yo‘q',
+  'У вашей учётной записи нет прав на оформление нарушений':
+    'Sizning hisobingizda buzilishlarni rasmiylashtirish huquqi yo‘q',
   'Удалить запись о нарушении?': 'Buzilish yozuvi o‘chirilsinmi?',
   Оформил: 'Rasmiylashtirdi',
   'Справочник службы безопасности дорог. Свой у каждого аэропорта: перечень нарушений и суммы штрафов по умолчанию могут отличаться.':

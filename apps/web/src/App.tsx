@@ -8,6 +8,7 @@ import { AdminPage } from '@/pages/AdminPage';
 import { AuditPage } from '@/pages/AuditPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { DriversPage } from '@/pages/DriversPage';
+import { FieldViolationPage } from '@/pages/field/FieldViolationPage';
 import { FuelPage } from '@/pages/FuelPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { MedicalPage } from '@/pages/MedicalPage';
@@ -59,6 +60,15 @@ export default function App() {
       <Route
         path="/violations/:id/print"
         element={user ? <ViolationPrintPage /> : <Navigate to="/login" replace />}
+      />
+      {/*
+        Мобильный экран для сотрудника БД в поле — вне AppLayout по той же
+        причине, что и печатные формы: сайдбар и шапка основного приложения
+        здесь были бы лишними, весь экран занимает одна форма.
+      */}
+      <Route
+        path="/field/violations"
+        element={user ? <FieldViolationPage /> : <Navigate to="/login" replace />}
       />
 
       <Route element={user ? <AppLayout /> : <Navigate to="/login" replace />}>

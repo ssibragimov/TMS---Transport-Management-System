@@ -2,6 +2,7 @@ import {
   CameraOutlined,
   DeleteOutlined,
   FileExcelOutlined,
+  MobileOutlined,
   PlusOutlined,
   PrinterOutlined,
 } from '@ant-design/icons';
@@ -16,6 +17,7 @@ import {
 import dayjs from 'dayjs';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { PERMISSIONS } from '@gsm/shared';
 
 import { api } from '@/api/client';
@@ -100,9 +102,22 @@ export function ViolationsPage() {
             Excel
           </Button>
           {canManage && (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setFormOpen(true)}>
-              {t('Оформить нарушение')}
-            </Button>
+            <>
+              {/*
+                Открывает упрощённый экран (FieldViolationPage) в новой вкладке —
+                тот же сценарий, но без сайдбара и таблиц, под палец на телефоне
+                или планшете сотрудника БД в поле. Журнал в текущей вкладке при
+                этом остаётся открытым.
+              */}
+              <Tooltip title={t('Открыть мобильный экран для оформления в поле')}>
+                <Link to="/field/violations" target="_blank" rel="noopener">
+                  <Button icon={<MobileOutlined />}>{t('Мобильный режим')}</Button>
+                </Link>
+              </Tooltip>
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setFormOpen(true)}>
+                {t('Оформить нарушение')}
+              </Button>
+            </>
           )}
         </Space>
       }

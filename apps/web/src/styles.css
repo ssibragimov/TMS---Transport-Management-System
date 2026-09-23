@@ -475,6 +475,122 @@ body {
   min-width: 24px;
 }
 
+/* ─── Мобильный экран нарушений (сотрудник БД в поле) ──────────────────── */
+
+/*
+ * Отдельная, самодостаточная страница вне AppLayout (см. FieldViolationPage):
+ * ни сайдбара, ни таблиц — один сценарий на весь экран. Поля крупнее, чем
+ * в обычных формах: 48px высоты и 16px шрифта достаточно, чтобы iOS Safari
+ * не увеличивал страницу при фокусе на поле (это происходит у полей мельче
+ * 16px) и чтобы попасть пальцем без промаха на ходу, в поле, а не за столом.
+ */
+.gsm-field-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f0f3f8;
+}
+
+.gsm-field-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #0b3d6b;
+  color: #fff;
+}
+
+.gsm-field-header-title {
+  color: #fff !important;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.gsm-field-header-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.gsm-field-header-name {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40vw;
+}
+
+.gsm-field-header-logout.ant-btn {
+  color: #fff;
+  flex: none;
+}
+
+.gsm-field-header-logout.ant-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.gsm-field-body {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 20px 16px 40px;
+}
+
+.gsm-field-card {
+  width: 100%;
+  max-width: 480px;
+  height: fit-content;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 28px -14px rgba(11, 61, 107, 0.28);
+  padding: 20px 18px 24px;
+}
+
+.gsm-field-form .ant-form-item-label > label {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #24425f;
+}
+
+.gsm-field-form .ant-select-selector,
+.gsm-field-form .ant-picker,
+.gsm-field-form .ant-input,
+.gsm-field-form .ant-input-number,
+.gsm-field-form .ant-input-number-input {
+  min-height: 48px;
+  font-size: 16px;
+}
+
+.gsm-field-form .ant-select-selector {
+  display: flex;
+  align-items: center;
+}
+
+.gsm-field-form textarea.ant-input {
+  min-height: unset;
+  font-size: 16px;
+}
+
+.gsm-field-form .ant-upload.ant-upload-select .ant-btn {
+  height: 52px;
+  font-size: 16px;
+}
+
+.gsm-field-submit.ant-btn {
+  height: 56px;
+  font-size: 17px;
+  font-weight: 600;
+  border-radius: 10px;
+  margin-top: 4px;
+}
+
 /* ─── Перестановка колонок ─────────────────────────────────────────────── */
 
 /* Захват именно за заголовок, поэтому курсор меняется только на нём.
