@@ -1,8 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Module,
+  Param,
+  ParseIntPipe,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -15,7 +19,9 @@ import { CurrentOffice, RequirePermissions } from '@/common/decorators';
 import {
   CreateFuelIssueDto,
   CreateFuelReceiptDto,
+  CreateFuelTankDto,
   FuelIssueQueryDto,
+  UpdateFuelTankDto,
 } from './dto/fuel.dto';
 import { FuelNormsService } from './fuel-norms.service';
 import { FuelService } from './fuel.service';
@@ -34,6 +40,31 @@ export class FuelController {
   @ApiOperation({ summary: 'Ёмкости хранения и остатки' })
   tanks(@CurrentOffice() officeId: number) {
     return this.fuel.listTanks(officeId);
+  }
+
+  @Post('tanks')
+  @RequirePermissions(PERMISSIONS.FUEL_TANK_MANAGE)
+  @ApiOperation({ summary: 'Новая ёмкость хранения' })
+  createTank(@CurrentOffice() officeId: number, @Body() dto: CreateFuelTankDto) {
+    return this.fuel.createTank(officeId, dto);
+  }
+
+  @Patch('tanks/:id')
+  @RequirePermissions(PERMISSIONS.FUEL_TANK_MANAGE)
+  @ApiOperation({ summary: 'Изменить параметры ёмкости' })
+  updateTank(
+    @CurrentOffice() officeId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateFuelTankDto,
+  ) {
+    return this.fuel.updateTank(officeId, id, dto);
+  }
+
+  @Delete('tanks/:id')
+  @RequirePermissions(PERMISSIONS.FUEL_TANK_MANAGE)
+  @ApiOperation({ summary: 'Удалить ёмкость (только пустую)' })
+  removeTank(@CurrentOffice() officeId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.fuel.removeTank(officeId, id);
   }
 
   @Get('issues')

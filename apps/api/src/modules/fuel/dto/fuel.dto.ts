@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { FuelSource, NormAdjustmentKind, NormType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -69,6 +70,93 @@ export class CreateFuelReceiptDto {
   @IsString()
   @MaxLength(400)
   notes?: string;
+}
+
+export class CreateFuelTankDto {
+  @ApiProperty()
+  @IsInt()
+  @IsPositive()
+  fuelTypeId: number;
+
+  @ApiProperty({ description: 'Короткий код, уникальный в пределах офиса' })
+  @IsString()
+  @MaxLength(24)
+  code: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(160)
+  name: string;
+
+  @ApiProperty({ description: 'Вместимость, л' })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  @Max(10_000_000)
+  capacity: number;
+
+  @ApiPropertyOptional({ description: 'Порог для алерта о низком остатке, л' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  minVolume?: number;
+
+  @ApiPropertyOptional({
+    description: 'Фактический остаток на момент постановки на учёт, л. По умолчанию 0.',
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  currentVolume?: number;
+
+  @ApiPropertyOptional({ description: 'Расположение: склад, сектор' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(240)
+  location?: string;
+}
+
+export class UpdateFuelTankDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  fuelTypeId?: number;
+
+  @ApiPropertyOptional({ description: 'Короткий код, уникальный в пределах офиса' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(24)
+  code?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  name?: string;
+
+  @ApiPropertyOptional({ description: 'Вместимость, л' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  @Max(10_000_000)
+  capacity?: number;
+
+  @ApiPropertyOptional({ description: 'Порог для алерта о низком остатке, л' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  minVolume?: number;
+
+  @ApiPropertyOptional({ description: 'Расположение: склад, сектор' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(240)
+  location?: string;
+
+  @ApiPropertyOptional({ description: 'Снять с активного использования, не удаляя историю' })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class CreateFuelIssueDto {

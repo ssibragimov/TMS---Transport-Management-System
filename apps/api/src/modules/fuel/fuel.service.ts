@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -21,7 +22,9 @@ import { TenantStore } from '@/common/tenancy/tenant-context';
 import type {
   CreateFuelIssueDto,
   CreateFuelReceiptDto,
+  CreateFuelTankDto,
   FuelIssueQueryDto,
+  UpdateFuelTankDto,
 } from './dto/fuel.dto';
 
 /**
@@ -362,6 +365,138 @@ export class FuelService {
       orderBy: { code: 'asc' },
       include: { fuelType: { select: { id: true, code: true, name: true } } },
     });
+  }
+
+  /**
+   * Код ёмкости виден на каждом документе прихода/выдачи — совпадение
+   * в пределах офиса запутает журнал так же, как задвоенный табельный номер.
+   */
+  private async assertTankCodeFree(
+    officeId: number,
+    code: string,
+    exceptId?: number,
+  ): Promise<void> {
+    const duplicate = await this.prisma.db.fuelTank.findFirst({
+      where: {
+        officeId,
+        code,
+        deletedAt: null,
+        ...(exceptId !== undefined && { id: { not: exceptId } }),
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw new ConflictException({
+        code: 'fuel.tank_code_taken',
+        message: `Код «${code}» уже используется другой ёмкостью в этом офисе`,
+      });
+    }
+  }
+
+  async createTank(officeId: number, dto: CreateFuelTankDto) {
+    await this.assertTankCodeFree(officeId, dto.code);
+
+    const fuelType = await this.prisma.db.fuelType.findUnique({
+      where: { id: dto.fuelTypeId },
+      select: { id: true },
+    });
+    if (!fuelType) {
+      throw new NotFoundException({
+        code: 'fuel.fuel_type_not_found',
+        message: 'Вид топлива не найден',
+      });
+    }
+
+    const currentVolume = dto.currentVolume ?? 0;
+    if (currentVolume > dto.capacity) {
+      throw new BadRequestException({
+        code: 'fuel.tank_capacity_exceeded',
+        message: `Остаток не может превышать вместимость: вместимость ${dto.capacity} л, остаток ${currentVolume} л`,
+      });
+    }
+
+    return this.prisma.db.fuelTank.create({
+      data: {
+        officeId,
+        fuelTypeId: dto.fuelTypeId,
+        code: dto.code,
+        name: dto.name,
+        capacity: dto.capacity,
+        currentVolume,
+        minVolume: dto.minVolume ?? 0,
+        location: dto.location ?? null,
+      },
+      include: { fuelType: { select: { id: true, code: true, name: true } } },
+    });
+  }
+
+  async updateTank(officeId: number, id: number, dto: UpdateFuelTankDto) {
+    const tank = await this.prisma.db.fuelTank.findFirst({ where: { id, officeId, deletedAt: null } });
+    if (!tank) {
+      throw new NotFoundException({ code: 'fuel.tank_not_found', message: 'Ёмкость не найдена' });
+    }
+
+    if (dto.code !== undefined && dto.code !== tank.code) {
+      await this.assertTankCodeFree(officeId, dto.code, id);
+    }
+
+    if (dto.fuelTypeId !== undefined) {
+      const fuelType = await this.prisma.db.fuelType.findUnique({
+        where: { id: dto.fuelTypeId },
+        select: { id: true },
+      });
+      if (!fuelType) {
+        throw new NotFoundException({
+          code: 'fuel.fuel_type_not_found',
+          message: 'Вид топлива не найден',
+        });
+      }
+    }
+
+    // Нельзя занизить вместимость ниже того, что физически уже в ёмкости —
+    // остаток при этом не трогаем, только запрещаем противоречивое значение.
+    const newCapacity = dto.capacity ?? Number(tank.capacity);
+    if (newCapacity < Number(tank.currentVolume)) {
+      throw new BadRequestException({
+        code: 'fuel.tank_capacity_below_volume',
+        message: `Вместимость меньше текущего остатка: остаток ${tank.currentVolume} л`,
+      });
+    }
+
+    return this.prisma.db.fuelTank.update({
+      where: { id },
+      data: {
+        ...(dto.fuelTypeId !== undefined && { fuelTypeId: dto.fuelTypeId }),
+        ...(dto.code !== undefined && { code: dto.code }),
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.capacity !== undefined && { capacity: dto.capacity }),
+        ...(dto.minVolume !== undefined && { minVolume: dto.minVolume }),
+        ...(dto.location !== undefined && { location: dto.location }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      },
+      include: { fuelType: { select: { id: true, code: true, name: true } } },
+    });
+  }
+
+  /**
+   * Удаление — мягкое, как и везде в системе. Ёмкость с остатком удалить
+   * нельзя: список литров попросту исчез бы из учёта, а не был бы списан
+   * документом, который потом можно найти и объяснить.
+   */
+  async removeTank(officeId: number, id: number): Promise<void> {
+    const tank = await this.prisma.db.fuelTank.findFirst({ where: { id, officeId, deletedAt: null } });
+    if (!tank) {
+      throw new NotFoundException({ code: 'fuel.tank_not_found', message: 'Ёмкость не найдена' });
+    }
+
+    if (Number(tank.currentVolume) > 0) {
+      throw new BadRequestException({
+        code: 'fuel.tank_not_empty',
+        message: `В ёмкости остаётся ${tank.currentVolume} л — сначала спишите остаток актом инвентаризации`,
+      });
+    }
+
+    await this.prisma.db.fuelTank.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
   /**

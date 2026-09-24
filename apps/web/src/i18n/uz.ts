@@ -195,6 +195,26 @@ export const uz: Record<string, string> = {
   Нарушение: 'Buzilish',
   Доказательство: 'Dalil',
   'Сохранение…': 'Saqlanmoqda…',
+  'Новая ёмкость': 'Yangi rezervuar',
+  'Изменить ёмкость': 'Rezervuarni tahrirlash',
+  'Ёмкость добавлена': 'Rezervuar qo‘shildi',
+  'Ёмкость изменена': 'Rezervuar o‘zgartirildi',
+  'Ёмкость удалена': 'Rezervuar o‘chirildi',
+  'Удалить ёмкость?': 'Rezervuar o‘chirilsinmi?',
+  'Короткий код, уникальный в пределах офиса, например REZ-2':
+    'Ofis doirasida noyob qisqa kod, masalan REZ-2',
+  'Резервуар ДТ №2': 'DT rezervuari №2',
+  'Вместимость, л': 'Sig‘imi, l',
+  'Порог низкого остатка, л': 'Past qoldiq chegarasi, l',
+  'Ниже этого остатка ёмкость подсвечивается как требующая внимания':
+    'Bu qoldiqdan past bo‘lsa, rezervuar e’tibor talab qilinadigan sifatida belgilanadi',
+  'Текущий остаток, л': 'Joriy qoldiq, l',
+  'Если ёмкость уже эксплуатируется и в ней есть топливо — укажите остаток на момент постановки на учёт. По умолчанию 0.':
+    'Agar rezervuar allaqachon ishlatilayotgan bo‘lsa va unda yoqilg‘i bo‘lsa — hisobga olish vaqtidagi qoldiqni kiriting. Standart qiymat — 0.',
+  'Топливный склад, сектор B': 'Yoqilg‘i ombori, B sektori',
+  Неактивна: 'Faol emas',
+  'Выключенная ёмкость остаётся в истории, но не предлагается для новых операций':
+    'O‘chirilgan rezervuar tarixda qoladi, lekin yangi amallar uchun taklif qilinmaydi',
   'Мобильный режим': 'Mobil rejim',
   'Открыть мобильный экран для оформления в поле': 'Joyida rasmiylashtirish uchun mobil ekranni ochish',
   'Оформить ещё одно': 'Yana birini rasmiylashtirish',
