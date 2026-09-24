@@ -810,6 +810,15 @@ body.gsm-resizing * {
   box-shadow: inset 2px 0 0 0 #0b3d6b;
 }
 
+/* Текст не переносится: при сужении колонки строка остаётся одной высоты,
+   а не вырастает вниз. Не поместившееся скрывается под соседней колонкой. */
+.gsm-sticky-table .ant-table-tbody > tr > td,
+.gsm-sticky-table .ant-table-thead > tr > th {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .gsm-columns-reset {
   display: flex;
   justify-content: flex-end;

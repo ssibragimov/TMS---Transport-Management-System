@@ -446,6 +446,7 @@ export function StickyTable<RecordType extends object>({
         scroll={{ x: 'max-content' }}
         footer={footer}
         {...props}
+        className={['gsm-sticky-table', props.className].filter(Boolean).join(' ')}
         columns={preparedColumns}
         components={{
           ...components,
