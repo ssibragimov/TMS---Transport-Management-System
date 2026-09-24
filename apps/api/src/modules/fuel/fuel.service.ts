@@ -359,9 +359,13 @@ export class FuelService {
 
   // ─── Ёмкости ──────────────────────────────────────────────────────────────
 
-  listTanks(officeId: number) {
+  listTanks(officeId: number, includeInactive = false) {
     return this.prisma.db.fuelTank.findMany({
-      where: { officeId, deletedAt: null },
+      where: {
+        officeId,
+        deletedAt: null,
+        ...(includeInactive ? {} : { isActive: true }),
+      },
       orderBy: { code: 'asc' },
       include: { fuelType: { select: { id: true, code: true, name: true } } },
     });

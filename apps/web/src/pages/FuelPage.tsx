@@ -1,4 +1,4 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -10,7 +10,6 @@ import {
   Input,
   InputNumber,
   Modal,
-  Popconfirm,
   Progress,
   Row,
   Select,
@@ -29,10 +28,16 @@ import { useAuth } from '@/auth/AuthContext';
 import { StickyTable } from '@/components/StickyTable';
 import { TableCard } from '@/components/TableCard';
 import { FUEL_SOURCE_LABEL, fmt } from '@/lib/labels';
-import { TankFormModal } from './fuel/TankFormModal';
-import type { TankRecord } from './fuel/TankFormModal';
 
-type Tank = TankRecord;
+interface Tank {
+  id: number;
+  code: string;
+  name: string;
+  capacity: string;
+  currentVolume: string;
+  minVolume: string;
+  fuelType: { id: number; code: string; name: string };
+}
 
 interface IssueRow {
   id: number;
@@ -80,17 +85,11 @@ export function FuelPage() {
   const [form] = Form.useForm();
   const [issuePage, setIssuePage] = useState(1);
   const [receiptPage, setReceiptPage] = useState(1);
-  const [tankModal, setTankModal] = useState<{ tank: Tank | null } | null>(null);
 
   const tanks = useQuery({
     queryKey: ['fuel-tanks'],
     queryFn: async () => (await api.get<Tank[]>('/fuel/tanks')).data,
   });
-
-  const removeTank = useApiMutation(
-    async (id: number) => (await api.delete(`/fuel/tanks/${id}`)).data,
-    { successMessage: t('Ёмкость удалена'), invalidate: [['fuel-tanks']] },
-  );
 
   const issues = usePaged<IssueRow>(['fuel-issues'], '/fuel/issues', {
     page: issuePage,
@@ -194,11 +193,6 @@ export function FuelPage() {
       title={t("Горюче-смазочные материалы")}
       extra={
         <Space wrap>
-          {can(PERMISSIONS.FUEL_TANK_MANAGE) && (
-            <Button icon={<PlusOutlined />} onClick={() => setTankModal({ tank: null })}>
-              {t('Новая ёмкость')}
-            </Button>
-          )}
           {can(PERMISSIONS.FUEL_RECEIPT_MANAGE) && (
             <Button icon={<PlusOutlined />} onClick={() => openModal('receipt')}>
               {t("Приход")}
@@ -219,37 +213,13 @@ export function FuelPage() {
         {tanks.data?.map((tank) => {
           const percent = Math.round((Number(tank.currentVolume) / Number(tank.capacity)) * 100);
           const belowMin = Number(tank.currentVolume) < Number(tank.minVolume);
-          const canManageTanks = can(PERMISSIONS.FUEL_TANK_MANAGE);
           return (
             <Col key={tank.id} xs={24} sm={12} lg={8}>
-              <Card
-                size="small"
-                extra={
-                  canManageTanks && (
-                    <Space size={4}>
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<EditOutlined />}
-                        onClick={() => setTankModal({ tank })}
-                      />
-                      <Popconfirm
-                        title={t('Удалить ёмкость?')}
-                        okText={t('Удалить')}
-                        cancelText={t('Отмена')}
-                        onConfirm={() => removeTank.mutate(tank.id)}
-                      >
-                        <Button type="text" size="small" danger icon={<DeleteOutlined />} />
-                      </Popconfirm>
-                    </Space>
-                  )
-                }
-              >
+              <Card size="small">
                 <Space direction="vertical" style={{ width: '100%' }} size={4}>
                   <Space>
                     <Typography.Text strong>{tank.code}</Typography.Text>
                     <Tag>{tank.fuelType.code}</Tag>
-                    {!tank.isActive && <Tag>{t('Неактивна')}</Tag>}
                     {belowMin && <Tag color="red">ниже минимума</Tag>}
                   </Space>
                   <Typography.Text type="secondary">{tank.name}</Typography.Text>
@@ -264,14 +234,6 @@ export function FuelPage() {
           );
         })}
       </Row>
-
-      {tankModal && (
-        <TankFormModal
-          open
-          tank={tankModal.tank}
-          onClose={() => setTankModal(null)}
-        />
-      )}
 
       <Tabs
         items={[

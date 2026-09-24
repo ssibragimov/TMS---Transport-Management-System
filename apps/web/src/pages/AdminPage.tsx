@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
   Checkbox,
+  Divider,
   Form,
   Input,
   InputNumber,
@@ -30,6 +31,19 @@ interface FuelTypeRow {
   density: string;
   isActive: boolean;
   _count: { vehicles: number; tanks: number };
+}
+
+interface TankRow {
+  id: number;
+  fuelTypeId: number;
+  code: string;
+  name: string;
+  capacity: string;
+  currentVolume: string;
+  minVolume: string;
+  location: string | null;
+  isActive: boolean;
+  fuelType: { id: number; code: string; name: string };
 }
 
 interface VehicleModelRow {
@@ -119,70 +133,177 @@ export function AdminPage() {
             key: 'fuel-types',
             label: t("Виды топлива"),
             children: (
-              <CrudPanel<FuelTypeRow>
-                url="/dictionaries/fuel-types"
-                queryKey="fuel-types"
-                title={t("Вид топлива")}
-                canManage={canManage}
-                invalidateExtra={[['fuel-types-lookup']]}
-                description={
-                  <>
-                    {t("Справочник общий для всех аэропортов. Плотность нужна для перевода литров в тонны — бухгалтерия считает ГСМ в килограммах.")}
-                  </>
-                }
-                columns={[
-                  { title: t("Код"), dataIndex: 'code', width: 110 },
-                  { title: t("Наименование"), dataIndex: 'name' },
-                  {
-                    title: t("Плотность, кг/л"),
-                    dataIndex: 'density',
-                    width: 140,
-                    align: 'right',
-                    render: (value: string) => fmt(value, 3),
-                  },
-                  {
-                    title: t("Используется"),
-                    width: 160,
-                    render: (_: unknown, row: FuelTypeRow) =>
-                      `${row._count.vehicles} ед. техники, ${row._count.tanks} ёмк.`,
-                  },
-                  {
-                    title: t("Статус"),
-                    dataIndex: 'isActive',
-                    width: 110,
-                    render: activeTag,
-                  },
-                ]}
-                formFields={(isEdit) => (
-                  <>
-                    <Form.Item
-                      name="code"
-                      label={t("Код")}
-                      tooltip={t("После создания не меняется: на него ссылаются выгрузки")}
-                      rules={[
-                        { required: true, message: t("Обязательное поле") },
-                        {
-                          pattern: /^[A-Z0-9-]+$/,
-                          message: t("Заглавные латинские буквы, цифры и дефис"),
-                        },
-                      ]}
-                    >
-                      <Input disabled={isEdit} placeholder="DT" />
-                    </Form.Item>
-                    <Form.Item name="name" label={t("Наименование")} rules={[{ required: true }]}>
-                      <Input placeholder={t("Дизельное топливо")} />
-                    </Form.Item>
-                    <Form.Item name="density" label={t("Плотность, кг/л при +20 °C")}>
-                      <InputNumber min={0.3} max={1.5} step={0.001} style={{ width: '100%' }} />
-                    </Form.Item>
-                    {isEdit && (
-                      <Form.Item name="isActive" label={t("Активен")} valuePropName="checked">
-                        <Switch />
+              <>
+                <CrudPanel<FuelTypeRow>
+                  url="/dictionaries/fuel-types"
+                  queryKey="fuel-types"
+                  title={t("Вид топлива")}
+                  canManage={canManage}
+                  invalidateExtra={[['fuel-types-lookup']]}
+                  description={
+                    <>
+                      {t("Справочник общий для всех аэропортов. Плотность нужна для перевода литров в тонны — бухгалтерия считает ГСМ в килограммах.")}
+                    </>
+                  }
+                  columns={[
+                    { title: t("Код"), dataIndex: 'code', width: 110 },
+                    { title: t("Наименование"), dataIndex: 'name' },
+                    {
+                      title: t("Плотность, кг/л"),
+                      dataIndex: 'density',
+                      width: 140,
+                      align: 'right',
+                      render: (value: string) => fmt(value, 3),
+                    },
+                    {
+                      title: t("Используется"),
+                      width: 160,
+                      render: (_: unknown, row: FuelTypeRow) =>
+                        `${row._count.vehicles} ед. техники, ${row._count.tanks} ёмк.`,
+                    },
+                    {
+                      title: t("Статус"),
+                      dataIndex: 'isActive',
+                      width: 110,
+                      render: activeTag,
+                    },
+                  ]}
+                  formFields={(isEdit) => (
+                    <>
+                      <Form.Item
+                        name="code"
+                        label={t("Код")}
+                        tooltip={t("После создания не меняется: на него ссылаются выгрузки")}
+                        rules={[
+                          { required: true, message: t("Обязательное поле") },
+                          {
+                            pattern: /^[A-Z0-9-]+$/,
+                            message: t("Заглавные латинские буквы, цифры и дефис"),
+                          },
+                        ]}
+                      >
+                        <Input disabled={isEdit} placeholder="DT" />
                       </Form.Item>
-                    )}
-                  </>
-                )}
-              />
+                      <Form.Item name="name" label={t("Наименование")} rules={[{ required: true }]}>
+                        <Input placeholder={t("Дизельное топливо")} />
+                      </Form.Item>
+                      <Form.Item name="density" label={t("Плотность, кг/л при +20 °C")}>
+                        <InputNumber min={0.3} max={1.5} step={0.001} style={{ width: '100%' }} />
+                      </Form.Item>
+                      {isEdit && (
+                        <Form.Item name="isActive" label={t("Активен")} valuePropName="checked">
+                          <Switch />
+                        </Form.Item>
+                      )}
+                    </>
+                  )}
+                />
+
+                <Divider />
+
+                <Typography.Title level={5}>{t("Ёмкости хранения")}</Typography.Title>
+                <CrudPanel<TankRow>
+                  url="/fuel/tanks"
+                  queryKey="fuel-tanks"
+                  title={t("Ёмкость")}
+                  canManage={can(PERMISSIONS.FUEL_TANK_MANAGE)}
+                  // Таблица «Вид топлива» выше показывает число ёмкостей на вид
+                  // топлива (_count.tanks) — без сброса этого кэша счётчик
+                  // отставал бы от реальности до следующего захода на вкладку.
+                  invalidateExtra={[['fuel-types'], ['fuel-types-lookup']]}
+                  description={t("Резервуары топливного склада активного офиса — свои у каждого аэропорта. Пустую ёмкость можно удалить; если в ней остаётся топливо, система попросит сначала списать остаток актом инвентаризации в разделе «Топливо».")}
+                  columns={[
+                    { title: t("Код"), dataIndex: 'code', width: 110 },
+                    { title: t("Наименование"), dataIndex: 'name' },
+                    {
+                      title: t("Вид топлива"),
+                      width: 150,
+                      render: (_: unknown, row: TankRow) => row.fuelType.name,
+                    },
+                    {
+                      title: t("Вместимость, л"),
+                      dataIndex: 'capacity',
+                      width: 130,
+                      align: 'right',
+                      render: (value: string) => fmt(value),
+                    },
+                    {
+                      title: t("Текущий остаток, л"),
+                      dataIndex: 'currentVolume',
+                      width: 150,
+                      align: 'right',
+                      render: (value: string) => fmt(value),
+                    },
+                    {
+                      title: t("Порог низкого остатка, л"),
+                      dataIndex: 'minVolume',
+                      width: 170,
+                      align: 'right',
+                      render: (value: string) => fmt(value),
+                    },
+                    { title: t("Расположение"), dataIndex: 'location', width: 200 },
+                    { title: t("Статус"), dataIndex: 'isActive', width: 110, render: activeTag },
+                  ]}
+                  formFields={(isEdit) => (
+                    <>
+                      <Form.Item
+                        name="fuelTypeId"
+                        label={t("Вид топлива")}
+                        rules={[{ required: true, message: t("Обязательное поле") }]}
+                      >
+                        <Select
+                          options={(fuelTypes.data ?? []).map((item) => ({
+                            value: item.id,
+                            label: item.name,
+                          }))}
+                        />
+                      </Form.Item>
+                      <Form.Item
+                        name="code"
+                        label={t("Код")}
+                        tooltip={t("Короткий код, уникальный в пределах офиса, например REZ-2")}
+                        rules={[{ required: true, message: t("Обязательное поле") }, { max: 24 }]}
+                      >
+                        <Input placeholder="REZ-2" />
+                      </Form.Item>
+                      <Form.Item name="name" label={t("Название")} rules={[{ required: true }]}>
+                        <Input placeholder={t("Резервуар ДТ №2")} />
+                      </Form.Item>
+                      <Form.Item
+                        name="capacity"
+                        label={t("Вместимость, л")}
+                        rules={[{ required: true, message: t("Обязательное поле") }]}
+                      >
+                        <InputNumber min={1} max={10_000_000} style={{ width: '100%' }} />
+                      </Form.Item>
+                      <Form.Item
+                        name="minVolume"
+                        label={t("Порог низкого остатка, л")}
+                        tooltip={t("Ниже этого остатка ёмкость подсвечивается как требующая внимания")}
+                      >
+                        <InputNumber min={0} style={{ width: '100%' }} />
+                      </Form.Item>
+                      {!isEdit && (
+                        <Form.Item
+                          name="currentVolume"
+                          label={t("Текущий остаток, л")}
+                          tooltip={t("Если ёмкость уже эксплуатируется и в ней есть топливо — укажите остаток на момент постановки на учёт. По умолчанию 0.")}
+                        >
+                          <InputNumber min={0} style={{ width: '100%' }} />
+                        </Form.Item>
+                      )}
+                      <Form.Item name="location" label={t("Расположение")}>
+                        <Input placeholder={t("Топливный склад, сектор B")} />
+                      </Form.Item>
+                      {isEdit && (
+                        <Form.Item name="isActive" label={t("Активна")} valuePropName="checked">
+                          <Switch />
+                        </Form.Item>
+                      )}
+                    </>
+                  )}
+                />
+              </>
             ),
           },
           {

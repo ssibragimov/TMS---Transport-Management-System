@@ -26,6 +26,9 @@ import {
 import { FuelNormsService } from './fuel-norms.service';
 import { FuelService } from './fuel.service';
 
+/** `?includeInactive=true` — показать в том числе отключённые записи. */
+const inactive = (value?: string): boolean => value === 'true';
+
 @ApiTags('fuel')
 @Audited('Fuel')
 @Controller('fuel')
@@ -37,9 +40,13 @@ export class FuelController {
 
   @Get('tanks')
   @RequirePermissions(PERMISSIONS.FUEL_READ)
+  @ApiQuery({ name: 'includeInactive', required: false })
   @ApiOperation({ summary: 'Ёмкости хранения и остатки' })
-  tanks(@CurrentOffice() officeId: number) {
-    return this.fuel.listTanks(officeId);
+  tanks(
+    @CurrentOffice() officeId: number,
+    @Query('includeInactive') includeInactive?: string,
+  ) {
+    return this.fuel.listTanks(officeId, inactive(includeInactive));
   }
 
   @Post('tanks')
