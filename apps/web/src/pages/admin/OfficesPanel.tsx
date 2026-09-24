@@ -241,7 +241,13 @@ export function OfficesPanel() {
   const save = useApiMutation(
     async (values: Record<string, unknown>) => {
       if (editing) {
-        return (await api.patch(`/offices/${editing.id}`, values)).data;
+        // Поля "Код" и "Тип" зарегистрированы в форме (и потому попадают в
+        // values) даже будучи disabled — antd не исключает их из результата
+        // validateFields(). UpdateOfficeDto их не объявляет, а ValidationPipe
+        // настроен с forbidNonWhitelisted: любое лишнее свойство в теле
+        // запроса — это 400, а не молчаливый игнор.
+        const { code: _code, kind: _kind, ...patchValues } = values;
+        return (await api.patch(`/offices/${editing.id}`, patchValues)).data;
       }
       return (await api.post('/offices', values)).data;
     },
