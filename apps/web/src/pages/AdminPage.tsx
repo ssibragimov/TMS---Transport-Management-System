@@ -111,6 +111,21 @@ interface TaskLocationRow {
   isActive: boolean;
 }
 
+interface RegionRow {
+  id: number;
+  code: string;
+  name: string;
+  isActive: boolean;
+}
+
+interface DistrictRow {
+  id: number;
+  regionId: number;
+  code: string;
+  name: string;
+  isActive: boolean;
+}
+
 const activeTag = (isActive: boolean) =>
   isActive ? <Tag color="green">активен</Tag> : <Tag>отключён</Tag>;
 
@@ -684,6 +699,114 @@ export function AdminPage() {
                   </>
                 )}
               />
+            ),
+          },
+          {
+            key: 'regions',
+            label: t("Регионы и районы"),
+            children: (
+              <>
+                <CrudPanel<RegionRow>
+                  url="/dictionaries/regions"
+                  queryKey="regions"
+                  title={t("Регион")}
+                  canManage={canManage}
+                  invalidateExtra={[['dictionaries']]}
+                  description={t("Общий справочник для всей страны — не привязан к офису. Для раскладки задания «Регион / Район» (Office → Задания путевого листа). Список районов заполнен не для всех регионов — дополните здесь то, чего не хватает.")}
+                  columns={[
+                    { title: t("Код"), dataIndex: 'code', width: 140 },
+                    { title: t("Наименование"), dataIndex: 'name' },
+                    { title: t("Статус"), dataIndex: 'isActive', width: 110, render: activeTag },
+                  ]}
+                  formFields={(isEdit) => (
+                    <>
+                      <Form.Item
+                        name="code"
+                        label={t("Код")}
+                        rules={[
+                          { required: true, message: t("Обязательное поле") },
+                          {
+                            pattern: /^[A-Z0-9-]+$/,
+                            message: t("Заглавные латинские буквы, цифры и дефис"),
+                          },
+                        ]}
+                      >
+                        <Input placeholder="SAM" />
+                      </Form.Item>
+                      <Form.Item name="name" label={t("Наименование")} rules={[{ required: true }]}>
+                        <Input placeholder={t("Самаркандская область")} />
+                      </Form.Item>
+                      {isEdit && (
+                        <Form.Item name="isActive" label={t("Активен")} valuePropName="checked">
+                          <Switch />
+                        </Form.Item>
+                      )}
+                    </>
+                  )}
+                />
+
+                <Divider />
+
+                <Typography.Title level={5}>{t("Районы")}</Typography.Title>
+                <CrudPanel<DistrictRow>
+                  url="/dictionaries/districts"
+                  queryKey="districts"
+                  title={t("Район")}
+                  canManage={canManage}
+                  invalidateExtra={[['dictionaries']]}
+                  columns={[
+                    {
+                      title: t("Регион"),
+                      width: 220,
+                      render: (_: unknown, row: DistrictRow) =>
+                        dictionaries.data?.regions.find((r) => r.id === row.regionId)?.name ?? '—',
+                    },
+                    { title: t("Код"), dataIndex: 'code', width: 140 },
+                    { title: t("Наименование"), dataIndex: 'name' },
+                    { title: t("Статус"), dataIndex: 'isActive', width: 110, render: activeTag },
+                  ]}
+                  formFields={(isEdit) => (
+                    <>
+                      <Form.Item
+                        name="regionId"
+                        label={t("Регион")}
+                        rules={[{ required: true, message: t("Обязательное поле") }]}
+                      >
+                        <Select
+                          disabled={isEdit}
+                          showSearch
+                          optionFilterProp="label"
+                          options={(dictionaries.data?.regions ?? []).map((region) => ({
+                            value: region.id,
+                            label: region.name,
+                          }))}
+                        />
+                      </Form.Item>
+                      <Form.Item
+                        name="code"
+                        label={t("Код")}
+                        rules={[
+                          { required: true, message: t("Обязательное поле") },
+                          {
+                            pattern: /^[A-Z0-9-]+$/,
+                            message: t("Заглавные латинские буквы, цифры и дефис"),
+                          },
+                        ]}
+                      >
+                        <Input placeholder="YUNUSABAD" />
+                      </Form.Item>
+                      <Form.Item name="name" label={t("Наименование")} rules={[{ required: true }]}>
+                        <Input placeholder={t("Юнусабадский район")} />
+                      </Form.Item>
+                      {isEdit && (
+                        <Form.Item name="isActive" label={t("Активен")} valuePropName="checked">
+                          <Switch />
+                        </Form.Item>
+                      )}
+                    </>
+                  )}
+                />
+              </>
             ),
           },
           {

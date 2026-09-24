@@ -44,6 +44,10 @@ enum OfficeKind {
 enum WaybillTaskLayout {
   FLIGHT
   ADDRESS
+  /// «Адрес А» — каскадный выбор Регион → Район (для организаций вроде
+  /// TOSHSHAHARNUR, где задание привязано к административному делению,
+  /// а не к почтовому адресу или произвольной локации).
+  REGION_DISTRICT
 }
 
 /// Офис = аэропорт (или головной офис). Корень мультиарендности.
@@ -405,6 +409,39 @@ model FuelType {
   norms     FuelNorm[]
 
   @@map("fuel_types")
+}
+
+/// Административно-территориальное деление Узбекистана — регион (область,
+/// Республика Каракалпакстан или город Ташкент). Общий справочник для всей
+/// страны, как FuelType: используется раскладкой задания WaybillTaskLayout
+/// .REGION_DISTRICT (см. Office.taskLayout) для организаций вроде
+/// TOSHSHAHARNUR, где «Адрес А» — это каскадный выбор Регион → Район.
+model Region {
+  id       Int    @id @default(autoincrement())
+  code     String @unique @db.VarChar(24)
+  name     String @db.VarChar(160)
+  isActive Boolean @default(true) @map("is_active")
+
+  districts District[]
+
+  @@map("regions")
+}
+
+/// Район внутри региона. Список неполон для регионов, не задействованных
+/// в первом внедрении (см. seed.ts) — дополняется через Администрирование
+/// по мере подключения новых организаций.
+model District {
+  id       Int    @id @default(autoincrement())
+  regionId Int    @map("region_id")
+  code     String @db.VarChar(24)
+  name     String @db.VarChar(160)
+  isActive Boolean @default(true) @map("is_active")
+
+  region Region @relation(fields: [regionId], references: [id], onDelete: Restrict)
+
+  @@unique([regionId, code])
+  @@index([regionId])
+  @@map("districts")
 }
 
 /// Марка/модель техники. Нормы расхода по умолчанию задаются здесь,

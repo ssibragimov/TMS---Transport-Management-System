@@ -63,6 +63,7 @@ const KIND_LABEL: Record<string, string> = {
 const TASK_LAYOUT_LABEL: Record<string, string> = {
   FLIGHT: 'Рейс / Борт / Стоянка (авиация)',
   ADDRESS: 'Адрес А / Адрес Б (универсальная)',
+  REGION_DISTRICT: 'Регион / Район (административное деление)',
 };
 
 const MONTHS = [

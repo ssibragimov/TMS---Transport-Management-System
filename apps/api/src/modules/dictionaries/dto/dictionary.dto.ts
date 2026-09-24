@@ -229,6 +229,51 @@ export class TaskLocationDto {
 
 export class UpdateTaskLocationDto extends PartialType(TaskLocationDto) {}
 
+export class RegionDto {
+  @ApiProperty({ example: 'TOSH-SH' })
+  @IsString()
+  @MaxLength(24)
+  @Matches(/^[A-Z0-9-]+$/, { message: 'Код — заглавные латинские буквы, цифры и дефис' })
+  code: string;
+
+  @ApiProperty({ example: 'город Ташкент' })
+  @IsString()
+  @MaxLength(160)
+  name: string;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateRegionDto extends PartialType(RegionDto) {}
+
+export class DistrictDto {
+  @ApiProperty({ description: 'Регион, к которому относится район' })
+  @IsInt()
+  @IsPositive()
+  regionId: number;
+
+  @ApiProperty({ example: 'YUNUSABAD' })
+  @IsString()
+  @MaxLength(24)
+  @Matches(/^[A-Z0-9-]+$/, { message: 'Код — заглавные латинские буквы, цифры и дефис' })
+  code: string;
+
+  @ApiProperty({ example: 'Юнусабадский район' })
+  @IsString()
+  @MaxLength(160)
+  name: string;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateDistrictDto extends PartialType(DistrictDto) {}
+
 export class SparePartDto {
   @ApiProperty({ example: 'FLT-OIL-01' })
   @IsString()

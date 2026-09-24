@@ -22,6 +22,12 @@ export interface Dictionaries {
   counterparties: Array<{ id: number; name: string; inn: string | null }>;
   violationTypes: Array<{ id: number; code: string; name: string; defaultFineAmount: string | null }>;
   taskLocations: Array<{ id: number; code: string; name: string }>;
+  regions: Array<{
+    id: number;
+    code: string;
+    name: string;
+    districts: Array<{ id: number; code: string; name: string }>;
+  }>;
 }
 
 /**

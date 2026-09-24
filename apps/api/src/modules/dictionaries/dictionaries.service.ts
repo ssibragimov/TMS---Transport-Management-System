@@ -5,14 +5,18 @@ import { PrismaService } from '@/common/prisma/prisma.service';
 import type {
   CounterpartyDto,
   DepartmentDto,
+  DistrictDto,
   DriverPositionDto,
   FuelTypeDto,
+  RegionDto,
   SparePartDto,
   TaskLocationDto,
   UpdateCounterpartyDto,
   UpdateDepartmentDto,
+  UpdateDistrictDto,
   UpdateDriverPositionDto,
   UpdateFuelTypeDto,
+  UpdateRegionDto,
   UpdateSparePartDto,
   UpdateTaskLocationDto,
   UpdateVehicleModelDto,
@@ -112,6 +116,111 @@ export class DictionariesService {
     }
 
     return this.prisma.db.fuelType.delete({ where: { id } });
+  }
+
+  // ─── Регионы и районы (общие) — раскладка REGION_DISTRICT ───────────────
+
+  regions(includeInactive = false) {
+    return this.prisma.db.region.findMany({
+      where: includeInactive ? {} : { isActive: true },
+      orderBy: { name: 'asc' },
+      include: {
+        districts: {
+          where: includeInactive ? {} : { isActive: true },
+          orderBy: { name: 'asc' },
+        },
+      },
+    });
+  }
+
+  async createRegion(dto: RegionDto) {
+    const existing = await this.prisma.db.region.findUnique({ where: { code: dto.code } });
+    if (existing) {
+      throw new ConflictException({
+        code: 'dictionary.code_taken',
+        message: `Регион с кодом ${dto.code} уже существует`,
+      });
+    }
+
+    return this.prisma.db.region.create({
+      data: { code: dto.code, name: dto.name, isActive: dto.isActive ?? true },
+    });
+  }
+
+  async updateRegion(id: number, dto: UpdateRegionDto) {
+    await this.ensure('region', id);
+
+    return this.prisma.db.region.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      },
+    });
+  }
+
+  /**
+   * Отключение, а не удаление: район мог уже попасть текстом в задания
+   * путевых листов (там это просто строка, без внешнего ключа), и физическое
+   * удаление ничего бы в них не подчистило — только скрыло бы источник.
+   */
+  async removeRegion(id: number) {
+    await this.ensure('region', id);
+    return this.prisma.db.region.update({ where: { id }, data: { isActive: false } });
+  }
+
+  districts(regionId?: number, includeInactive = false) {
+    return this.prisma.db.district.findMany({
+      where: {
+        ...(regionId !== undefined && { regionId }),
+        ...(includeInactive ? {} : { isActive: true }),
+      },
+      orderBy: { name: 'asc' },
+      select: { id: true, regionId: true, code: true, name: true, isActive: true },
+    });
+  }
+
+  async createDistrict(dto: DistrictDto) {
+    const region = await this.prisma.db.region.findUnique({ where: { id: dto.regionId } });
+    if (!region) {
+      throw new NotFoundException({ code: 'dictionary.not_found', message: 'Регион не найден' });
+    }
+
+    const existing = await this.prisma.db.district.findFirst({
+      where: { regionId: dto.regionId, code: dto.code },
+    });
+    if (existing) {
+      throw new ConflictException({
+        code: 'dictionary.code_taken',
+        message: `Район с кодом ${dto.code} уже есть в этом регионе`,
+      });
+    }
+
+    return this.prisma.db.district.create({
+      data: {
+        regionId: dto.regionId,
+        code: dto.code,
+        name: dto.name,
+        isActive: dto.isActive ?? true,
+      },
+    });
+  }
+
+  async updateDistrict(id: number, dto: UpdateDistrictDto) {
+    await this.ensure('district', id);
+
+    return this.prisma.db.district.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      },
+    });
+  }
+
+  async removeDistrict(id: number) {
+    await this.ensure('district', id);
+    return this.prisma.db.district.update({ where: { id }, data: { isActive: false } });
   }
 
   // ─── Модели техники (общие) ──────────────────────────────────────────────
@@ -571,7 +680,7 @@ export class DictionariesService {
     return this.prisma.db.sparePart.update({ where: { id }, data: { isActive: false } });
   }
 
-  /** Всё сразу — один запрос вместо семи при открытии формы. */
+  /** Всё сразу — один запрос вместо восьми при открытии формы. */
   async all(officeId: number) {
     const [
       fuelTypes,
@@ -581,6 +690,7 @@ export class DictionariesService {
       counterparties,
       violationTypes,
       taskLocations,
+      regions,
     ] = await Promise.all([
       this.fuelTypes(),
       this.vehicleModels(),
@@ -589,6 +699,7 @@ export class DictionariesService {
       this.counterparties(officeId),
       this.violationTypes(officeId),
       this.taskLocations(officeId),
+      this.regions(),
     ]);
     return {
       fuelTypes,
@@ -598,13 +709,14 @@ export class DictionariesService {
       counterparties,
       violationTypes,
       taskLocations,
+      regions,
     };
   }
 
   // ─── Внутреннее ──────────────────────────────────────────────────────────
 
   private async ensure(
-    model: 'fuelType' | 'vehicleModel' | 'sparePart',
+    model: 'fuelType' | 'vehicleModel' | 'sparePart' | 'region' | 'district',
     id: number,
   ): Promise<void> {
     const delegate = this.prisma.db[model] as {

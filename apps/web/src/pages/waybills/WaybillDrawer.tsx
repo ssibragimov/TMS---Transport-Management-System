@@ -116,7 +116,9 @@ export function WaybillDrawer({ waybillId, onClose }: Props) {
   const { t } = useTranslation();
 
   const { can, user } = useAuth();
-  const isAddressLayout = user?.activeOffice.taskLayout === 'ADDRESS';
+  const taskLayout = user?.activeOffice.taskLayout ?? 'FLIGHT';
+  const isAddressLayout = taskLayout === 'ADDRESS';
+  const isRegionDistrictLayout = taskLayout === 'REGION_DISTRICT';
   const hasLocationList = user?.activeOffice.taskAddressALocations ?? false;
   const download = useDownload();
   const [action, setAction] = useState<ActionKind>(null);
@@ -310,7 +312,13 @@ export function WaybillDrawer({ waybillId, onClose }: Props) {
             dataSource={w.tasks}
             columns={[
               { title: '№', dataIndex: 'sequence', width: 50 },
-              ...(isAddressLayout
+              ...(isRegionDistrictLayout
+                ? [
+                    { title: t("Регион"), dataIndex: 'fromPoint', width: 160 },
+                    { title: t("Район"), dataIndex: 'aircraftReg', width: 160 },
+                    { title: t("Адрес Б"), dataIndex: 'toPoint' },
+                  ]
+                : isAddressLayout
                 ? [
                     { title: t("Адрес А"), dataIndex: 'fromPoint', width: 160 },
                     ...(hasLocationList

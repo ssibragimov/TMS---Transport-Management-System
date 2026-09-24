@@ -22,6 +22,8 @@ export type OfficeKind = (typeof OfficeKind)[keyof typeof OfficeKind];
 export const WaybillTaskLayout = {
   FLIGHT: 'FLIGHT',
   ADDRESS: 'ADDRESS',
+  /** «Адрес А» — каскадный выбор Регион → Район (см. Region/District). */
+  REGION_DISTRICT: 'REGION_DISTRICT',
 } as const;
 export type WaybillTaskLayout = (typeof WaybillTaskLayout)[keyof typeof WaybillTaskLayout];
 

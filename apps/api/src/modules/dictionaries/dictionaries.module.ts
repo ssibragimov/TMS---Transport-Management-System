@@ -20,14 +20,18 @@ import { DictionariesService } from './dictionaries.service';
 import {
   CounterpartyDto,
   DepartmentDto,
+  DistrictDto,
   DriverPositionDto,
   FuelTypeDto,
+  RegionDto,
   SparePartDto,
   TaskLocationDto,
   UpdateCounterpartyDto,
   UpdateDepartmentDto,
+  UpdateDistrictDto,
   UpdateDriverPositionDto,
   UpdateFuelTypeDto,
+  UpdateRegionDto,
   UpdateSparePartDto,
   UpdateTaskLocationDto,
   UpdateVehicleModelDto,
@@ -312,6 +316,82 @@ export class DictionariesController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.dictionaries.removeTaskLocation(officeId, id);
+  }
+
+  // ─── Регионы и районы (общие) ────────────────────────────────────────────
+
+  @Get('regions')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_READ)
+  @ApiQuery({ name: 'includeInactive', required: false })
+  @ApiOperation({
+    summary: 'Регионы с вложенными районами',
+    description: 'Для раскладки задания REGION_DISTRICT (см. Office.taskLayout)',
+  })
+  regions(@Query('includeInactive') includeInactive?: string) {
+    return this.dictionaries.regions(inactive(includeInactive));
+  }
+
+  @Post('regions')
+  @Audited('Region')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_MANAGE)
+  @ApiOperation({ summary: 'Добавление региона' })
+  createRegion(@Body() dto: RegionDto) {
+    return this.dictionaries.createRegion(dto);
+  }
+
+  @Patch('regions/:id')
+  @Audited('Region')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_MANAGE)
+  @ApiOperation({ summary: 'Изменение региона' })
+  updateRegion(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateRegionDto) {
+    return this.dictionaries.updateRegion(id, dto);
+  }
+
+  @Delete('regions/:id')
+  @Audited('Region')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_MANAGE)
+  @ApiOperation({ summary: 'Отключение региона' })
+  removeRegion(@Param('id', ParseIntPipe) id: number) {
+    return this.dictionaries.removeRegion(id);
+  }
+
+  @Get('districts')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_READ)
+  @ApiQuery({ name: 'regionId', required: false })
+  @ApiQuery({ name: 'includeInactive', required: false })
+  @ApiOperation({ summary: 'Районы (плоский список, опционально по региону)' })
+  districts(
+    @Query('regionId') regionId?: string,
+    @Query('includeInactive') includeInactive?: string,
+  ) {
+    return this.dictionaries.districts(
+      regionId ? Number(regionId) : undefined,
+      inactive(includeInactive),
+    );
+  }
+
+  @Post('districts')
+  @Audited('District')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_MANAGE)
+  @ApiOperation({ summary: 'Добавление района' })
+  createDistrict(@Body() dto: DistrictDto) {
+    return this.dictionaries.createDistrict(dto);
+  }
+
+  @Patch('districts/:id')
+  @Audited('District')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_MANAGE)
+  @ApiOperation({ summary: 'Изменение района' })
+  updateDistrict(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateDistrictDto) {
+    return this.dictionaries.updateDistrict(id, dto);
+  }
+
+  @Delete('districts/:id')
+  @Audited('District')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_MANAGE)
+  @ApiOperation({ summary: 'Отключение района' })
+  removeDistrict(@Param('id', ParseIntPipe) id: number) {
+    return this.dictionaries.removeDistrict(id);
   }
 
   // ─── Контрагенты ─────────────────────────────────────────────────────────

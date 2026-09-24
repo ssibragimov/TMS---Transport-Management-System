@@ -50,6 +50,78 @@ const FUEL_TYPES = [
 ];
 
 /**
+ * Регионы и районы Узбекистана — для раскладки задания REGION_DISTRICT
+ * (см. Office.taskLayout), которую выбирают организации вроде TOSHSHAHARNUR,
+ * где «Адрес А» — это каскад Регион → Район, а не почтовый адрес.
+ *
+ * Список регионов полный (14: 12 областей, Республика Каракалпакстан,
+ * город Ташкент). Районы заполнены только для города Ташкента и Ташкентской
+ * области — это тот случай, с которого начинается внедрение. Для остальных
+ * регионов районы сознательно оставлены пустыми: неполный список хуже
+ * отсутствующего, тумана меняются, и дополнить его через Администрирование
+ * (вкладка «Регионы и районы») быстрее и надёжнее, чем зашивать в код то,
+ * в чём нет уверенности.
+ */
+const REGIONS: Array<{ code: string; name: string; districts: string[] }> = [
+  {
+    // Название без родового слова «город» специально: с ним строка сортировалась
+    // бы после всех областей на заглавную букву (регистрозависимая сортировка
+    // БД ставит строчные буквы позже прописных) и терялась бы внизу списка.
+    code: 'TOSH-SH',
+    name: 'Ташкент (город)',
+    districts: [
+      'Бектемирский район',
+      'Мирзо-Улугбекский район',
+      'Мирабадский район',
+      'Олмазарский район',
+      'Сергелийский район',
+      'Учтепинский район',
+      'Чиланзарский район',
+      'Шайхантахурский район',
+      'Юнусабадский район',
+      'Яккасарайский район',
+      'Яшнабадский район',
+      'Янгихаётский район',
+    ],
+  },
+  {
+    code: 'TOSH-V',
+    name: 'Ташкентская область',
+    districts: [
+      'Ахангаранский район',
+      'Бекабадский район',
+      'Бостанлыкский район',
+      'Букинский район',
+      'Зангиатинский район',
+      'Кибрайский район',
+      'Куйичирчикский район',
+      'Наврузский район',
+      'Октепинский район',
+      'Оккурганский район',
+      'Паркентский район',
+      'Пскентский район',
+      'Ташкентский район',
+      'Уртачирчикский район',
+      'Чиназский район',
+      'Юкоричирчикский район',
+      'Янгиюльский район',
+    ],
+  },
+  { code: 'AND', name: 'Андижанская область', districts: [] },
+  { code: 'BUX', name: 'Бухарская область', districts: [] },
+  { code: 'FAR', name: 'Ферганская область', districts: [] },
+  { code: 'JIZ', name: 'Джизакская область', districts: [] },
+  { code: 'XOR', name: 'Хорезмская область', districts: [] },
+  { code: 'NAM', name: 'Наманганская область', districts: [] },
+  { code: 'NAV', name: 'Навоийская область', districts: [] },
+  { code: 'QAS', name: 'Кашкадарьинская область', districts: [] },
+  { code: 'SAM', name: 'Самаркандская область', districts: [] },
+  { code: 'SIR', name: 'Сырдарьинская область', districts: [] },
+  { code: 'SUR', name: 'Сурхандарьинская область', districts: [] },
+  { code: 'KAR', name: 'Республика Каракалпакстан', districts: [] },
+];
+
+/**
  * Модели техники. Нормы расхода заданы ориентировочные — их обязательно
  * заменить на утверждённые приказом по предприятию до опытной эксплуатации.
  */
@@ -337,6 +409,30 @@ async function seedFuelTypes(): Promise<Map<string, number>> {
   }
   console.log(`  Видов топлива: ${ids.size}`);
   return ids;
+}
+
+async function seedRegions(): Promise<void> {
+  let districtCount = 0;
+
+  for (const region of REGIONS) {
+    const record = await prisma.region.upsert({
+      where: { code: region.code },
+      update: { name: region.name },
+      create: { code: region.code, name: region.name },
+    });
+
+    for (const [index, name] of region.districts.entries()) {
+      const code = `${region.code}-${index + 1}`;
+      await prisma.district.upsert({
+        where: { regionId_code: { regionId: record.id, code } },
+        update: { name },
+        create: { regionId: record.id, code, name },
+      });
+      districtCount += 1;
+    }
+  }
+
+  console.log(`  Регионов: ${REGIONS.length}, районов: ${districtCount}`);
 }
 
 async function seedVehicleModels(fuelTypeIds: Map<string, number>): Promise<Map<string, number>> {
@@ -639,6 +735,7 @@ async function main(): Promise<void> {
   await seedRoles();
   const { hqId, officeIds } = await seedOffices();
   const fuelTypeIds = await seedFuelTypes();
+  await seedRegions();
   const modelIds = await seedVehicleModels(fuelTypeIds);
   await seedModelNorms(officeIds, modelIds, fuelTypeIds);
   await seedAdmin(hqId, officeIds);

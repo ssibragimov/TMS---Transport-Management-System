@@ -59,9 +59,12 @@ export function WaybillFormModal({ open, onClose }: Props) {
   const { user } = useAuth();
   const dictionaries = useDictionaries();
   // Раскладка задания настраивается по офису (Office.taskLayout): у аэропортов
-  // остаётся Рейс/Борт/Стоянка, у офисов из других сфер — универсальный
-  // Адрес А/Б (см. пояснение в схеме и AdminPage → «Офисы и аэропорты»).
-  const isAddressLayout = user?.activeOffice.taskLayout === 'ADDRESS';
+  // остаётся Рейс/Борт/Стоянка, у офисов из других сфер — либо универсальный
+  // Адрес А/Б, либо (TOSHSHAHARNUR и подобные) каскад Регион → Район на месте
+  // «Адрес А» (см. AdminPage → «Офисы и аэропорты»).
+  const taskLayout = user?.activeOffice.taskLayout ?? 'FLIGHT';
+  const isAddressLayout = taskLayout === 'ADDRESS';
+  const isRegionDistrictLayout = taskLayout === 'REGION_DISTRICT';
   const hasLocationList = user?.activeOffice.taskAddressALocations ?? false;
 
   const vehicles = useQuery({
@@ -316,7 +319,62 @@ export function WaybillFormModal({ open, onClose }: Props) {
             <>
               {fields.map((field) => (
                 <Row key={field.key} gutter={8} align="middle" style={{ marginBottom: 4 }}>
-                  {isAddressLayout ? (
+                  {isRegionDistrictLayout ? (
+                    <>
+                      <Col span={5}>
+                        <Form.Item {...field} name={[field.name, 'fromPoint']} noStyle>
+                          <Select
+                            placeholder={t("Регион")}
+                            showSearch
+                            optionFilterProp="label"
+                            onChange={() =>
+                              // Смена региона обнуляет выбранный район — иначе
+                              // остался бы район от прежнего региона.
+                              form.setFieldValue(['tasks', field.name, 'aircraftReg'], undefined)
+                            }
+                            options={dictionaries.data?.regions.map((r) => ({
+                              value: r.name,
+                              label: r.name,
+                            }))}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col span={6}>
+                        <Form.Item
+                          noStyle
+                          shouldUpdate={(prev, next) =>
+                            prev.tasks?.[field.name]?.fromPoint !== next.tasks?.[field.name]?.fromPoint
+                          }
+                        >
+                          {({ getFieldValue }) => {
+                            const regionName = getFieldValue(['tasks', field.name, 'fromPoint']);
+                            const region = dictionaries.data?.regions.find(
+                              (r) => r.name === regionName,
+                            );
+                            return (
+                              <Form.Item {...field} name={[field.name, 'aircraftReg']} noStyle>
+                                <Select
+                                  placeholder={t("Район")}
+                                  disabled={!region}
+                                  showSearch
+                                  optionFilterProp="label"
+                                  options={region?.districts.map((d) => ({
+                                    value: d.name,
+                                    label: d.name,
+                                  }))}
+                                />
+                              </Form.Item>
+                            );
+                          }}
+                        </Form.Item>
+                      </Col>
+                      <Col span={7}>
+                        <Form.Item {...field} name={[field.name, 'toPoint']} noStyle>
+                          <Input placeholder={t("Адрес Б")} />
+                        </Form.Item>
+                      </Col>
+                    </>
+                  ) : isAddressLayout ? (
                     <>
                       <Col span={hasLocationList ? 5 : 8}>
                         <Form.Item {...field} name={[field.name, 'fromPoint']} noStyle>

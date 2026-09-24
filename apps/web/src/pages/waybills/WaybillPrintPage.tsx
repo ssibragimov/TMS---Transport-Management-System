@@ -114,6 +114,7 @@ export function WaybillPrintPage() {
     : '—';
   // Раскладка идёт с офисом, выпустившим лист (а не с активным офисом текущего
   // пользователя) — печатная форма должна отражать реальность документа.
+  const isRegionDistrictLayout = office.taskLayout === 'REGION_DISTRICT';
   const isAddressLayout = office.taskLayout === 'ADDRESS';
   const hasLocationList = office.taskAddressALocations;
 
@@ -248,7 +249,13 @@ export function WaybillPrintPage() {
             <thead>
               <tr>
                 <th>№</th>
-                {isAddressLayout ? (
+                {isRegionDistrictLayout ? (
+                  <>
+                    <th>{t('Регион')}</th>
+                    <th>{t('Район')}</th>
+                    <th>{t('Адрес Б')}</th>
+                  </>
+                ) : isAddressLayout ? (
                   <>
                     <th>{t('Адрес А')}</th>
                     {hasLocationList && <th>{t('Локация')}</th>}
@@ -270,7 +277,13 @@ export function WaybillPrintPage() {
               {waybill.tasks.map((task) => (
                 <tr key={task.id}>
                   <td>{task.sequence}</td>
-                  {isAddressLayout ? (
+                  {isRegionDistrictLayout ? (
+                    <>
+                      <td>{task.fromPoint ?? '—'}</td>
+                      <td>{task.aircraftReg ?? '—'}</td>
+                      <td>{task.toPoint ?? '—'}</td>
+                    </>
+                  ) : isAddressLayout ? (
                     <>
                       <td>{task.fromPoint ?? '—'}</td>
                       {hasLocationList && <td>{task.aircraftReg ?? '—'}</td>}
