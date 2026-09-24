@@ -1,4 +1,4 @@
-import { Table, Typography } from 'antd';
+import { Table, Tooltip, Typography } from 'antd';
 import type { TableProps } from 'antd';
 import {
   createContext,
@@ -275,6 +275,41 @@ export function StickyTable<RecordType extends object>({
     setLayout(readLayout(storageId, movableSignature.split('|')));
   }, [storageId, movableSignature]);
 
+  /*
+    Подсказка с полным текстом ячейки, если он не поместился. Одна на всю
+    таблицу и по делегированию событий: на каждую ячейку отдельный Tooltip
+    означал бы сотни компонентов на странице.
+  */
+  const [cellTip, setCellTip] = useState<{
+    cell: HTMLElement;
+    text: string;
+    rect: DOMRect;
+  } | null>(null);
+
+  const hideCellTip = useCallback(() => setCellTip(null), []);
+
+  const showCellTip = (event: React.MouseEvent<HTMLElement>): void => {
+    const cell = (event.target as HTMLElement).closest<HTMLElement>('td.ant-table-cell');
+    if (!cell) {
+      setCellTip(null);
+      return;
+    }
+    if (cellTip?.cell === cell) return;
+
+    const truncated = cell.scrollWidth > cell.clientWidth + 1;
+    const text = cell.innerText.replace(/\s*\n\s*/g, ', ').trim();
+    setCellTip(
+      truncated && text ? { cell, text, rect: cell.getBoundingClientRect() } : null,
+    );
+  };
+
+  // Прокрутка сдвигает ячейку из-под подсказки — проще её убрать.
+  useEffect(() => {
+    if (!cellTip) return;
+    window.addEventListener('scroll', hideCellTip, true);
+    return () => window.removeEventListener('scroll', hideCellTip, true);
+  }, [cellTip, hideCellTip]);
+
   const persist = (next: Layout): void => {
     setLayout(next);
     try {
@@ -465,9 +500,28 @@ export function StickyTable<RecordType extends object>({
 
   return (
     <HeaderContext.Provider value={headerApi}>
-      <Table<RecordType>
-        sticky={{ offsetHeader }}
-        /*
+      <div onMouseOver={showCellTip} onMouseLeave={hideCellTip}>
+        <Tooltip
+          open={cellTip !== null}
+          title={cellTip?.text}
+          placement="bottom"
+          overlayStyle={{ maxWidth: 480, pointerEvents: 'none' }}
+        >
+          <span
+            aria-hidden
+            style={{
+              position: 'fixed',
+              pointerEvents: 'none',
+              left: cellTip?.rect.left ?? 0,
+              top: cellTip?.rect.top ?? 0,
+              width: cellTip?.rect.width ?? 0,
+              height: cellTip?.rect.height ?? 0,
+            }}
+          />
+        </Tooltip>
+        <Table<RecordType>
+          sticky={{ offsetHeader }}
+          /*
           Компактные строки. По умолчанию Ant Design отводит на ячейку 16
           пикселей сверху и снизу — для учётной системы, где на экран нужно
           уместить как можно больше строк, это расточительно. Размер шрифта
@@ -475,34 +529,34 @@ export function StickyTable<RecordType extends object>({
           Задано до распространения props: страница может вернуть себе
           просторный вариант, передав size явно.
         */
-        size="small"
-        /*
+          size="small"
+          footer={footer}
+          {...props}
+          /*
           Широкая таблица прокручивается внутри себя, а не растягивает страницу.
           Без этого страница уезжала вбок, и первые колонки — гаражный номер и
-          госномер — оказывались под боковым меню.
-          Задано до распространения props: странице оставлена возможность
-          переопределить прокрутку своим значением.
+          госномер — оказывались под боковым меню. Страница может задать свою
+          прокрутку; заданная пользователем ширина колонок главнее.
         */
-        footer={footer}
-        {...props}
-        scroll={
-          fixedTotal !== null
-            ? { ...props.scroll, x: fixedTotal }
-            : (props.scroll ?? { x: 'max-content' })
-        }
-        className={[
-          'gsm-sticky-table',
-          fixedTotal !== null && 'gsm-table-fixed-width',
-          props.className,
-        ]
-          .filter(Boolean)
-          .join(' ')}
-        columns={preparedColumns}
-        components={{
-          ...components,
-          header: { ...components?.header, cell: HeaderCell },
-        }}
-      />
+          scroll={
+            fixedTotal !== null
+              ? { ...props.scroll, x: fixedTotal }
+              : (props.scroll ?? { x: 'max-content' })
+          }
+          className={[
+            'gsm-sticky-table',
+            fixedTotal !== null && 'gsm-table-fixed-width',
+            props.className,
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          columns={preparedColumns}
+          components={{
+            ...components,
+            header: { ...components?.header, cell: HeaderCell },
+          }}
+        />
+      </div>
     </HeaderContext.Provider>
   );
 }
