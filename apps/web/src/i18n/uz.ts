@@ -31,6 +31,8 @@ export const uz: Record<string, string> = {
   Заменить: 'Almashtirish',
   'Загрузить или заменить фото': 'Suratni yuklash yoki almashtirish',
   Изменить: 'Tahrirlash',
+  'Изменение путевого листа': 'Yo‘l varaqasini tahrirlash',
+  'Изменения сохранены': 'O‘zgarishlar saqlandi',
   Создать: 'Yaratish',
   Добавить: 'Qo‘shish',
   Поиск: 'Qidiruv',

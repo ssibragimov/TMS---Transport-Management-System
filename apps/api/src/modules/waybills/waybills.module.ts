@@ -5,6 +5,7 @@ import {
   Module,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   Res,
@@ -28,6 +29,7 @@ import {
   CreateWaybillDto,
   IssueWaybillDto,
   SubmitWaybillDto,
+  UpdateWaybillDto,
   WaybillQueryDto,
 } from './dto/waybill.dto';
 import { WaybillsService } from './waybills.service';
@@ -99,6 +101,21 @@ export class WaybillsController {
   @ApiOperation({ summary: 'Создание путевого листа (черновик)' })
   create(@CurrentOffice() officeId: number, @Body() dto: CreateWaybillDto) {
     return this.waybills.create(officeId, dto);
+  }
+
+  @Patch(':id')
+  @AuditAs(AuditAction.UPDATE)
+  @RequirePermissions(PERMISSIONS.WAYBILL_UPDATE)
+  @ApiOperation({
+    summary: 'Изменение черновика',
+    description: 'Доступно только в статусе DRAFT — после выдачи лист фиксирует факт и не редактируется.',
+  })
+  update(
+    @CurrentOffice() officeId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateWaybillDto,
+  ) {
+    return this.waybills.update(officeId, id, dto);
   }
 
   @Post(':id/issue')

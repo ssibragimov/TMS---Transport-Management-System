@@ -28,6 +28,8 @@ export const en: Record<string, string> = {
   Заменить: 'Replace',
   'Загрузить или заменить фото': 'Upload or replace photo',
   Изменить: 'Edit',
+  'Изменение путевого листа': 'Edit waybill',
+  'Изменения сохранены': 'Changes saved',
   Создать: 'Create',
   Добавить: 'Add',
   Поиск: 'Search',

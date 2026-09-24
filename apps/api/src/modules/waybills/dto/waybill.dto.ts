@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { VehicleCondition, WaybillStatus, WaybillType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
@@ -158,6 +158,14 @@ export class CreateWaybillDto {
   @MaxLength(2000)
   notes?: string;
 }
+
+/**
+ * Изменение уже созданного листа. Сервис разрешает это только в статусе
+ * DRAFT (см. WaybillsService.update) — как только лист выдан, задания и
+ * показания на выезд фиксируют реальность, которую нельзя переписать
+ * задним числом.
+ */
+export class UpdateWaybillDto extends PartialType(CreateWaybillDto) {}
 
 export class IssueWaybillDto {
   /*

@@ -38,6 +38,7 @@ import type {
   CloseWaybillDto,
   CreateWaybillDto,
   IssueWaybillDto,
+  UpdateWaybillDto,
   WaybillQueryDto,
 } from './dto/waybill.dto';
 
@@ -429,6 +430,132 @@ export class WaybillsService {
           fuelOpening: vehicle.currentFuelLevel,
           notes: dto.notes ?? null,
           createdBy: userId,
+          ...(dto.tasks?.length && {
+            tasks: {
+              create: dto.tasks.map((task) => ({
+                sequence: task.sequence,
+                fromPoint: task.fromPoint ?? null,
+                toPoint: task.toPoint ?? null,
+                flightNumber: task.flightNumber ?? null,
+                aircraftReg: task.aircraftReg ?? null,
+                standNumber: task.standNumber ?? null,
+                startedAt: task.startedAt ? new Date(task.startedAt) : null,
+                endedAt: task.endedAt ? new Date(task.endedAt) : null,
+                distanceKm: task.distanceKm ?? null,
+                engineHours: task.engineHours ?? null,
+                cargoTons: task.cargoTons ?? null,
+                passengers: task.passengers ?? null,
+                operations: task.operations ?? null,
+              })),
+            },
+          }),
+        },
+        include: { tasks: true },
+      });
+    });
+  }
+
+  /**
+   * Изменение уже созданного листа — только в статусе DRAFT.
+   *
+   * Как только лист выдан, показания на выезд и задания фиксируют то, что
+   * произошло на самом деле (или должно произойти) — переписывать их задним
+   * числом означает переписывать историю. Черновик же ещё ничего не
+   * фиксирует, поэтому диспетчер может поправить в нём что угодно, пока
+   * не нажал «Выдать».
+   *
+   * Медосмотр повторно не проверяется: тот же водитель уже был проверен при
+   * создании, а смена водителя здесь — редкий случай, для которого
+   * достаточно проверки на шаге «Выдать» (issue()), где она обязательна.
+   * Дублировать её здесь означало бы либо не пускать смену водителя из-за
+   * временной недоступности здравпункта, либо повторять ту же сложную
+   * логику override дважды.
+   */
+  async update(officeId: number, id: number, dto: UpdateWaybillDto) {
+    return this.prisma.transaction(async (tx) => {
+      const waybill = await tx.waybill.findFirst({ where: { id, officeId, deletedAt: null } });
+      if (!waybill) {
+        throw new NotFoundException({ code: 'waybill.not_found', message: 'Путевой лист не найден' });
+      }
+      if (waybill.status !== WaybillStatus.DRAFT) {
+        throw new ConflictException({
+          code: 'waybill.not_editable',
+          message: 'Редактировать можно только путевой лист в статусе «Черновик»',
+        });
+      }
+
+      const validFrom = dto.validFrom !== undefined ? new Date(dto.validFrom) : waybill.validFrom;
+      const validTo = dto.validTo !== undefined ? new Date(dto.validTo) : waybill.validTo;
+      if (validTo <= validFrom) {
+        throw new BadRequestException({
+          code: 'waybill.invalid_period',
+          message: 'Окончание периода должно быть позже начала',
+        });
+      }
+
+      const vehicleId = dto.vehicleId ?? waybill.vehicleId;
+      if (dto.vehicleId !== undefined || dto.validFrom !== undefined || dto.validTo !== undefined) {
+        const vehicle = await tx.vehicle.findFirst({
+          where: { id: vehicleId, officeId, deletedAt: null },
+        });
+        if (!vehicle) {
+          throw new NotFoundException({
+            code: 'vehicle.not_found',
+            message: 'Единица техники не найдена',
+          });
+        }
+        if (vehicle.status !== 'ACTIVE') {
+          throw new ConflictException({
+            code: 'waybill.vehicle_not_available',
+            message: `Техника недоступна: статус ${vehicle.status}`,
+          });
+        }
+
+        const overlapping = await tx.waybill.findFirst({
+          where: {
+            id: { not: id },
+            vehicleId,
+            deletedAt: null,
+            status: { in: [WaybillStatus.ISSUED, WaybillStatus.IN_PROGRESS] },
+            validFrom: { lt: validTo },
+            validTo: { gt: validFrom },
+          },
+          select: { id: true, number: true },
+        });
+        if (overlapping) {
+          throw new ConflictException({
+            code: 'waybill.vehicle_busy',
+            message: `На этот период уже выдан путевой лист ${overlapping.number}`,
+          });
+        }
+      }
+
+      if (dto.driverId !== undefined) {
+        const driver = await tx.driver.findFirst({
+          where: { id: dto.driverId, officeId, deletedAt: null },
+          select: { id: true },
+        });
+        if (!driver) {
+          throw new NotFoundException({ code: 'driver.not_found', message: 'Водитель не найден' });
+        }
+      }
+
+      if (dto.tasks !== undefined) {
+        await tx.waybillTask.deleteMany({ where: { waybillId: id } });
+      }
+
+      return tx.waybill.update({
+        where: { id },
+        data: {
+          ...(dto.type !== undefined && { type: dto.type }),
+          ...(dto.vehicleId !== undefined && { vehicleId: dto.vehicleId }),
+          ...(dto.driverId !== undefined && { driverId: dto.driverId }),
+          ...(dto.coDriverId !== undefined && { coDriverId: dto.coDriverId }),
+          ...(dto.validFrom !== undefined && { validFrom }),
+          ...(dto.validTo !== undefined && { validTo }),
+          ...(dto.odometerStart !== undefined && { odometerStart: dto.odometerStart }),
+          ...(dto.engineHoursStart !== undefined && { engineHoursStart: dto.engineHoursStart }),
+          ...(dto.notes !== undefined && { notes: dto.notes }),
           ...(dto.tasks?.length && {
             tasks: {
               create: dto.tasks.map((task) => ({
@@ -874,6 +1001,17 @@ export class WaybillsService {
    */
   async printData(officeId: number, id: number) {
     const waybill = await this.findOne(officeId, id);
+
+    // Черновик ещё не выдан — печатать нечего: показания на выезд и задания
+    // в нём можно менять свободно, и напечатанный документ разошёлся бы
+    // с тем, что окажется в базе минутой позже.
+    if (waybill.status === WaybillStatus.DRAFT) {
+      throw new ConflictException({
+        code: 'waybill.draft_not_printable',
+        message: 'Черновик нельзя распечатать — сначала выдайте путевой лист водителю',
+      });
+    }
+
     const office = await this.prisma.db.office.findUniqueOrThrow({
       where: { id: officeId },
       select: {
