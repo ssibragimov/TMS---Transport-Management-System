@@ -19,6 +19,7 @@ export interface StockItem {
   catalogNumber: string | null;
   exchangeRequired: boolean;
   isActive: boolean;
+  createdAt: string;
   /** Остаток по всем складам офиса */
   onHand: string;
 }
@@ -52,6 +53,7 @@ export interface StockMovementRow {
   totalAmount: string | null;
   balanceAfter: string;
   movedAt: string;
+  createdAt: string;
   notes: string | null;
   part: { id: number; code: string; name: string; unit: string };
   warehouse: { id: number; code: string; name: string };
@@ -70,6 +72,7 @@ export interface StockDocumentRow {
   number: string;
   kind: StockDocumentKind;
   documentDate: string;
+  createdAt: string;
   externalNumber: string | null;
   totalAmount: string | null;
   purpose: StockIssuePurpose | null;

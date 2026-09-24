@@ -20,6 +20,7 @@ import { PERMISSIONS } from '@gsm/shared';
 import { api } from '@/api/client';
 import { useApiMutation } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { createdAtColumn, newestFirst } from '@/components/createdAtColumn';
 import { StickyTable } from '@/components/StickyTable';
 
 interface RoleRow {
@@ -27,6 +28,7 @@ interface RoleRow {
   code: string;
   name: string;
   isSystem: boolean;
+  createdAt: string;
   permissions: Array<{ permission: { code: string } }>;
   _count: { users: number };
 }
@@ -119,7 +121,7 @@ export function RolesPanel() {
         rowKey="id"
         size="small"
         loading={roles.isLoading}
-        dataSource={roles.data ?? []}
+        dataSource={newestFirst(roles.data ?? [])}
         pagination={false}
         columns={[
           { title: t("Название"), dataIndex: 'name' },
@@ -148,6 +150,7 @@ export function RolesPanel() {
             align: 'right',
             render: (_: unknown, row: RoleRow) => row._count.users,
           },
+          createdAtColumn<RoleRow>(t),
           ...(manage
             ? [
                 {

@@ -104,7 +104,7 @@ export class UsersService {
           where,
           skip: query.skip,
           take: query.take,
-          orderBy: query.orderBy(['fullName', 'email', 'createdAt', 'lastLoginAt'], 'fullName'),
+          orderBy: query.orderBy(['fullName', 'email', 'createdAt', 'lastLoginAt'], 'createdAt'),
           select: {
             id: true,
             internalNumber: true,
@@ -116,6 +116,7 @@ export class UsersService {
             locale: true,
             bypassRls: true,
             lastLoginAt: true,
+            createdAt: true,
             defaultOfficeId: true,
             offices: {
               select: { office: { select: { id: true, code: true, nameRu: true } } },

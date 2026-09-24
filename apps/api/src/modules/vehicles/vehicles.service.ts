@@ -86,7 +86,7 @@ export class VehiclesService {
         where,
         skip: query.skip,
         take: query.take,
-        orderBy: query.orderBy(SORTABLE, 'garageNumber'),
+        orderBy: query.orderBy(SORTABLE, 'createdAt'),
         include: {
           model: { select: { id: true, manufacturer: true, model: true } },
           department: { select: { id: true, name: true } },

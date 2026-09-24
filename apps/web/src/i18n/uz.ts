@@ -116,6 +116,7 @@ export const uz: Record<string, string> = {
   'Нет прав на просмотр транспорта': 'Transportni ko‘rish huquqi yo‘q',
   'Офис назначения': 'Qabul qiluvchi ofis',
   'Выберите офис': 'Ofisni tanlang',
+  'Дата создания': 'Yaratilgan sana',
   'Дата передачи': 'O‘tkazish sanasi',
   'Укажите дату': 'Sanani kiriting',
 

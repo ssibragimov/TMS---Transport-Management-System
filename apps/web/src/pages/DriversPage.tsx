@@ -24,6 +24,7 @@ import { CardTitle } from '@/components/EntityId';
 import { api } from '@/api/client';
 import { useApiMutation, useDebouncedValue, useDictionaries, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { createdAtColumn } from '@/components/createdAtColumn';
 import { StickyTable } from '@/components/StickyTable';
 import { TableCard } from '@/components/TableCard';
 
@@ -40,6 +41,7 @@ interface DriverRow {
   hireDate: string | null;
   dismissDate: string | null;
   isActive: boolean;
+  createdAt: string;
   notes: string | null;
   departmentId: number | null;
   department: { name: string } | null;
@@ -239,6 +241,7 @@ export function DriversPage() {
               <Tag color={active ? 'green' : 'default'}>{active ? t('Работает') : t('Уволен')}</Tag>
             ),
           },
+          createdAtColumn<DriverRow>(t),
           {
             title: '',
             width: 90,

@@ -34,6 +34,7 @@ import { CardTitle } from '@/components/EntityId';
 import { api, errorMessage } from '@/api/client';
 import { useApiMutation, useAuthedImage } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { createdAtColumn, newestFirst } from '@/components/createdAtColumn';
 import { StickyTable } from '@/components/StickyTable';
 
 interface OfficeRow {
@@ -50,6 +51,7 @@ interface OfficeRow {
   timezone: string;
   logoKey: string | null;
   isActive: boolean;
+  createdAt: string;
   taskLayout: string;
   taskAddressALocations: boolean;
 }
@@ -289,7 +291,7 @@ export function OfficesPanel() {
         rowNumbers
         size="small"
         loading={offices.isLoading}
-        dataSource={offices.data ?? []}
+        dataSource={newestFirst(offices.data ?? [])}
         pagination={false}
         columns={[
           {
@@ -327,6 +329,7 @@ export function OfficesPanel() {
                 <Tag color="default">{t('Отключён')}</Tag>
               ),
           },
+          createdAtColumn<OfficeRow>(t),
           ...(manage
             ? [
                 {

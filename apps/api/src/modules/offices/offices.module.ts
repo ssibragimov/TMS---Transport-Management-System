@@ -221,6 +221,7 @@ export class OfficesService {
         timezone: true,
         parentId: true,
         isActive: true,
+        createdAt: true,
         // Ключ нужен фронтенду только чтобы понять, есть ли логотип: сам файл
         // отдаётся отдельным эндпоинтом с проверкой прав.
         logoKey: true,

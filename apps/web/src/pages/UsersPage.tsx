@@ -21,6 +21,7 @@ import { PERMISSIONS } from '@gsm/shared';
 import { api } from '@/api/client';
 import { useApiMutation, useDebouncedValue, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { createdAtColumn } from '@/components/createdAtColumn';
 import { StickyTable } from '@/components/StickyTable';
 import { UserAvatar } from '@/components/UserAvatar';
 import { TableCard } from '@/components/TableCard';
@@ -240,6 +241,7 @@ export function UsersPage() {
                       render: (value: string | null) =>
                         value ? dayjs(value).format('DD.MM.YYYY HH:mm') : 'ни разу',
                     },
+                    createdAtColumn<UserDetail & { lastLoginAt: string | null }>(t),
                     ...(canManage
                       ? [
                           {

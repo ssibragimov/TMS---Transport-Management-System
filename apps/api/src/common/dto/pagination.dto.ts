@@ -53,9 +53,12 @@ export class PaginationDto {
   orderBy<T extends string>(
     allowed: readonly T[],
     fallback: T,
-  ): Record<string, 'asc' | 'desc'> {
+  ): Array<Record<string, 'asc' | 'desc'>> {
     const field = allowed.includes(this.sortBy as T) ? (this.sortBy as T) : fallback;
-    return { [field]: this.sortOrder };
+    // Вторичный ключ id — чтобы записи с равным значением не «прыгали» между страницами.
+    return field === 'id'
+      ? [{ id: this.sortOrder }]
+      : [{ [field]: this.sortOrder }, { id: this.sortOrder }];
   }
 }
 

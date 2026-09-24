@@ -70,7 +70,7 @@ export class DriversService {
         where,
         skip: query.skip,
         take: query.take,
-        orderBy: query.orderBy(SORTABLE, 'lastName'),
+        orderBy: query.orderBy(SORTABLE, 'createdAt'),
         include: {
           department: { select: { id: true, name: true } },
           position: { select: { id: true, name: true } },

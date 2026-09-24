@@ -26,6 +26,7 @@ import { PERMISSIONS, VehicleCategory, VehicleStatus } from '@gsm/shared';
 import { api } from '@/api/client';
 import { useApiMutation, useDebouncedValue, useDictionaries, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { createdAtColumn } from '@/components/createdAtColumn';
 import { StickyTable } from '@/components/StickyTable';
 import { TableCard } from '@/components/TableCard';
 import { CATEGORY_LABEL, STATUS_COLOR, STATUS_LABEL, fmt } from '@/lib/labels';
@@ -55,6 +56,7 @@ interface VehicleRow {
   currentOdometer: string | null;
   currentEngineHours: string | null;
   currentFuelLevel: string;
+  createdAt: string;
   model: { manufacturer: string; model: string } | null;
   department: { name: string } | null;
   /** Главное фото, если оно загружено. Список отдаёт только его идентификатор. */
@@ -278,6 +280,7 @@ export function VehiclesPage() {
             align: 'right',
             render: (value: string) => fmt(value, 1),
           },
+          createdAtColumn<VehicleRow>(t),
           {
             title: '',
             width: 130,

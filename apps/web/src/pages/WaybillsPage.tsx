@@ -7,6 +7,7 @@ import { PERMISSIONS, WaybillStatus } from '@gsm/shared';
 
 import { useDebouncedValue, useDownload, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { createdAtColumn } from '@/components/createdAtColumn';
 import { StickyTable } from '@/components/StickyTable';
 import { TableCard } from '@/components/TableCard';
 import {
@@ -29,6 +30,7 @@ interface WaybillRow {
   fuelConsumed: string | null;
   fuelDeviationPct: string | null;
   distanceKm: string | null;
+  createdAt: string;
   vehicle: { garageNumber: string; plateNumber: string | null } | null;
   driver: { lastName: string; firstName: string } | null;
 }
@@ -209,6 +211,7 @@ export function WaybillsPage() {
               );
             },
           },
+          createdAtColumn<WaybillRow>(t),
         ]}
       />
 

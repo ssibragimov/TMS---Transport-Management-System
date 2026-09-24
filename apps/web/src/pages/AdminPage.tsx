@@ -710,6 +710,7 @@ export function AdminPage() {
                   url="/dictionaries/regions"
                   queryKey="regions"
                   title={t("Регион")}
+                  newestFirst={false}
                   canManage={canManage}
                   invalidateExtra={[['dictionaries']]}
                   description={t("Общий справочник для всей страны — не привязан к офису. Для раскладки задания «Регион / Район» (Office → Задания путевого листа). Список районов заполнен не для всех регионов — дополните здесь то, чего не хватает.")}
@@ -752,6 +753,7 @@ export function AdminPage() {
                   url="/dictionaries/districts"
                   queryKey="districts"
                   title={t("Район")}
+                  newestFirst={false}
                   canManage={canManage}
                   invalidateExtra={[['dictionaries']]}
                   columns={[

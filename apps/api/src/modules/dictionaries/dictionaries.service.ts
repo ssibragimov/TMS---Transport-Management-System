@@ -243,6 +243,7 @@ export class DictionariesService {
         grossWeight: true,
         seats: true,
         isActive: true,
+        createdAt: true,
         _count: { select: { vehicles: true } },
       },
     });
@@ -325,6 +326,7 @@ export class DictionariesService {
         code: true,
         name: true,
         isActive: true,
+        createdAt: true,
         _count: { select: { vehicles: true, drivers: true } },
       },
     });
@@ -388,6 +390,7 @@ export class DictionariesService {
         code: true,
         name: true,
         isActive: true,
+        createdAt: true,
         _count: { select: { drivers: true } },
       },
     });
@@ -453,6 +456,7 @@ export class DictionariesService {
         name: true,
         defaultFineAmount: true,
         isActive: true,
+        createdAt: true,
         _count: { select: { violations: true } },
       },
     });
@@ -512,7 +516,7 @@ export class DictionariesService {
         ...(includeInactive ? {} : { isActive: true }),
       },
       orderBy: { name: 'asc' },
-      select: { id: true, code: true, name: true, isActive: true },
+      select: { id: true, code: true, name: true, isActive: true, createdAt: true },
     });
   }
 
@@ -579,6 +583,7 @@ export class DictionariesService {
         contactPhone: true,
         address: true,
         isActive: true,
+        createdAt: true,
       },
     });
   }
@@ -637,6 +642,7 @@ export class DictionariesService {
         unit: true,
         catalogNumber: true,
         isActive: true,
+        createdAt: true,
       },
     });
   }

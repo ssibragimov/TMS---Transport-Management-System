@@ -132,6 +132,7 @@ export const en: Record<string, string> = {
   'Карточка обновлена': 'Record updated',
   'Нет прав на просмотр водителей': 'No permission to view drivers',
   'Дата приёма': 'Hire date',
+  'Дата создания': 'Created',
   'Дата увольнения': 'Dismissal date',
   Должность: 'Position',
   'Должность водителя': 'Driver position',

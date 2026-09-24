@@ -43,6 +43,7 @@ import {
 import { api } from '@/api/client';
 import { useDebouncedValue, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { createdAtColumn, newestFirst } from '@/components/createdAtColumn';
 import { StickyTable } from '@/components/StickyTable';
 import { TableCard } from '@/components/TableCard';
 import { fmt } from '@/lib/labels';
@@ -485,6 +486,7 @@ export function StockPage() {
                         return parts.length > 0 ? parts.join(' · ') : '—';
                       },
                     },
+                    createdAtColumn<StockMovementRow>(t),
                   ]}
                 />
               ),
@@ -573,6 +575,7 @@ export function StockPage() {
                       align: 'right',
                       render: (_: unknown, row: StockDocumentRow) => fmt(row.totalAmount),
                     },
+                    createdAtColumn<StockDocumentRow>(t),
                   ]}
                 />
               ),
@@ -600,7 +603,7 @@ export function StockPage() {
                     rowKey="id"
                     size="small"
                     loading={items.isLoading}
-                    dataSource={items.data ?? []}
+                    dataSource={newestFirst(items.data ?? [])}
                     pagination={{ pageSize: 50, showTotal: (total) => `${t('Всего')}: ${total}` }}
                     columns={[
                       { title: t('Код'), dataIndex: 'code', width: 160 },
@@ -628,6 +631,7 @@ export function StockPage() {
                           </Space>
                         ),
                       },
+                      createdAtColumn<StockItem>(t),
                       {
                         title: '',
                         width: 60,

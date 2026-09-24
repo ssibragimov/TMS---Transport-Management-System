@@ -131,7 +131,7 @@ export class FuelService {
         where,
         skip: query.skip,
         take: query.take,
-        orderBy: query.orderBy(['receivedAt', 'volume', 'createdAt'], 'receivedAt'),
+        orderBy: query.orderBy(['receivedAt', 'volume', 'createdAt'], 'createdAt'),
         include: {
           tank: { select: { id: true, code: true, name: true } },
           supplier: { select: { id: true, name: true } },
@@ -156,7 +156,7 @@ export class FuelService {
         where,
         skip: query.skip,
         take: query.take,
-        orderBy: { countedAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: { tank: { select: { id: true, code: true, name: true } } },
       }),
       this.prisma.db.fuelInventory.count({ where }),
@@ -190,7 +190,7 @@ export class FuelService {
         where,
         skip: query.skip,
         take: query.take,
-        orderBy: query.orderBy(['issuedAt', 'volume', 'createdAt'], 'issuedAt'),
+        orderBy: query.orderBy(['issuedAt', 'volume', 'createdAt'], 'createdAt'),
         include: {
           vehicle: { select: { id: true, garageNumber: true, plateNumber: true } },
           driver: { select: { id: true, lastName: true, firstName: true } },

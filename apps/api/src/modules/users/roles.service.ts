@@ -69,6 +69,7 @@ export class RolesService {
         code: true,
         name: true,
         isSystem: true,
+        createdAt: true,
         permissions: { select: { permission: { select: { code: true } } } },
         _count: { select: { users: true } },
       },

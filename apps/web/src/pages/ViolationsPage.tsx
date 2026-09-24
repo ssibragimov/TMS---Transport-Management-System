@@ -23,6 +23,7 @@ import { PERMISSIONS } from '@gsm/shared';
 import { api } from '@/api/client';
 import { useApiMutation, useDownload, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { createdAtColumn } from '@/components/createdAtColumn';
 import { StickyTable } from '@/components/StickyTable';
 import { TableCard } from '@/components/TableCard';
 import { fmt } from '@/lib/labels';
@@ -171,6 +172,7 @@ export function ViolationsPage() {
             width: 180,
             render: (_: unknown, row: ViolationRow) => row.issuedByUser?.fullName ?? '—',
           },
+          createdAtColumn<ViolationRow>(t),
           {
             title: '',
             width: 150,

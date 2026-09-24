@@ -19,6 +19,7 @@ import type { ReactNode } from 'react';
 import { CardTitle } from '@/components/EntityId';
 import { api } from '@/api/client';
 import { useApiMutation } from '@/api/hooks';
+import { createdAtColumn, newestFirst } from '@/components/createdAtColumn';
 import { StickyTable } from '@/components/StickyTable';
 
 export interface CrudPanelProps<T extends { id: number; isActive?: boolean }> {
@@ -36,6 +37,8 @@ export interface CrudPanelProps<T extends { id: number; isActive?: boolean }> {
   canManage: boolean;
   /** Дополнительные ключи кэша, которые надо сбросить после изменения */
   invalidateExtra?: string[][];
+  /** Сначала новые. Отключается для справочников-классификаторов (регионы), где нужен алфавит. */
+  newestFirst?: boolean;
 }
 
 /**
@@ -56,6 +59,7 @@ export function CrudPanel<T extends { id: number; isActive?: boolean }>({
   toFormValues,
   canManage,
   invalidateExtra = [],
+  newestFirst: sortNewestFirst = true,
 }: CrudPanelProps<T>) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -93,6 +97,12 @@ export function CrudPanel<T extends { id: number; isActive?: boolean }>({
     async (id: number) => (await api.delete(`${url}/${id}`)).data,
     { successMessage: t("Запись удалена"), invalidate },
   );
+
+  // Не у всех справочников есть дата создания (регионы, виды топлива) — тогда колонки нет.
+  const hasCreatedAt = (query.data ?? []).some(
+    (row) => (row as { createdAt?: string }).createdAt !== undefined,
+  );
+  const createdColumn: ColumnsType<T> = hasCreatedAt && sortNewestFirst ? [createdAtColumn<T>(t)] : [];
 
   const actionColumn: ColumnsType<T> = canManage
     ? [
@@ -160,12 +170,16 @@ export function CrudPanel<T extends { id: number; isActive?: boolean }>({
         rowNumbers
         size="small"
         loading={query.isLoading}
-        dataSource={query.data ?? []}
+        dataSource={
+          sortNewestFirst
+            ? newestFirst((query.data ?? []) as Array<T & { createdAt?: string | null }>)
+            : (query.data ?? [])
+        }
         pagination={{ pageSize: 20, hideOnSinglePage: true }}
         // Отключённые записи приглушены: они остаются в списке ради истории,
         // но в формах уже не предлагаются.
         rowClassName={(row) => (row.isActive === false ? 'row-inactive' : '')}
-        columns={[...columns, ...actionColumn]}
+        columns={[...columns, ...createdColumn, ...actionColumn]}
       />
 
       <Modal

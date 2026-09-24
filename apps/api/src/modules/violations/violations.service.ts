@@ -110,7 +110,7 @@ export class ViolationsService {
         where,
         skip: query.skip,
         take: query.take,
-        orderBy: query.orderBy(SORTABLE, 'occurredAt'),
+        orderBy: query.orderBy(SORTABLE, 'createdAt'),
         include: INCLUDE,
       }),
       this.prisma.db.violation.count({ where }),
@@ -155,7 +155,7 @@ export class ViolationsService {
     const items = await this.prisma.db.violation.findMany({
       where,
       take: 5000,
-      orderBy: query.orderBy(SORTABLE, 'occurredAt'),
+      orderBy: query.orderBy(SORTABLE, 'createdAt'),
       include: INCLUDE,
     });
 

@@ -25,6 +25,7 @@ import { FuelSource, PERMISSIONS } from '@gsm/shared';
 import { api } from '@/api/client';
 import { useApiMutation, useDictionaries, usePaged } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
+import { createdAtColumn } from '@/components/createdAtColumn';
 import { StickyTable } from '@/components/StickyTable';
 import { TableCard } from '@/components/TableCard';
 import { FUEL_SOURCE_LABEL, fmt } from '@/lib/labels';
@@ -50,6 +51,7 @@ interface IssueRow {
   driver: { lastName: string; firstName: string } | null;
   tank: { code: string } | null;
   waybill: { number: string } | null;
+  createdAt: string;
 }
 
 interface ReceiptRow {
@@ -62,6 +64,7 @@ interface ReceiptRow {
   totalAmount: string | null;
   tank: { code: string; name: string } | null;
   supplier: { name: string } | null;
+  createdAt: string;
 }
 
 interface InventoryRow {
@@ -71,6 +74,7 @@ interface InventoryRow {
   bookVolume: string;
   actualVolume: string;
   difference: string;
+  createdAt: string;
   tank: { code: string } | null;
 }
 
@@ -297,6 +301,7 @@ export function FuelPage() {
                     title: t("Путевой лист"),
                     render: (_: unknown, row: IssueRow) => row.waybill?.number ?? '—',
                   },
+                  createdAtColumn<IssueRow>(t),
                 ]}
               />
             ),
@@ -348,6 +353,7 @@ export function FuelPage() {
                     width: 140,
                     render: (v: string | null) => fmt(v),
                   },
+                  createdAtColumn<ReceiptRow>(t),
                 ]}
               />
             ),
@@ -398,6 +404,7 @@ export function FuelPage() {
                       );
                     },
                   },
+                  createdAtColumn<InventoryRow>(t),
                 ]}
               />
             ),

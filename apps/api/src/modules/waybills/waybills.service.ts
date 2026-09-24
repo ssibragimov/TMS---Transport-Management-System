@@ -149,7 +149,7 @@ export class WaybillsService {
         where,
         skip: query.skip,
         take: query.take,
-        orderBy: query.orderBy(SORTABLE, 'validFrom'),
+        orderBy: query.orderBy(SORTABLE, 'createdAt'),
         include: {
           vehicle: { select: { id: true, garageNumber: true, plateNumber: true, category: true } },
           driver: { select: { id: true, lastName: true, firstName: true, personnelNumber: true } },
@@ -175,7 +175,7 @@ export class WaybillsService {
     const items = await this.prisma.db.waybill.findMany({
       where,
       take: 5000,
-      orderBy: query.orderBy(SORTABLE, 'validFrom'),
+      orderBy: query.orderBy(SORTABLE, 'createdAt'),
       include: {
         vehicle: { select: { garageNumber: true, plateNumber: true } },
         driver: { select: { lastName: true, firstName: true, personnelNumber: true } },

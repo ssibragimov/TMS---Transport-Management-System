@@ -289,7 +289,7 @@ export class StockService {
         where,
         skip: query.skip,
         take: query.take,
-        orderBy: [{ movedAt: 'desc' }, { id: 'desc' }],
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: {
           part: { select: { id: true, code: true, name: true, unit: true } },
           warehouse: { select: { id: true, code: true, name: true } },
@@ -335,7 +335,7 @@ export class StockService {
         where,
         skip: query.skip,
         take: query.take,
-        orderBy: query.orderBy(['documentDate', 'number', 'totalAmount'], 'documentDate'),
+        orderBy: query.orderBy(['documentDate', 'number', 'totalAmount', 'createdAt'], 'createdAt'),
         include: {
           warehouse: { select: { id: true, code: true, name: true } },
           targetWarehouse: { select: { id: true, code: true, name: true } },
