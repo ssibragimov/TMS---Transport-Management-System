@@ -276,31 +276,49 @@ export function StickyTable<RecordType extends object>({
   }, [storageId, movableSignature]);
 
   /*
-    Подсказка с полным текстом ячейки, если он не поместился. Одна на всю
-    таблицу и по делегированию событий: на каждую ячейку отдельный Tooltip
-    означал бы сотни компонентов на странице.
+    Подсказка с текстом ячейки — на любой ячейке, чтобы длинное значение
+    можно было прочесть, даже когда колонка сужена. Одна на всю таблицу и по
+    делегированию событий: на каждую ячейку отдельный Tooltip означал бы
+    сотни компонентов на странице. Появляется с небольшой задержкой, чтобы не
+    мелькать, пока курсор просто пересекает таблицу.
   */
   const [cellTip, setCellTip] = useState<{
     cell: HTMLElement;
     text: string;
     rect: DOMRect;
   } | null>(null);
+  const lastCellTip = useRef<typeof cellTip>(null);
+  const tipTimer = useRef<number | undefined>(undefined);
+  const tipTarget = useRef<HTMLElement | null>(null);
 
-  const hideCellTip = useCallback(() => setCellTip(null), []);
+  const hideCellTip = useCallback(() => {
+    window.clearTimeout(tipTimer.current);
+    tipTarget.current = null;
+    setCellTip(null);
+  }, []);
+
+  useEffect(() => () => window.clearTimeout(tipTimer.current), []);
 
   const showCellTip = (event: React.MouseEvent<HTMLElement>): void => {
     const cell = (event.target as HTMLElement).closest<HTMLElement>('td.ant-table-cell');
     if (!cell) {
-      setCellTip(null);
+      hideCellTip();
       return;
     }
-    if (cellTip?.cell === cell) return;
+    if (tipTarget.current === cell) return;
 
-    const truncated = cell.scrollWidth > cell.clientWidth + 1;
     const text = cell.innerText.replace(/\s*\n\s*/g, ', ').trim();
-    setCellTip(
-      truncated && text ? { cell, text, rect: cell.getBoundingClientRect() } : null,
-    );
+    if (!text) {
+      hideCellTip();
+      return;
+    }
+
+    window.clearTimeout(tipTimer.current);
+    tipTarget.current = cell;
+    const reveal = () => setCellTip({ cell, text, rect: cell.getBoundingClientRect() });
+    // Уже открытая подсказка перескакивает на соседнюю ячейку сразу.
+    if (cellTip) reveal();
+    else tipTimer.current = window.setTimeout(reveal, 350);
   };
 
   // Прокрутка сдвигает ячейку из-под подсказки — проще её убрать.
@@ -498,13 +516,28 @@ export function StickyTable<RecordType extends object>({
         )
       : undefined;
 
+  // Последняя показанная подсказка остаётся в разметке, пока идёт плавное
+  // исчезновение: без содержимого antd убрал бы её мгновенно.
+  if (cellTip) lastCellTip.current = cellTip;
+  const shownTip = cellTip ?? lastCellTip.current;
+
   return (
     <HeaderContext.Provider value={headerApi}>
       <div onMouseOver={showCellTip} onMouseLeave={hideCellTip}>
         <Tooltip
           open={cellTip !== null}
-          title={cellTip?.text}
+          title={
+            shownTip && (
+              <span
+                key={`${shownTip.rect.left}:${shownTip.rect.top}`}
+                className="gsm-cell-tip-text"
+              >
+                {shownTip.text}
+              </span>
+            )
+          }
           placement="bottom"
+          rootClassName="gsm-cell-tip"
           overlayStyle={{ maxWidth: 480, pointerEvents: 'none' }}
         >
           <span
@@ -512,10 +545,10 @@ export function StickyTable<RecordType extends object>({
             style={{
               position: 'fixed',
               pointerEvents: 'none',
-              left: cellTip?.rect.left ?? 0,
-              top: cellTip?.rect.top ?? 0,
-              width: cellTip?.rect.width ?? 0,
-              height: cellTip?.rect.height ?? 0,
+              left: shownTip?.rect.left ?? 0,
+              top: shownTip?.rect.top ?? 0,
+              width: shownTip?.rect.width ?? 0,
+              height: shownTip?.rect.height ?? 0,
             }}
           />
         </Tooltip>

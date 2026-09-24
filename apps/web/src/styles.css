@@ -833,6 +833,62 @@ body.gsm-resizing * {
   flex-shrink: 0;
 }
 
+/* Подсказка ячейки: мягкое появление и исчезновение вместо «выскакивания»
+   (стандартная анимация antd — с увеличением из точки). */
+.gsm-cell-tip.ant-zoom-big-fast-enter,
+.gsm-cell-tip.ant-zoom-big-fast-appear,
+.gsm-cell-tip.ant-zoom-big-fast-leave {
+  transform: none !important;
+}
+
+.gsm-cell-tip.ant-zoom-big-fast-enter,
+.gsm-cell-tip.ant-zoom-big-fast-appear {
+  opacity: 0;
+}
+
+.gsm-cell-tip.ant-zoom-big-fast-enter-active,
+.gsm-cell-tip.ant-zoom-big-fast-appear-active {
+  animation-name: gsm-tip-in !important;
+  animation-duration: 0.3s !important;
+  animation-timing-function: ease-out !important;
+  transform: none !important;
+}
+
+.gsm-cell-tip.ant-zoom-big-fast-leave-active {
+  animation-name: gsm-tip-out !important;
+  animation-duration: 0.2s !important;
+  animation-timing-function: ease-in !important;
+  transform: none !important;
+}
+
+.gsm-cell-tip-text {
+  animation: gsm-tip-text 0.25s ease-out;
+}
+
+@keyframes gsm-tip-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes gsm-tip-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes gsm-tip-text {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gsm-cell-tip.ant-zoom-big-fast-enter-active,
+  .gsm-cell-tip.ant-zoom-big-fast-appear-active,
+  .gsm-cell-tip.ant-zoom-big-fast-leave-active,
+  .gsm-cell-tip-text {
+    animation-duration: 0.01s !important;
+  }
+}
+
 .gsm-columns-reset {
   display: flex;
   justify-content: flex-end;
