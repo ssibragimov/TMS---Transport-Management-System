@@ -215,6 +215,30 @@ const OFFICE_PLANS: OfficePlan[] = [
     ],
     driverCount: 7,
   },
+  {
+    // Не аэропорт: городская организация дорожного хозяйства (Ташкент).
+    // Раскладка задания путевого листа у неё REGION_DISTRICT — см. ветвление
+    // при генерации tasks ниже. Парк и подразделения — соответствующие
+    // профилю, не аэродромное ГСМ-обслуживание.
+    code: 'DUK',
+    // Не '01': тем же кодом уже пользуется TAS, а номер уникален глобально
+    // по всей базе (vehicles_plate_active_uq в 02_constraints.sql), а не
+    // в пределах офиса — совпадение серии почти гарантированно столкнуло бы
+    // сгенерированные номера при том же порядковом счётчике.
+    plateSeries: '77',
+    departments: [
+      { code: 'DEU', name: 'Дорожно-эксплуатационный участок' },
+      { code: 'ATB', name: 'Автотранспортная база' },
+    ],
+    tanks: [{ code: 'REZ-1', name: 'Резервуар ДТ', fuel: 'DT', capacity: 10_000, fill: 0.5 }],
+    fleet: [
+      { prefix: 'Р', modelKey: 'КамАЗ 65115', count: 3 },
+      { prefix: 'Ц', modelKey: 'КО 806', count: 2 },
+      { prefix: 'K', modelKey: 'Chevrolet Cobalt', count: 2 },
+      { prefix: 'С', modelKey: 'Isuzu NQR 71P', count: 1 },
+    ],
+    driverCount: 8,
+  },
 ];
 
 const LAST_NAMES = [
@@ -230,6 +254,20 @@ const MIDDLE_NAMES = [
   'Рустамович', 'Шухратович', 'Фарходович', 'Азизович', 'Икромович',
   'Бахтиёрович', 'Дилшодович', 'Умидович',
 ];
+
+/**
+ * Категории, которым допуск в контролируемую зону аэродрома не нужен в
+ * принципе — обычный городской/дорожный транспорт. Вынесено в явный список,
+ * а не "всё, кроме CAR": офис DUK (не аэропорт) заводит технику категории
+ * TRUCK и STAFF_BUS, которым допуск на перрон физически бессмыслен.
+ */
+const AIRSIDE_EXEMPT_CATEGORIES = new Set(['CAR', 'STAFF_BUS', 'TRUCK']);
+
+/** Пункты назначения для офисов вне авиации (раскладка REGION_DISTRICT). */
+const CITY_DESTINATIONS = [
+  'Автобаза №1', 'Дорожный участок №2', 'Склад ТМЦ', 'Асфальтобетонный завод',
+  'Участок благоустройства', 'Гараж спецтехники',
+] as const;
 
 const FLIGHTS = [
   { no: 'HY603', reg: 'UK78701' }, { no: 'HY272', reg: 'UK67004' },
@@ -596,7 +634,7 @@ async function seedOffice(plan: OfficePlan): Promise<void> {
         currentFuelLevel: round2(capacity * randFloat(0.35, 0.8)),
         manufactureYear: randInt(2012, 2023),
         commissionedAt: daysAgo(randInt(400, 3600)),
-        requiresAirsidePermit: model.category !== 'CAR',
+        requiresAirsidePermit: !AIRSIDE_EXEMPT_CATEGORIES.has(model.category),
       };
 
       const vehicle = existing
@@ -911,6 +949,17 @@ async function seedOffice(plan: OfficePlan): Promise<void> {
 
   const normCache = new Map<number, { rules: NormRule[]; adjustments: NormAdjustment[] }>();
 
+  // Для REGION_DISTRICT реалистичное задание строится только там, где у
+  // региона реально заполнен список районов (см. seed.ts) — иначе задание
+  // осталось бы без района, что для этой раскладки бессмысленно.
+  const regionsWithDistricts =
+    office.taskLayout === 'REGION_DISTRICT'
+      ? await prisma.region.findMany({
+          where: { isActive: true, districts: { some: { isActive: true } } },
+          include: { districts: { where: { isActive: true } } },
+        })
+      : [];
+
   for (let dayOffset = HISTORY_DAYS; dayOffset >= 0; dayOffset -= 1) {
     const day = daysAgo(dayOffset);
 
@@ -932,6 +981,27 @@ async function seedOffice(plan: OfficePlan): Promise<void> {
 
       const taskCount = randInt(1, 4);
       const tasks = Array.from({ length: taskCount }, (_, index) => {
+        // Раскладка REGION_DISTRICT (офисы вне авиации, см. DUK): "Адрес А" —
+        // регион и район из справочника вместо рейса/борта/стоянки.
+        if (office.taskLayout === 'REGION_DISTRICT' && regionsWithDistricts.length > 0) {
+          const region = pick(regionsWithDistricts);
+          const district = pick(region.districts);
+          return {
+            sequence: index + 1,
+            fromPoint: region.name,
+            aircraftReg: district.name,
+            toPoint: pick(CITY_DESTINATIONS),
+            flightNumber: null,
+            standNumber: null,
+            startedAt: new Date(shiftStart.getTime() + index * 2 * 3_600_000),
+            endedAt: new Date(shiftStart.getTime() + (index * 2 + 1) * 3_600_000),
+            distanceKm: round2(distanceKm / taskCount),
+            engineHours: round2(engineHours / taskCount),
+            passengers: null,
+            operations: 1,
+          };
+        }
+
         const flight = pick(FLIGHTS);
         return {
           sequence: index + 1,

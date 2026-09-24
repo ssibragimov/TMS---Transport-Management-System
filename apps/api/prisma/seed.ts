@@ -299,6 +299,36 @@ const VEHICLE_MODELS: Array<{
     seats: 7,
     norms: [{ type: NormType.PER_100KM, rate: 9.2 }],
   },
+  // Городская дорожная техника (см. офис DUK в seed-demo.ts) — намеренно
+  // категория TRUCK, а не WATER_TRUCK: та уже занята аэропортовой моделью
+  // Mallaghan WS3000 (заправка воды в самолёт), и требование допуска в
+  // контролируемую зону (requiresAirsidePermit в seed-demo.ts) завязано
+  // на категорию, а не на конкретную модель — общая категория для двух
+  // разных по смыслу машин смешала бы это правило.
+  {
+    category: VehicleCategory.TRUCK,
+    manufacturer: 'КамАЗ',
+    model: '65115',
+    meterType: MeterType.ODOMETER,
+    fuelCode: 'DT',
+    tankCapacity: 300,
+    grossWeight: 33_000,
+    norms: [{ type: NormType.PER_100KM, rate: 33.0 }],
+  },
+  {
+    category: VehicleCategory.TRUCK,
+    manufacturer: 'КО',
+    model: '806',
+    meterType: MeterType.BOTH,
+    fuelCode: 'DT',
+    tankCapacity: 210,
+    // Поливомоечная машина: едет к месту работы и до заправки водой, но сам
+    // полив/подметание — стационарная работа на моточасах.
+    norms: [
+      { type: NormType.PER_100KM, rate: 26.0 },
+      { type: NormType.PER_ENGINE_HOUR, rate: 4.0 },
+    ],
+  },
 ];
 
 // ─── Шаги наполнения ────────────────────────────────────────────────────────
@@ -474,14 +504,22 @@ async function seedVehicleModels(fuelTypeIds: Map<string, number>): Promise<Map<
  * для одного и того же тягача могут быть разные утверждённые значения.
  */
 async function seedModelNorms(
-  officeIds: Map<string, number>,
   modelIds: Map<string, number>,
   fuelTypeIds: Map<string, number>,
 ): Promise<void> {
   const validFrom = new Date(new Date().getFullYear(), 0, 1);
   let created = 0;
 
-  for (const officeId of officeIds.values()) {
+  // Все действующие офисы, а не только исходный список аэропортов: офис,
+  // подключённый позже вручную через Администрирование (как DUK), должен
+  // получить те же базовые нормы, иначе его путевые листы считают расход
+  // нулевым — нормировать попросту не по чему.
+  const offices = await prisma.office.findMany({
+    where: { kind: { not: OfficeKind.HEADQUARTERS }, deletedAt: null },
+    select: { id: true },
+  });
+
+  for (const { id: officeId } of offices) {
     for (const model of VEHICLE_MODELS) {
       const modelId = modelIds.get(`${model.manufacturer} ${model.model}`);
       if (!modelId) continue;
@@ -737,7 +775,7 @@ async function main(): Promise<void> {
   const fuelTypeIds = await seedFuelTypes();
   await seedRegions();
   const modelIds = await seedVehicleModels(fuelTypeIds);
-  await seedModelNorms(officeIds, modelIds, fuelTypeIds);
+  await seedModelNorms(modelIds, fuelTypeIds);
   await seedAdmin(hqId, officeIds);
 
   if (WITH_DEMO) {
