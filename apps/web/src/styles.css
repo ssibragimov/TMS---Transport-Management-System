@@ -819,6 +819,15 @@ body.gsm-resizing * {
   text-overflow: ellipsis;
 }
 
+/* Наборы значков (офисы, роли) — flex с переносом, для них nowrap не работает. */
+.gsm-sticky-table .ant-table-tbody .ant-space {
+  flex-wrap: nowrap !important;
+}
+
+.gsm-sticky-table .ant-table-tbody .ant-space-item {
+  flex-shrink: 0;
+}
+
 .gsm-columns-reset {
   display: flex;
   justify-content: flex-end;
