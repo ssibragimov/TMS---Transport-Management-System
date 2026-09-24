@@ -104,6 +104,13 @@ interface ViolationTypeRow {
   _count: { violations: number };
 }
 
+interface TaskLocationRow {
+  id: number;
+  code: string;
+  name: string;
+  isActive: boolean;
+}
+
 const activeTag = (isActive: boolean) =>
   isActive ? <Tag color="green">активен</Tag> : <Tag>отключён</Tag>;
 
@@ -627,6 +634,50 @@ export function AdminPage() {
                     </Form.Item>
                     {isEdit && (
                       <Form.Item name="isActive" label={t("Активен")} valuePropName="checked">
+                        <Switch />
+                      </Form.Item>
+                    )}
+                  </>
+                )}
+              />
+            ),
+          },
+          {
+            key: 'task-locations',
+            label: t("Локации заданий"),
+            children: (
+              <CrudPanel<TaskLocationRow>
+                url="/dictionaries/task-locations"
+                queryKey="task-locations"
+                title={t("Локация")}
+                canManage={canManage}
+                description={t("Список для поля «Адрес А» в универсальной раскладке задания (Office → Задания путевого листа → «Адрес А» — список локаций). Свой у каждого офиса; для аэропортов с раскладкой Рейс/Борт/Стоянка не используется.")}
+                columns={[
+                  { title: t("Код"), dataIndex: 'code', width: 140 },
+                  { title: t("Наименование"), dataIndex: 'name' },
+                  { title: t("Статус"), dataIndex: 'isActive', width: 110, render: activeTag },
+                ]}
+                formFields={(isEdit) => (
+                  <>
+                    <Form.Item
+                      name="code"
+                      label={t("Код")}
+                      tooltip={t("После создания не меняется: на него ссылаются выгрузки")}
+                      rules={[
+                        { required: true, message: t("Обязательное поле") },
+                        {
+                          pattern: /^[A-Z0-9-]+$/,
+                          message: t("Заглавные латинские буквы, цифры и дефис"),
+                        },
+                      ]}
+                    >
+                      <Input disabled={isEdit} placeholder="SKLAD-1" />
+                    </Form.Item>
+                    <Form.Item name="name" label={t("Наименование")} rules={[{ required: true }]}>
+                      <Input placeholder={t("Склад №1")} />
+                    </Form.Item>
+                    {isEdit && (
+                      <Form.Item name="isActive" label={t("Активна")} valuePropName="checked">
                         <Switch />
                       </Form.Item>
                     )}

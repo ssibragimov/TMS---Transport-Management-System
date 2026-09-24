@@ -81,6 +81,7 @@ interface WaybillDetail {
   tasks: Array<{
     id: number;
     sequence: number;
+    fromPoint: string | null;
     flightNumber: string | null;
     aircraftReg: string | null;
     standNumber: string | null;
@@ -114,7 +115,9 @@ const CONDITION_OPTIONS = Object.values(VehicleCondition).map((value) => ({
 export function WaybillDrawer({ waybillId, onClose }: Props) {
   const { t } = useTranslation();
 
-  const { can } = useAuth();
+  const { can, user } = useAuth();
+  const isAddressLayout = user?.activeOffice.taskLayout === 'ADDRESS';
+  const hasLocationList = user?.activeOffice.taskAddressALocations ?? false;
   const download = useDownload();
   const [action, setAction] = useState<ActionKind>(null);
   // Состояние допуска приходит из карточки: от него зависит, спрашивать ли
@@ -307,10 +310,20 @@ export function WaybillDrawer({ waybillId, onClose }: Props) {
             dataSource={w.tasks}
             columns={[
               { title: '№', dataIndex: 'sequence', width: 50 },
-              { title: t("Рейс"), dataIndex: 'flightNumber', width: 90 },
-              { title: t("Борт"), dataIndex: 'aircraftReg', width: 100 },
-              { title: t("Стоянка"), dataIndex: 'standNumber', width: 90 },
-              { title: t("Куда"), dataIndex: 'toPoint' },
+              ...(isAddressLayout
+                ? [
+                    { title: t("Адрес А"), dataIndex: 'fromPoint', width: 160 },
+                    ...(hasLocationList
+                      ? [{ title: t("Локация"), dataIndex: 'aircraftReg', width: 140 }]
+                      : []),
+                    { title: t("Адрес Б"), dataIndex: 'toPoint' },
+                  ]
+                : [
+                    { title: t("Рейс"), dataIndex: 'flightNumber', width: 90 },
+                    { title: t("Борт"), dataIndex: 'aircraftReg', width: 100 },
+                    { title: t("Стоянка"), dataIndex: 'standNumber', width: 90 },
+                    { title: t("Куда"), dataIndex: 'toPoint' },
+                  ]),
               {
                 title: t("км"),
                 dataIndex: 'distanceKm',

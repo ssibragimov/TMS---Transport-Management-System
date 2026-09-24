@@ -22,7 +22,8 @@ import { useEffect, useState } from 'react';
 import { WaybillType, calculateNormConsumption, type NormAdjustment, type NormRule } from '@gsm/shared';
 
 import { api } from '@/api/client';
-import { useApiMutation } from '@/api/hooks';
+import { useApiMutation, useDictionaries } from '@/api/hooks';
+import { useAuth } from '@/auth/AuthContext';
 import { NORM_TYPE_LABEL, fmt } from '@/lib/labels';
 
 interface Props {
@@ -54,6 +55,14 @@ export function WaybillFormModal({ open, onClose }: Props) {
   const [form] = Form.useForm();
   const [vehicleId, setVehicleId] = useState<number | null>(null);
   const [driverId, setDriverId] = useState<number | null>(null);
+
+  const { user } = useAuth();
+  const dictionaries = useDictionaries();
+  // Раскладка задания настраивается по офису (Office.taskLayout): у аэропортов
+  // остаётся Рейс/Борт/Стоянка, у офисов из других сфер — универсальный
+  // Адрес А/Б (см. пояснение в схеме и AdminPage → «Офисы и аэропорты»).
+  const isAddressLayout = user?.activeOffice.taskLayout === 'ADDRESS';
+  const hasLocationList = user?.activeOffice.taskAddressALocations ?? false;
 
   const vehicles = useQuery({
     queryKey: ['vehicles-lookup'],
@@ -307,26 +316,59 @@ export function WaybillFormModal({ open, onClose }: Props) {
             <>
               {fields.map((field) => (
                 <Row key={field.key} gutter={8} align="middle" style={{ marginBottom: 4 }}>
-                  <Col span={4}>
-                    <Form.Item {...field} name={[field.name, 'flightNumber']} noStyle>
-                      <Input placeholder={t("Рейс")} />
-                    </Form.Item>
-                  </Col>
-                  <Col span={4}>
-                    <Form.Item {...field} name={[field.name, 'aircraftReg']} noStyle>
-                      <Input placeholder={t("Борт")} />
-                    </Form.Item>
-                  </Col>
-                  <Col span={3}>
-                    <Form.Item {...field} name={[field.name, 'standNumber']} noStyle>
-                      <Input placeholder={t("Стоянка")} />
-                    </Form.Item>
-                  </Col>
-                  <Col span={5}>
-                    <Form.Item {...field} name={[field.name, 'toPoint']} noStyle>
-                      <Input placeholder={t("Куда")} />
-                    </Form.Item>
-                  </Col>
+                  {isAddressLayout ? (
+                    <>
+                      <Col span={hasLocationList ? 5 : 8}>
+                        <Form.Item {...field} name={[field.name, 'fromPoint']} noStyle>
+                          <Input placeholder={t("Адрес А")} />
+                        </Form.Item>
+                      </Col>
+                      {hasLocationList && (
+                        <Col span={6}>
+                          <Form.Item {...field} name={[field.name, 'aircraftReg']} noStyle>
+                            <Select
+                              placeholder={t("Локация")}
+                              allowClear
+                              showSearch
+                              optionFilterProp="label"
+                              options={dictionaries.data?.taskLocations.map((loc) => ({
+                                value: loc.name,
+                                label: loc.name,
+                              }))}
+                            />
+                          </Form.Item>
+                        </Col>
+                      )}
+                      <Col span={hasLocationList ? 5 : 8}>
+                        <Form.Item {...field} name={[field.name, 'toPoint']} noStyle>
+                          <Input placeholder={t("Адрес Б")} />
+                        </Form.Item>
+                      </Col>
+                    </>
+                  ) : (
+                    <>
+                      <Col span={4}>
+                        <Form.Item {...field} name={[field.name, 'flightNumber']} noStyle>
+                          <Input placeholder={t("Рейс")} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={4}>
+                        <Form.Item {...field} name={[field.name, 'aircraftReg']} noStyle>
+                          <Input placeholder={t("Борт")} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={3}>
+                        <Form.Item {...field} name={[field.name, 'standNumber']} noStyle>
+                          <Input placeholder={t("Стоянка")} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={5}>
+                        <Form.Item {...field} name={[field.name, 'toPoint']} noStyle>
+                          <Input placeholder={t("Куда")} />
+                        </Form.Item>
+                      </Col>
+                    </>
+                  )}
                   <Col span={3}>
                     <Form.Item {...field} name={[field.name, 'distanceKm']} noStyle>
                       <InputNumber placeholder={t("км")} min={0} style={{ width: '100%' }} />

@@ -377,6 +377,8 @@ export class AuthService {
       kind: string;
       latitude: Prisma.Decimal | null;
       longitude: Prisma.Decimal | null;
+      taskLayout: string;
+      taskAddressALocations: boolean;
     }): OfficeSummaryDto => ({
       id: o.id,
       code: o.code,
@@ -387,6 +389,8 @@ export class AuthService {
       // Decimal из Prisma сериализуется в строку — карта ждёт число.
       latitude: o.latitude === null ? null : Number(o.latitude),
       longitude: o.longitude === null ? null : Number(o.longitude),
+      taskLayout: o.taskLayout,
+      taskAddressALocations: o.taskAddressALocations,
     });
 
     const availableOffices = (await this.accessibleOffices(user.id, user.bypassRls)).map(toSummary);

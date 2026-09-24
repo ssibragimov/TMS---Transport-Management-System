@@ -209,6 +209,26 @@ export class ViolationTypeDto {
 
 export class UpdateViolationTypeDto extends PartialType(ViolationTypeDto) {}
 
+export class TaskLocationDto {
+  @ApiProperty({ example: 'SKLAD-1' })
+  @IsString()
+  @MaxLength(24)
+  @Matches(/^[A-Z0-9-]+$/, { message: 'Код — заглавные латинские буквы, цифры и дефис' })
+  code: string;
+
+  @ApiProperty({ example: 'Склад №1' })
+  @IsString()
+  @MaxLength(160)
+  name: string;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateTaskLocationDto extends PartialType(TaskLocationDto) {}
+
 export class SparePartDto {
   @ApiProperty({ example: 'FLT-OIL-01' })
   @IsString()

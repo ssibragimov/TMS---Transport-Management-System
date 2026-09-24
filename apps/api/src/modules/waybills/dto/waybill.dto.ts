@@ -44,10 +44,15 @@ export class WaybillTaskDto {
   @MaxLength(16)
   flightNumber?: string;
 
-  @ApiPropertyOptional({ example: 'UK78701', description: 'Бортовой номер ВС' })
+  @ApiPropertyOptional({
+    example: 'UK78701',
+    description:
+      'Бортовой номер ВС (раскладка FLIGHT) либо локация из справочника ' +
+      '(раскладка ADDRESS со списком локаций для «Адрес А»)',
+  })
   @IsOptional()
   @IsString()
-  @MaxLength(16)
+  @MaxLength(160)
   aircraftReg?: string;
 
   @ApiPropertyOptional({ description: 'Номер стоянки' })

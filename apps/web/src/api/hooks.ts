@@ -21,6 +21,7 @@ export interface Dictionaries {
   driverPositions: Array<{ id: number; departmentId: number; code: string; name: string }>;
   counterparties: Array<{ id: number; name: string; inn: string | null }>;
   violationTypes: Array<{ id: number; code: string; name: string; defaultFineAmount: string | null }>;
+  taskLocations: Array<{ id: number; code: string; name: string }>;
 }
 
 /**

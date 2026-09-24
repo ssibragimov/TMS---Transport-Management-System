@@ -876,7 +876,15 @@ export class WaybillsService {
     const waybill = await this.findOne(officeId, id);
     const office = await this.prisma.db.office.findUniqueOrThrow({
       where: { id: officeId },
-      select: { nameRu: true, nameUz: true, code: true, address: true, phone: true },
+      select: {
+        nameRu: true,
+        nameUz: true,
+        code: true,
+        address: true,
+        phone: true,
+        taskLayout: true,
+        taskAddressALocations: true,
+      },
     });
 
     return {

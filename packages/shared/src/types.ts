@@ -106,6 +106,10 @@ export interface OfficeSummaryDto {
    */
   latitude: number | null;
   longitude: number | null;
+  /** См. WaybillTaskLayout: FLIGHT — Рейс/Борт/Стоянка, ADDRESS — Адрес А/Б. */
+  taskLayout: string;
+  /** При ADDRESS: «Адрес А» — выбор из справочника локаций офиса, не текст. */
+  taskAddressALocations: boolean;
 }
 
 export interface LoginRequest {

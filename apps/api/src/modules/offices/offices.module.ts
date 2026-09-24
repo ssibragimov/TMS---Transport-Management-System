@@ -28,7 +28,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { AuditAction, OfficeKind } from '@prisma/client';
+import { AuditAction, OfficeKind, WaybillTaskLayout } from '@prisma/client';
 import type { Response } from 'express';
 import {
   IsBoolean,
@@ -140,6 +140,22 @@ class CreateOfficeDto {
   @Min(1)
   @Max(12)
   winterToMonth?: number;
+
+  @ApiProperty({
+    enum: WaybillTaskLayout,
+    default: WaybillTaskLayout.FLIGHT,
+    description: 'FLIGHT — Рейс/Борт/Стоянка, ADDRESS — Адрес А/Б',
+  })
+  @IsEnum(WaybillTaskLayout)
+  taskLayout: WaybillTaskLayout;
+
+  @ApiPropertyOptional({
+    default: false,
+    description: 'При ADDRESS: «Адрес А» выбирается из справочника локаций офиса',
+  })
+  @IsOptional()
+  @IsBoolean()
+  taskAddressALocations?: boolean;
 }
 
 class UpdateOfficeDto {
@@ -164,6 +180,13 @@ class UpdateOfficeDto {
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Max(12) winterToMonth?: number;
 
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
+
+  @ApiPropertyOptional({ enum: WaybillTaskLayout })
+  @IsOptional()
+  @IsEnum(WaybillTaskLayout)
+  taskLayout?: WaybillTaskLayout;
+
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() taskAddressALocations?: boolean;
 }
 
 @Injectable()
@@ -278,6 +301,8 @@ export class OfficesService {
           winterSurchargePct: dto.winterSurchargePct ?? 0,
           winterFromMonth: dto.winterFromMonth ?? 11,
           winterToMonth: dto.winterToMonth ?? 3,
+          taskLayout: dto.taskLayout,
+          taskAddressALocations: dto.taskAddressALocations ?? false,
         },
       });
     });
@@ -311,6 +336,10 @@ export class OfficesService {
           ...(dto.winterFromMonth !== undefined && { winterFromMonth: dto.winterFromMonth }),
           ...(dto.winterToMonth !== undefined && { winterToMonth: dto.winterToMonth }),
           ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+          ...(dto.taskLayout !== undefined && { taskLayout: dto.taskLayout }),
+          ...(dto.taskAddressALocations !== undefined && {
+            taskAddressALocations: dto.taskAddressALocations,
+          }),
           // Код офиса не меняется: он вшит в номера уже выданных документов.
         },
       });

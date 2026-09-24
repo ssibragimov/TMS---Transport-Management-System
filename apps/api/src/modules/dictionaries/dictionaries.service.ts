@@ -8,11 +8,13 @@ import type {
   DriverPositionDto,
   FuelTypeDto,
   SparePartDto,
+  TaskLocationDto,
   UpdateCounterpartyDto,
   UpdateDepartmentDto,
   UpdateDriverPositionDto,
   UpdateFuelTypeDto,
   UpdateSparePartDto,
+  UpdateTaskLocationDto,
   UpdateVehicleModelDto,
   UpdateViolationTypeDto,
   VehicleModelDto,
@@ -391,6 +393,62 @@ export class DictionariesService {
     });
   }
 
+  // ─── Локации заданий (офисные) — универсальная раскладка путевого листа ──
+
+  taskLocations(officeId: number, includeInactive = false) {
+    return this.prisma.db.taskLocation.findMany({
+      where: {
+        officeId,
+        deletedAt: null,
+        ...(includeInactive ? {} : { isActive: true }),
+      },
+      orderBy: { name: 'asc' },
+      select: { id: true, code: true, name: true, isActive: true },
+    });
+  }
+
+  async createTaskLocation(officeId: number, dto: TaskLocationDto) {
+    const existing = await this.prisma.db.taskLocation.findFirst({
+      where: { officeId, code: dto.code, deletedAt: null },
+    });
+    if (existing) {
+      throw new ConflictException({
+        code: 'dictionary.code_taken',
+        message: `Локация с кодом ${dto.code} уже есть в этом офисе`,
+      });
+    }
+
+    return this.prisma.db.taskLocation.create({
+      data: {
+        officeId,
+        code: dto.code,
+        name: dto.name,
+        isActive: dto.isActive ?? true,
+      },
+    });
+  }
+
+  async updateTaskLocation(officeId: number, id: number, dto: UpdateTaskLocationDto) {
+    await this.ensureOfficeScoped('taskLocation', officeId, id);
+
+    return this.prisma.db.taskLocation.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      },
+    });
+  }
+
+  async removeTaskLocation(officeId: number, id: number) {
+    await this.ensureOfficeScoped('taskLocation', officeId, id);
+
+    return this.prisma.db.taskLocation.update({
+      where: { id },
+      data: { deletedAt: new Date(), isActive: false },
+    });
+  }
+
   // ─── Контрагенты (офисные) ───────────────────────────────────────────────
 
   counterparties(officeId: number, kind?: 'fuel' | 'service', includeInactive = false) {
@@ -513,18 +571,34 @@ export class DictionariesService {
     return this.prisma.db.sparePart.update({ where: { id }, data: { isActive: false } });
   }
 
-  /** Всё сразу — один запрос вместо шести при открытии формы. */
+  /** Всё сразу — один запрос вместо семи при открытии формы. */
   async all(officeId: number) {
-    const [fuelTypes, vehicleModels, departments, driverPositions, counterparties, violationTypes] =
-      await Promise.all([
-        this.fuelTypes(),
-        this.vehicleModels(),
-        this.departments(officeId),
-        this.driverPositions(officeId),
-        this.counterparties(officeId),
-        this.violationTypes(officeId),
-      ]);
-    return { fuelTypes, vehicleModels, departments, driverPositions, counterparties, violationTypes };
+    const [
+      fuelTypes,
+      vehicleModels,
+      departments,
+      driverPositions,
+      counterparties,
+      violationTypes,
+      taskLocations,
+    ] = await Promise.all([
+      this.fuelTypes(),
+      this.vehicleModels(),
+      this.departments(officeId),
+      this.driverPositions(officeId),
+      this.counterparties(officeId),
+      this.violationTypes(officeId),
+      this.taskLocations(officeId),
+    ]);
+    return {
+      fuelTypes,
+      vehicleModels,
+      departments,
+      driverPositions,
+      counterparties,
+      violationTypes,
+      taskLocations,
+    };
   }
 
   // ─── Внутреннее ──────────────────────────────────────────────────────────
@@ -547,7 +621,7 @@ export class DictionariesService {
    * чужую строку: осмысленное «не найдено» лучше, чем немой отказ в записи.
    */
   private async ensureOfficeScoped(
-    model: 'department' | 'counterparty' | 'violationType',
+    model: 'department' | 'counterparty' | 'violationType' | 'taskLocation',
     officeId: number,
     id: number,
   ): Promise<void> {
@@ -562,10 +636,15 @@ export class DictionariesService {
               where: { id, officeId, deletedAt: null },
               select: { id: true },
             })
-          : await this.prisma.db.violationType.findFirst({
-              where: { id, officeId, deletedAt: null },
-              select: { id: true },
-            });
+          : model === 'violationType'
+            ? await this.prisma.db.violationType.findFirst({
+                where: { id, officeId, deletedAt: null },
+                select: { id: true },
+              })
+            : await this.prisma.db.taskLocation.findFirst({
+                where: { id, officeId, deletedAt: null },
+                select: { id: true },
+              });
 
     if (!found) {
       throw new NotFoundException({ code: 'dictionary.not_found', message: 'Запись не найдена' });

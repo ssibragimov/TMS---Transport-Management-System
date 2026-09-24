@@ -28,7 +28,7 @@ import {
 } from 'antd';
 import type { RcFile } from 'antd/es/upload';
 import { useEffect, useState } from 'react';
-import { OfficeKind, PERMISSIONS } from '@gsm/shared';
+import { OfficeKind, PERMISSIONS, WaybillTaskLayout } from '@gsm/shared';
 
 import { CardTitle } from '@/components/EntityId';
 import { api, errorMessage } from '@/api/client';
@@ -50,12 +50,19 @@ interface OfficeRow {
   timezone: string;
   logoKey: string | null;
   isActive: boolean;
+  taskLayout: string;
+  taskAddressALocations: boolean;
 }
 
 const KIND_LABEL: Record<string, string> = {
   HEADQUARTERS: 'Головной офис',
   AIRPORT: 'Аэропорт',
   BRANCH: 'Филиал',
+};
+
+const TASK_LAYOUT_LABEL: Record<string, string> = {
+  FLIGHT: 'Рейс / Борт / Стоянка (авиация)',
+  ADDRESS: 'Адрес А / Адрес Б (универсальная)',
 };
 
 const MONTHS = [
@@ -210,6 +217,8 @@ export function OfficesPanel() {
         winterSurchargePct: 8,
         winterFromMonth: 11,
         winterToMonth: 3,
+        taskLayout: WaybillTaskLayout.FLIGHT,
+        taskAddressALocations: false,
       });
       return;
     }
@@ -222,6 +231,8 @@ export function OfficesPanel() {
         address: detail.data.address,
         phone: detail.data.phone,
         isActive: detail.data.isActive,
+        taskLayout: detail.data.taskLayout,
+        taskAddressALocations: detail.data.taskAddressALocations,
       });
     }
   }, [open, editing, detail.data, form]);
@@ -480,6 +491,41 @@ export function OfficesPanel() {
                 <Select
                   options={MONTHS.map((label, index) => ({ value: index + 1, label: t(label) }))}
                 />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Typography.Text strong>{t('Поля заданий путевого листа')}</Typography.Text>
+          <Row gutter={16} style={{ marginTop: 8 }}>
+            <Col span={12}>
+              <Form.Item
+                name="taskLayout"
+                label={t("Раскладка")}
+                tooltip={t("Рейс/Борт/Стоянка — для аэропортов; Адрес А/Б — для остальных сфер")}
+                rules={[{ required: true }]}
+              >
+                <Select
+                  options={Object.values(WaybillTaskLayout).map((value) => ({
+                    value,
+                    label: t(TASK_LAYOUT_LABEL[value] ?? value),
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item noStyle shouldUpdate={(prev, next) => prev.taskLayout !== next.taskLayout}>
+                {({ getFieldValue }) =>
+                  getFieldValue('taskLayout') === WaybillTaskLayout.ADDRESS ? (
+                    <Form.Item
+                      name="taskAddressALocations"
+                      label={t("«Адрес А» — список локаций")}
+                      valuePropName="checked"
+                      tooltip={t("Вместо свободного текста — выбор из справочника «Локации заданий»")}
+                    >
+                      <Switch />
+                    </Form.Item>
+                  ) : null
+                }
               </Form.Item>
             </Col>
           </Row>

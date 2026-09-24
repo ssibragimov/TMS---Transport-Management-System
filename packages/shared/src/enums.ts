@@ -14,6 +14,17 @@ export const OfficeKind = {
 } as const;
 export type OfficeKind = (typeof OfficeKind)[keyof typeof OfficeKind];
 
+/**
+ * Раскладка полей задания в путевом листе. FLIGHT — исходная, авиационная
+ * (Рейс/Борт/Стоянка); ADDRESS — универсальная (Адрес А/Б) для офисов вне
+ * авиации. Настраивается по офису, см. Office.taskLayout.
+ */
+export const WaybillTaskLayout = {
+  FLIGHT: 'FLIGHT',
+  ADDRESS: 'ADDRESS',
+} as const;
+export type WaybillTaskLayout = (typeof WaybillTaskLayout)[keyof typeof WaybillTaskLayout];
+
 export const UserStatus = {
   INVITED: 'INVITED',
   ACTIVE: 'ACTIVE',

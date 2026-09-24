@@ -23,11 +23,13 @@ import {
   DriverPositionDto,
   FuelTypeDto,
   SparePartDto,
+  TaskLocationDto,
   UpdateCounterpartyDto,
   UpdateDepartmentDto,
   UpdateDriverPositionDto,
   UpdateFuelTypeDto,
   UpdateSparePartDto,
+  UpdateTaskLocationDto,
   UpdateVehicleModelDto,
   UpdateViolationTypeDto,
   VehicleModelDto,
@@ -266,6 +268,50 @@ export class DictionariesController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.dictionaries.removeViolationType(officeId, id);
+  }
+
+  // ─── Локации заданий ─────────────────────────────────────────────────────
+
+  @Get('task-locations')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_READ)
+  @ApiQuery({ name: 'includeInactive', required: false })
+  @ApiOperation({ summary: 'Локации для универсальной раскладки задания (Адрес А)' })
+  taskLocations(
+    @CurrentOffice() officeId: number,
+    @Query('includeInactive') includeInactive?: string,
+  ) {
+    return this.dictionaries.taskLocations(officeId, inactive(includeInactive));
+  }
+
+  @Post('task-locations')
+  @Audited('TaskLocation')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_MANAGE)
+  @ApiOperation({ summary: 'Добавление локации' })
+  createTaskLocation(@CurrentOffice() officeId: number, @Body() dto: TaskLocationDto) {
+    return this.dictionaries.createTaskLocation(officeId, dto);
+  }
+
+  @Patch('task-locations/:id')
+  @Audited('TaskLocation')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_MANAGE)
+  @ApiOperation({ summary: 'Изменение локации' })
+  updateTaskLocation(
+    @CurrentOffice() officeId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateTaskLocationDto,
+  ) {
+    return this.dictionaries.updateTaskLocation(officeId, id, dto);
+  }
+
+  @Delete('task-locations/:id')
+  @Audited('TaskLocation')
+  @RequirePermissions(PERMISSIONS.DICTIONARY_MANAGE)
+  @ApiOperation({ summary: 'Удаление локации' })
+  removeTaskLocation(
+    @CurrentOffice() officeId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.dictionaries.removeTaskLocation(officeId, id);
   }
 
   // ─── Контрагенты ─────────────────────────────────────────────────────────

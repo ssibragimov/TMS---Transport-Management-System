@@ -11,7 +11,15 @@ import { useAuth } from '@/auth/AuthContext';
 import { fmt } from '@/lib/labels';
 
 interface PrintData {
-  office: { nameRu: string; nameUz: string; code: string; address: string | null; phone: string | null };
+  office: {
+    nameRu: string;
+    nameUz: string;
+    code: string;
+    address: string | null;
+    phone: string | null;
+    taskLayout: string;
+    taskAddressALocations: boolean;
+  };
   printedAt: string;
   normBreakdown: { lines: Array<{ key: string; rate: number; quantity: number; unit: string; litres: number }> } | null;
   waybill: {
@@ -38,6 +46,7 @@ interface PrintData {
     tasks: Array<{
       id: number;
       sequence: number;
+      fromPoint: string | null;
       flightNumber: string | null;
       aircraftReg: string | null;
       standNumber: string | null;
@@ -103,6 +112,10 @@ export function WaybillPrintPage() {
   const driverName = waybill.driver
     ? `${waybill.driver.lastName} ${waybill.driver.firstName} ${waybill.driver.middleName ?? ''}`.trim()
     : '—';
+  // Раскладка идёт с офисом, выпустившим лист (а не с активным офисом текущего
+  // пользователя) — печатная форма должна отражать реальность документа.
+  const isAddressLayout = office.taskLayout === 'ADDRESS';
+  const hasLocationList = office.taskAddressALocations;
 
   return (
     <div className="wb-print">
@@ -235,10 +248,20 @@ export function WaybillPrintPage() {
             <thead>
               <tr>
                 <th>№</th>
-                <th>{t('Рейс')}</th>
-                <th>{t('Борт')}</th>
-                <th>{t('Стоянка')}</th>
-                <th>{t('Куда')}</th>
+                {isAddressLayout ? (
+                  <>
+                    <th>{t('Адрес А')}</th>
+                    {hasLocationList && <th>{t('Локация')}</th>}
+                    <th>{t('Адрес Б')}</th>
+                  </>
+                ) : (
+                  <>
+                    <th>{t('Рейс')}</th>
+                    <th>{t('Борт')}</th>
+                    <th>{t('Стоянка')}</th>
+                    <th>{t('Куда')}</th>
+                  </>
+                )}
                 <th>{t('км')}</th>
                 <th>{t('мч')}</th>
               </tr>
@@ -247,10 +270,20 @@ export function WaybillPrintPage() {
               {waybill.tasks.map((task) => (
                 <tr key={task.id}>
                   <td>{task.sequence}</td>
-                  <td>{task.flightNumber ?? '—'}</td>
-                  <td>{task.aircraftReg ?? '—'}</td>
-                  <td>{task.standNumber ?? '—'}</td>
-                  <td>{task.toPoint ?? '—'}</td>
+                  {isAddressLayout ? (
+                    <>
+                      <td>{task.fromPoint ?? '—'}</td>
+                      {hasLocationList && <td>{task.aircraftReg ?? '—'}</td>}
+                      <td>{task.toPoint ?? '—'}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td>{task.flightNumber ?? '—'}</td>
+                      <td>{task.aircraftReg ?? '—'}</td>
+                      <td>{task.standNumber ?? '—'}</td>
+                      <td>{task.toPoint ?? '—'}</td>
+                    </>
+                  )}
                   <td>{fmt(task.distanceKm, 1)}</td>
                   <td>{fmt(task.engineHours, 1)}</td>
                 </tr>

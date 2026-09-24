@@ -38,6 +38,14 @@ enum OfficeKind {
   BRANCH
 }
 
+/// Раскладка полей задания в путевом листе (см. WaybillTask). FLIGHT — исходная,
+/// авиационная (Рейс/Борт/Стоянка); ADDRESS — универсальная (Адрес А/Б) для
+/// офисов вне авиации. Переключается по офису, не глобально.
+enum WaybillTaskLayout {
+  FLIGHT
+  ADDRESS
+}
+
 /// Офис = аэропорт (или головной офис). Корень мультиарендности.
 model Office {
   id       Int        @id @default(autoincrement())
@@ -70,6 +78,13 @@ model Office {
   winterSurchargePct Decimal @default(0) @map("winter_surcharge_pct") @db.Decimal(5, 2)
   winterFromMonth    Int     @default(11) @map("winter_from_month") @db.SmallInt
   winterToMonth      Int     @default(3) @map("winter_to_month") @db.SmallInt
+
+  /// См. WaybillTaskLayout. FLIGHT — авиационные подписи полей задания,
+  /// ADDRESS — универсальные Адрес А/Б для офисов вне авиации.
+  taskLayout             WaybillTaskLayout @default(FLIGHT) @map("task_layout")
+  /// При ADDRESS: «Адрес А» выбирается из справочника TaskLocation этого
+  /// офиса, а не вводится свободным текстом.
+  taskAddressALocations  Boolean           @default(false) @map("task_address_a_locations")
 
   isActive  Boolean   @default(true) @map("is_active")
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -104,6 +119,7 @@ model Office {
   documentSequences  DocumentSequence[]
   counterparties     Counterparty[]
   violationTypes     ViolationType[]
+  taskLocations      TaskLocation[]
 
   @@index([parentId])
   @@index([isActive])
@@ -799,6 +815,27 @@ model ViolationType {
   @@map("violation_types")
 }
 
+/// Справочник локаций для универсальной раскладки задания (см.
+/// WaybillTaskLayout.ADDRESS) — офисы вне авиации выбирают «Адрес А» из
+/// собственного списка вместо свободного ввода. Офисный, как ViolationType.
+model TaskLocation {
+  id       Int    @id @default(autoincrement())
+  officeId Int    @map("office_id")
+  code     String @db.VarChar(24)
+  name     String @db.VarChar(160)
+
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id], onDelete: Restrict)
+
+  @@unique([officeId, code])
+  @@index([officeId])
+  @@map("task_locations")
+}
+
 /// Нарушение, зафиксированное службой безопасности дорог аэропорта.
 /// Простой журнал без статусной модели: запись оформляется на месте
 /// (в перспективе — с планшета) и хранится как есть. Исправить ошибку
@@ -1368,8 +1405,11 @@ model WaybillTask {
   toPoint   String? @map("to_point") @db.VarChar(240)
   /// Номер рейса, например HY603
   flightNumber String? @map("flight_number") @db.VarChar(16)
-  /// Бортовой номер ВС
-  aircraftReg  String? @map("aircraft_reg") @db.VarChar(16)
+  /// Бортовой номер ВС (раскладка FLIGHT) либо название локации из
+  /// TaskLocation (раскладка ADDRESS с включённым списком локаций для
+  /// «Адрес А») — см. Office.taskLayout/taskAddressALocations. Ширина
+  /// 160 — под название локации; для бортового номера с запасом.
+  aircraftReg  String? @map("aircraft_reg") @db.VarChar(160)
   standNumber  String? @map("stand_number") @db.VarChar(16)
 
   startedAt DateTime? @map("started_at") @db.Timestamptz(3)
