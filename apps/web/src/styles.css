@@ -865,6 +865,20 @@ body.gsm-resizing * {
   animation: gsm-tip-text 0.25s ease-out;
 }
 
+/* Фон — как у бокового меню (#001529), плашка компактнее стандартной. */
+.gsm-cell-tip {
+  --antd-arrow-background-color: #001529;
+}
+
+.gsm-cell-tip .ant-tooltip-inner {
+  background: #001529;
+  min-height: 0;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 @keyframes gsm-tip-in {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
