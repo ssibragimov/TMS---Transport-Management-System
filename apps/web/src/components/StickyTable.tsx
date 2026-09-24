@@ -364,13 +364,36 @@ export function StickyTable<RecordType extends object>({
 
       const startX = event.clientX;
       const startWidth = cell.getBoundingClientRect().width;
+
+      // Фиксируем текущую ширину ВСЕХ колонок: иначе колонки без заданной ширины
+      // растягиваются и «съедают» освободившееся место, а суженная колонка
+      // визуально остаётся прежней.
+      const measured: Record<string, number> = {};
+      cell.parentElement
+        ?.querySelectorAll<HTMLElement>('th[data-col-key]')
+        .forEach((th) => {
+          const columnKey = th.dataset.colKey;
+          if (columnKey)
+            measured[columnKey] = Math.round(th.getBoundingClientRect().width);
+        });
+      setLayout((current) => ({
+        ...current,
+        widths: { ...measured, ...current.widths },
+      }));
+      layoutRef.current = {
+        ...layoutRef.current,
+        widths: { ...measured, ...layoutRef.current.widths },
+      };
       setResizingKey(key);
 
       // Слушатели на документе, а не на ячейке: курсор при быстром движении
       // выходит за её пределы, и события ушли бы мимо.
       const onMove = (move: MouseEvent): void => {
         const width = Math.max(MIN_WIDTH, Math.round(startWidth + move.clientX - startX));
-        setLayout((current) => ({ ...current, widths: { ...current.widths, [key]: width } }));
+        setLayout((current) => ({
+          ...current,
+          widths: { ...current.widths, [key]: width },
+        }));
       };
 
       const onUp = (): void => {
@@ -409,6 +432,23 @@ export function StickyTable<RecordType extends object>({
     : allColumns;
 
   /*
+    Когда ширины заданы пользователем, таблица получает ровно суммарную ширину
+    колонок и не растягивается до краёв: суженная колонка остаётся суженной,
+    соседние сдвигаются влево. Работает, только если у каждой колонки известна
+    числовая ширина; иначе остаётся обычное поведение.
+  */
+  const fixedTotal = (() => {
+    if (Object.keys(layout.widths).length === 0) return null;
+    let total = 0;
+    for (const { key, column } of orderedEntries) {
+      const width = layout.widths[key] ?? (column as ColumnLike).width;
+      if (typeof width !== 'number') return null;
+      total += width;
+    }
+    return total;
+  })();
+
+  /*
     Запасной вариант для таблиц вне карточки списка: там кнопке сброса негде
     жить, кроме подвала. Подвал под таблицей — он её вниз не сдвигает.
   */
@@ -443,10 +483,20 @@ export function StickyTable<RecordType extends object>({
           Задано до распространения props: странице оставлена возможность
           переопределить прокрутку своим значением.
         */
-        scroll={{ x: 'max-content' }}
         footer={footer}
         {...props}
-        className={['gsm-sticky-table', props.className].filter(Boolean).join(' ')}
+        scroll={
+          fixedTotal !== null
+            ? { ...props.scroll, x: fixedTotal }
+            : (props.scroll ?? { x: 'max-content' })
+        }
+        className={[
+          'gsm-sticky-table',
+          fixedTotal !== null && 'gsm-table-fixed-width',
+          props.className,
+        ]
+          .filter(Boolean)
+          .join(' ')}
         columns={preparedColumns}
         components={{
           ...components,
