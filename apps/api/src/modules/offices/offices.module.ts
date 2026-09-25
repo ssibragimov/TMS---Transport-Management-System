@@ -124,6 +124,20 @@ class CreateOfficeDto {
   @MaxLength(64)
   timezone?: string;
 
+  @ApiPropertyOptional({ description: 'Широта территории офиса — центр карты телеметрии' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 7 })
+  @Min(-90)
+  @Max(90)
+  latitude?: number | null;
+
+  @ApiPropertyOptional({ description: 'Долгота территории офиса — центр карты телеметрии' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 7 })
+  @Min(-180)
+  @Max(180)
+  longitude?: number | null;
+
   @ApiPropertyOptional({
     description: 'Зимняя надбавка к норме расхода, %. У каждого региона своя.',
   })
@@ -173,6 +187,20 @@ class UpdateOfficeDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(400) address?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) phone?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(64) timezone?: string;
+
+  @ApiPropertyOptional({ description: 'null — убрать координаты' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 7 })
+  @Min(-90)
+  @Max(90)
+  latitude?: number | null;
+
+  @ApiPropertyOptional({ description: 'null — убрать координаты' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 7 })
+  @Min(-180)
+  @Max(180)
+  longitude?: number | null;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -359,6 +387,8 @@ export class OfficesService {
           address: dto.address ?? null,
           phone: dto.phone ?? null,
           timezone: dto.timezone ?? 'Asia/Tashkent',
+          latitude: dto.latitude ?? null,
+          longitude: dto.longitude ?? null,
           winterSurchargePct: dto.winterSurchargePct ?? 0,
           winterFromMonth: dto.winterFromMonth ?? 11,
           winterToMonth: dto.winterToMonth ?? 3,
@@ -391,6 +421,8 @@ export class OfficesService {
           ...(dto.address !== undefined && { address: dto.address }),
           ...(dto.phone !== undefined && { phone: dto.phone }),
           ...(dto.timezone !== undefined && { timezone: dto.timezone }),
+          ...(dto.latitude !== undefined && { latitude: dto.latitude }),
+          ...(dto.longitude !== undefined && { longitude: dto.longitude }),
           ...(dto.winterSurchargePct !== undefined && {
             winterSurchargePct: dto.winterSurchargePct,
           }),

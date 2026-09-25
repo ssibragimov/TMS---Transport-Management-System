@@ -20,6 +20,8 @@ import type { PlanFence, PlanVehicle } from './PlanMap';
 
 interface Props {
   center: { lat: number; lon: number };
+  /** Не выпускать карту за пределы района аэродрома. Выключается, если у офиса нет координат. */
+  restrictArea?: boolean;
   fences: PlanFence[];
   vehicles: PlanVehicle[];
   selectedId?: number | null;
@@ -48,6 +50,7 @@ const BOUND_KM = 6;
 
 export function YandexAirportMap({
   center,
+  restrictArea = true,
   fences,
   vehicles,
   selectedId,
@@ -95,11 +98,13 @@ export function YandexAirportMap({
           {
             // Карта закреплена за своим аэродромом: уехать в другой регион
             // диспетчеру незачем, а утащить её перетаскиванием — обычное дело.
-            restrictMapArea: [
-              [center.lat - dLat, center.lon - dLon],
-              [center.lat + dLat, center.lon + dLon],
-            ],
-            minZoom: 12,
+            ...(restrictArea && {
+              restrictMapArea: [
+                [center.lat - dLat, center.lon - dLon],
+                [center.lat + dLat, center.lon + dLon],
+              ] as [YMaps.LatLng, YMaps.LatLng],
+            }),
+            minZoom: restrictArea ? 12 : 5,
             maxZoom: 19,
             suppressMapOpenBlock: true,
           },

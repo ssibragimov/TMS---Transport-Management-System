@@ -271,6 +271,8 @@ export function OfficesPanel() {
         winterToMonth: detail.data.winterToMonth,
         address: detail.data.address,
         phone: detail.data.phone,
+        latitude: detail.data.latitude != null ? Number(detail.data.latitude) : null,
+        longitude: detail.data.longitude != null ? Number(detail.data.longitude) : null,
         isActive: detail.data.isActive,
         taskLayout: detail.data.taskLayout ?? INHERIT,
         taskAddressALocations: detail.data.taskAddressALocations ?? false,
@@ -563,6 +565,35 @@ export function OfficesPanel() {
                     { value: 'Asia/Tashkent', label: 'Asia/Tashkent' },
                     { value: 'Asia/Samarkand', label: 'Asia/Samarkand' },
                   ]}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item
+                name="latitude"
+                label={t('Широта')}
+                tooltip={t('Центр карты телеметрии. Чтобы узнать координаты: на Яндекс.Картах щёлкните правой кнопкой по нужному месту — они появятся в подсказке.')}
+              >
+                <InputNumber
+                  min={-90}
+                  max={90}
+                  step={0.0001}
+                  style={{ width: '100%' }}
+                  placeholder="41.2995"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="longitude" label={t('Долгота')}>
+                <InputNumber
+                  min={-180}
+                  max={180}
+                  step={0.0001}
+                  style={{ width: '100%' }}
+                  placeholder="69.2401"
                 />
               </Form.Item>
             </Col>

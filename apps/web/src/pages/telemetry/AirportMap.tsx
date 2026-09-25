@@ -52,6 +52,20 @@ export function AirportMap({
   const office = user?.activeOffice;
   const hasCoordinates = office?.latitude != null && office?.longitude != null;
 
+  // Центр карты. У офиса без заданных координат (не аэропорт, например
+  // TOSHSHAHARNUR) берём середину его зон, а если зон нет — Ташкент: карта
+  // должна открываться везде, а не пропадать из-за пустого поля в карточке офиса.
+  const center = (() => {
+    if (hasCoordinates) return { lat: office.latitude as number, lon: office.longitude as number };
+    const points = fences.flatMap((f) => f.area ?? []);
+    if (points.length > 0) {
+      const lon = points.reduce((sum, p) => sum + p[0], 0) / points.length;
+      const lat = points.reduce((sum, p) => sum + p[1], 0) / points.length;
+      return { lat, lon };
+    }
+    return { lat: 41.2995, lon: 69.2401 };
+  })();
+
   // null — проверка ещё идёт; до её конца схему не показываем,
   // иначе карта подменялась бы на глазах у пользователя.
   const [tiles, setTiles] = useState<boolean | null>(null);
@@ -70,10 +84,12 @@ export function AirportMap({
     };
   }, []);
 
-  if (YANDEX_MAPS_KEY && hasCoordinates && !yandexError) {
+  if (YANDEX_MAPS_KEY && !yandexError) {
     return (
       <YandexAirportMap
-        center={{ lat: office.latitude as number, lon: office.longitude as number }}
+        center={center}
+        // Без координат офиса карту не привязываем к одной территории.
+        restrictArea={hasCoordinates}
         fences={fences}
         vehicles={vehicles}
         selectedId={selectedId}
@@ -116,7 +132,21 @@ export function AirportMap({
   return (
     <Space direction="vertical" size={12} style={{ width: '100%' }}>
       {yandexNotice}
-      {explainFallback && !tiles && (
+      {explainFallback && !YANDEX_MAPS_KEY && (
+        <Alert
+          type="warning"
+          showIcon
+          message={t('Карта Яндекса не подключена')}
+          description={
+            <Typography.Text type="secondary">
+              {t(
+                'В сборке сайта не задан ключ Яндекс.Карт (переменная VITE_YANDEX_MAPS_API_KEY). Добавьте его в настройках сайта на Render и пересоберите сайт — карта появится сама.',
+              )}
+            </Typography.Text>
+          }
+        />
+      )}
+      {explainFallback && YANDEX_MAPS_KEY && !tiles && (
         <Alert
           type="info"
           showIcon
