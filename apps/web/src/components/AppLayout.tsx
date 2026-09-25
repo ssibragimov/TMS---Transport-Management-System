@@ -322,14 +322,6 @@ export function AppLayout() {
             </Space>
           </Dropdown>
 
-          {/* Версия платформы — техническая подпись в самом углу экрана,
-              а не пункт интерфейса: полезна в основном при обращении
-              в поддержку («на какой версии вы работаете»). */}
-          <Tooltip title={t('Версия платформы')}>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              v{__APP_VERSION__} · {__BUILD_ID__}
-            </Typography.Text>
-          </Tooltip>
         </Space>
       </Header>
 
@@ -355,6 +347,19 @@ export function AppLayout() {
             items={menuItems}
             onClick={({ key }) => navigate(key)}
           />
+
+          {/* Версия платформы — техническая подпись внизу меню, а не пункт
+              интерфейса: полезна в основном при обращении в поддержку («на какой
+              версии вы работаете»). В свёрнутом меню остаётся только номер версии. */}
+          <Tooltip
+            title={`${t('Версия платформы')}: v${__APP_VERSION__} · ${__BUILD_ID__}`}
+            placement="right"
+          >
+            <div className="gsm-sider-version">
+              <span>v{__APP_VERSION__}</span>
+              {!collapsed && <span>{__BUILD_ID__}</span>}
+            </div>
+          </Tooltip>
 
           {/*
             Кнопка сворачивания прижата к низу меню: список разделов

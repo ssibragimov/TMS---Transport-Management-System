@@ -420,6 +420,22 @@ body {
 
 /* Кнопка сворачивания внизу меню. Обычный button, а не antd Button:
    нужна полоса во всю ширину панели, а не элемент с внешними отступами. */
+/* Подпись с версией над кнопкой сворачивания. */
+.gsm-sider-version {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 8px 10px;
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+  user-select: text;
+}
+
 .gsm-sider-toggle {
   display: flex;
   align-items: center;
