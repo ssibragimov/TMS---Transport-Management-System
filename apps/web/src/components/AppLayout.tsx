@@ -207,7 +207,7 @@ export function AppLayout() {
    */
   const roleTitle =
     user?.roles?.length
-      ? user.roles.map((code) => roleLabel(code, i18n.language)).join(', ')
+      ? [...new Set(user.roles.map((code) => roleLabel(code, i18n.language)))].join(', ')
       : t('Роль не назначена');
 
   return (

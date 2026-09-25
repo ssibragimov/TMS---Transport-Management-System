@@ -485,9 +485,13 @@ export class AuthService {
       locale: user.locale,
       activeOffice,
       availableOffices,
+      // Без повторов: роль суперадминистратора, выданная по офисам по отдельности,
+      // считается одной ролью, а не по разу на каждый офис.
       roles: [
-        ...applicableRoles.map((ur) => ur.role.code),
-        ...(orgAdminRole ? [orgAdminRole.code] : []),
+        ...new Set([
+          ...applicableRoles.map((ur) => ur.role.code),
+          ...(orgAdminRole ? [orgAdminRole.code] : []),
+        ]),
       ],
       permissions,
     };
