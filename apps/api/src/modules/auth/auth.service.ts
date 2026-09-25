@@ -307,18 +307,34 @@ export class AuthService {
       });
     }
 
-    const links = await this.prisma.db.userOffice.findMany({
+    // Офисы по явной записи плюс все офисы организаций, которыми человек
+    // управляет: новый офис такой организации доступен ему сразу.
+    const adminOrganizationIds = await this.adminOrganizationIds(userId);
+
+    return this.prisma.db.office.findMany({
       // Отключённый офис недоступен и по явной записи: отключение означает,
       // что аэропорт больше не работает, а не что его просто скрыли из списка.
       where: {
-        userId,
-        office: { deletedAt: null, isActive: true, organization: { isActive: true } },
+        deletedAt: null,
+        isActive: true,
+        organization: { isActive: true },
+        OR: [
+          { userOffices: { some: { userId } } },
+          { organizationId: { in: adminOrganizationIds } },
+        ],
       },
-      include: { office: { include: { organization: true } } },
-      orderBy: [{ office: { kind: 'asc' } }, { office: { code: 'asc' } }],
+      include: { organization: true },
+      orderBy: [{ kind: 'asc' }, { code: 'asc' }],
     });
+  }
 
-    return links.map((link) => link.office);
+  /** Организации, администратором которых является пользователь. */
+  private async adminOrganizationIds(userId: number): Promise<number[]> {
+    const rows = await this.prisma.db.userOrganization.findMany({
+      where: { userId },
+      select: { organizationId: true },
+    });
+    return rows.map((row) => row.organizationId);
   }
 
   /**
@@ -343,8 +359,19 @@ export class AuthService {
 
     const office = await this.prisma.db.office.findUniqueOrThrow({
       where: { id: activeOfficeId },
-      select: { id: true, kind: true },
+      select: { id: true, kind: true, organizationId: true },
     });
+
+    // Администратор организации, работающий в её офисе, видит данные всех офисов
+    // этой организации сразу — общие отчёты и управление людьми без переключений.
+    const adminOrganizationIds = await this.adminOrganizationIds(userId);
+    if (adminOrganizationIds.includes(office.organizationId)) {
+      const organizationOffices = await this.prisma.db.office.findMany({
+        where: { organizationId: office.organizationId, deletedAt: null },
+        select: { id: true },
+      });
+      return organizationOffices.map((o) => o.id);
+    }
 
     if (office.kind !== OfficeKind.HEADQUARTERS) return [office.id];
 
@@ -382,12 +409,28 @@ export class AuthService {
         ur.role.code === SYSTEM_ROLES.SUPER_ADMIN,
     );
 
+    const availableRaw = await this.accessibleOffices(user.id, user.bypassRls);
+    const activeRaw = availableRaw.find((o) => o.id === officeId) ?? availableRaw[0];
+
+    // Администратор организации получает права роли ORG_ADMIN в офисах своей
+    // организации — и только в них.
+    const adminOrganizationIds = await this.adminOrganizationIds(user.id);
+    const isOrgAdminHere =
+      activeRaw !== undefined && adminOrganizationIds.includes(activeRaw.organizationId);
+    const orgAdminRole = isOrgAdminHere
+      ? await this.prisma.db.role.findUnique({
+          where: { code: SYSTEM_ROLES.ORG_ADMIN },
+          include: { permissions: { include: { permission: true } } },
+        })
+      : null;
+
     const permissions = [
-      ...new Set(
-        applicableRoles.flatMap((ur) =>
+      ...new Set([
+        ...applicableRoles.flatMap((ur) =>
           ur.role.permissions.map((rp) => rp.permission.code as Permission),
         ),
-      ),
+        ...(orgAdminRole?.permissions.map((rp) => rp.permission.code as Permission) ?? []),
+      ]),
     ];
 
     const toSummary = (o: {
@@ -399,9 +442,15 @@ export class AuthService {
       kind: string;
       latitude: Prisma.Decimal | null;
       longitude: Prisma.Decimal | null;
-      taskLayout: string;
-      taskAddressALocations: boolean;
-      organization: { id: number; code: string; nameRu: string };
+      taskLayout: string | null;
+      taskAddressALocations: boolean | null;
+      organization: {
+        id: number;
+        code: string;
+        nameRu: string;
+        taskLayout: string;
+        taskAddressALocations: boolean;
+      };
     }): OfficeSummaryDto => ({
       id: o.id,
       code: o.code,
@@ -417,11 +466,12 @@ export class AuthService {
       // Decimal из Prisma сериализуется в строку — карта ждёт число.
       latitude: o.latitude === null ? null : Number(o.latitude),
       longitude: o.longitude === null ? null : Number(o.longitude),
-      taskLayout: o.taskLayout,
-      taskAddressALocations: o.taskAddressALocations,
+      // Собственная раскладка офиса главнее; иначе — как у организации.
+      taskLayout: o.taskLayout ?? o.organization.taskLayout,
+      taskAddressALocations: o.taskAddressALocations ?? o.organization.taskAddressALocations,
     });
 
-    const availableOffices = (await this.accessibleOffices(user.id, user.bypassRls)).map(toSummary);
+    const availableOffices = availableRaw.map(toSummary);
     const activeOffice =
       availableOffices.find((o) => o.id === officeId) ?? availableOffices[0];
 
@@ -435,7 +485,10 @@ export class AuthService {
       locale: user.locale,
       activeOffice,
       availableOffices,
-      roles: applicableRoles.map((ur) => ur.role.code),
+      roles: [
+        ...applicableRoles.map((ur) => ur.role.code),
+        ...(orgAdminRole ? [orgAdminRole.code] : []),
+      ],
       permissions,
     };
   }

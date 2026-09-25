@@ -7,15 +7,20 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import {
   Button,
+  Col,
   Form,
   Input,
   Modal,
   Popconfirm,
+  Row,
+  Select,
   Space,
+  Switch,
   Tag,
   Tooltip,
   Typography,
 } from 'antd';
+import { WaybillTaskLayout } from '@gsm/shared';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -25,6 +30,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { CardTitle } from '@/components/EntityId';
 import { createdAtColumn, newestFirst } from '@/components/createdAtColumn';
 import { StickyTable } from '@/components/StickyTable';
+import { OfficeLogoCell, TASK_LAYOUT_LABEL } from '@/pages/admin/OfficesPanel';
 
 interface OrganizationRow {
   id: number;
@@ -32,9 +38,23 @@ interface OrganizationRow {
   nameRu: string;
   nameUz: string;
   nameEn: string;
+  taskLayout: string;
+  taskAddressALocations: boolean;
+  logoKey: string | null;
   isActive: boolean;
   createdAt: string;
   _count: { offices: number };
+}
+
+/** Список локаций осмыслен только при раскладке «Адрес А/Б». */
+function normalize(values: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...values,
+    taskAddressALocations:
+      values.taskLayout === WaybillTaskLayout.ADDRESS
+        ? Boolean(values.taskAddressALocations)
+        : false,
+  };
 }
 
 /**
@@ -58,6 +78,11 @@ export function OrganizationsPanel() {
     if (!open) return;
     form.resetFields();
     if (editing) form.setFieldsValue(editing);
+    else
+      form.setFieldsValue({
+        taskLayout: WaybillTaskLayout.FLIGHT,
+        taskAddressALocations: false,
+      });
   }, [open, editing, form]);
 
   const save = useApiMutation(
@@ -65,9 +90,9 @@ export function OrganizationsPanel() {
       if (editing) {
         // Код не меняется; лишние поля запрос отвергает целиком.
         const { code: _code, ...patch } = values;
-        return (await api.patch(`/organizations/${editing.id}`, patch)).data;
+        return (await api.patch(`/organizations/${editing.id}`, normalize(patch))).data;
       }
-      return (await api.post('/organizations', values)).data;
+      return (await api.post('/organizations', normalize(values))).data;
     },
     {
       successMessage: editing ? t('Организация обновлена') : t('Организация создана'),
@@ -112,8 +137,22 @@ export function OrganizationsPanel() {
         dataSource={newestFirst(organizations.data ?? [])}
         pagination={false}
         columns={[
+          {
+            title: t('Логотип'),
+            key: 'logo',
+            width: 130,
+            render: (_: unknown, row: OrganizationRow) => (
+              <OfficeLogoCell office={row} manage resource="organizations" />
+            ),
+          },
           { title: t('Код'), dataIndex: 'code', width: 110 },
           { title: t('Наименование'), dataIndex: 'nameRu' },
+          {
+            title: t('Раскладка задания'),
+            dataIndex: 'taskLayout',
+            width: 260,
+            render: (value: string) => t(TASK_LAYOUT_LABEL[value] ?? value),
+          },
           {
             title: t('Офисов'),
             width: 100,
@@ -190,6 +229,7 @@ export function OrganizationsPanel() {
             id={editing?.id}
           />
         }
+        width={640}
         okText={t('Сохранить')}
         cancelText={t('Отмена')}
         confirmLoading={save.isPending}
@@ -238,6 +278,50 @@ export function OrganizationsPanel() {
           >
             <Input />
           </Form.Item>
+
+          <Typography.Text strong>{t('Поля заданий путевого листа')}</Typography.Text>
+          <Typography.Paragraph type="secondary" style={{ marginTop: 4 }}>
+            {t(
+              'Общие для всех офисов организации. Отдельному офису можно задать свою раскладку.',
+            )}
+          </Typography.Paragraph>
+          <Row gutter={16}>
+            <Col span={14}>
+              <Form.Item
+                name="taskLayout"
+                label={t('Раскладка')}
+                rules={[{ required: true }]}
+              >
+                <Select
+                  options={Object.values(WaybillTaskLayout).map((value) => ({
+                    value,
+                    label: t(TASK_LAYOUT_LABEL[value] ?? value),
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={10}>
+              <Form.Item
+                noStyle
+                shouldUpdate={(prev, next) => prev.taskLayout !== next.taskLayout}
+              >
+                {({ getFieldValue }) =>
+                  getFieldValue('taskLayout') === WaybillTaskLayout.ADDRESS ? (
+                    <Form.Item
+                      name="taskAddressALocations"
+                      label={t('«Адрес А» — список локаций')}
+                      valuePropName="checked"
+                      tooltip={t(
+                        'Вместо свободного текста — выбор из справочника «Локации заданий»',
+                      )}
+                    >
+                      <Switch />
+                    </Form.Item>
+                  ) : null
+                }
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
     </>

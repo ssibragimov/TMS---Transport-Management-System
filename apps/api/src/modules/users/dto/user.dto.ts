@@ -105,6 +105,15 @@ export class CreateUserDto {
   @IsOptional()
   @IsBoolean()
   platformAdmin?: boolean;
+
+  @ApiPropertyOptional({
+    type: [Number],
+    description: 'Организации, которыми человек управляет. Выдаёт только суперадминистратор.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  adminOrganizationIds?: number[];
 }
 
 export class UpdateUserDto {
@@ -155,6 +164,12 @@ export class UpdateUserDto {
   @IsOptional()
   @IsBoolean()
   platformAdmin?: boolean;
+
+  @ApiPropertyOptional({ type: [Number], description: 'Организации, которыми человек управляет.' })
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  adminOrganizationIds?: number[];
 }
 
 export class ResetPasswordDto {

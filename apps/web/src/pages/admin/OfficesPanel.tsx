@@ -42,6 +42,8 @@ interface OrganizationRow {
   code: string;
   nameRu: string;
   isActive: boolean;
+  taskLayout: string;
+  taskAddressALocations: boolean;
 }
 
 interface OfficeRow {
@@ -61,8 +63,9 @@ interface OfficeRow {
   logoKey: string | null;
   isActive: boolean;
   createdAt: string;
-  taskLayout: string;
-  taskAddressALocations: boolean;
+  /** null — как у организации */
+  taskLayout: string | null;
+  taskAddressALocations: boolean | null;
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -71,7 +74,10 @@ const KIND_LABEL: Record<string, string> = {
   BRANCH: 'Филиал',
 };
 
-const TASK_LAYOUT_LABEL: Record<string, string> = {
+/** Значение выбора «как у организации» — на сервер уходит как null. */
+const INHERIT = 'INHERIT';
+
+export const TASK_LAYOUT_LABEL: Record<string, string> = {
   FLIGHT: 'Рейс / Борт / Стоянка (авиация)',
   ADDRESS: 'Адрес А / Адрес Б (универсальная)',
   REGION_DISTRICT: 'Регион / Район (административное деление)',
@@ -84,19 +90,31 @@ const MONTHS = [
 
 const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 
-/** Логотип офиса в таблице: он же кнопка загрузки и замены. */
-function OfficeLogoCell({ office, manage }: { office: OfficeRow; manage: boolean }) {
+/**
+ * Логотип в таблице: он же кнопка загрузки и замены. Общий для офисов и
+ * организаций — отличается только адрес ресурса.
+ */
+export function OfficeLogoCell({
+  office,
+  manage,
+  resource = 'offices',
+}: {
+  office: { id: number; code: string; logoKey: string | null };
+  manage: boolean;
+  resource?: 'offices' | 'organizations';
+}) {
   const { t } = useTranslation();
 
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   // Ключ входит в URL, поэтому после замены картинка перезапрашивается сама,
   // а не берётся из кэша браузера как старая.
-  const src = useAuthedImage(office.logoKey ? `/offices/${office.id}/logo` : null);
+  const src = useAuthedImage(office.logoKey ? `/${resource}/${office.id}/logo` : null);
 
   const refresh = async (): Promise<void> => {
     await queryClient.invalidateQueries({ queryKey: ['offices-admin'] });
     await queryClient.invalidateQueries({ queryKey: ['offices'] });
+    await queryClient.invalidateQueries({ queryKey: ['organizations'] });
   };
 
   const upload = async (file: RcFile): Promise<void> => {
@@ -107,7 +125,7 @@ function OfficeLogoCell({ office, manage }: { office: OfficeRow; manage: boolean
     const form = new FormData();
     form.append('file', file);
     try {
-      await api.post(`/offices/${office.id}/logo`, form, {
+      await api.post(`/${resource}/${office.id}/logo`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       void message.success(t('Логотип обновлён'));
@@ -119,7 +137,7 @@ function OfficeLogoCell({ office, manage }: { office: OfficeRow; manage: boolean
 
   const remove = async (): Promise<void> => {
     try {
-      await api.delete(`/offices/${office.id}/logo`);
+      await api.delete(`/${resource}/${office.id}/logo`);
       void message.success(t('Логотип удалён'));
       await refresh();
     } catch (error) {
@@ -201,6 +219,10 @@ export function OfficesPanel() {
     queryFn: async () => (await api.get<OrganizationRow[]>('/organizations')).data,
   });
   const watchedOrganizationId = Form.useWatch<number | undefined>('organizationId', form);
+  const officeOrganization = organizations.data?.find((org) => org.id === watchedOrganizationId);
+  const inheritLabel = officeOrganization
+    ? `${t('Как у организации')} (${t(TASK_LAYOUT_LABEL[officeOrganization.taskLayout] ?? officeOrganization.taskLayout)})`
+    : t('Как у организации');
 
   // Отключённые запрашиваются намеренно: иначе офис, однажды отключённый,
   // пропал бы и отсюда, и включить его обратно было бы нечем.
@@ -236,7 +258,7 @@ export function OfficesPanel() {
         winterSurchargePct: 8,
         winterFromMonth: 11,
         winterToMonth: 3,
-        taskLayout: WaybillTaskLayout.FLIGHT,
+        taskLayout: INHERIT,
         taskAddressALocations: false,
       });
       return;
@@ -250,14 +272,25 @@ export function OfficesPanel() {
         address: detail.data.address,
         phone: detail.data.phone,
         isActive: detail.data.isActive,
-        taskLayout: detail.data.taskLayout,
-        taskAddressALocations: detail.data.taskAddressALocations,
+        taskLayout: detail.data.taskLayout ?? INHERIT,
+        taskAddressALocations: detail.data.taskAddressALocations ?? false,
       });
     }
   }, [open, editing, detail.data, form]);
 
   const save = useApiMutation(
-    async (values: Record<string, unknown>) => {
+    async (formValues: Record<string, unknown>) => {
+      // «Как у организации» хранится как null — и раскладка, и список локаций.
+      const inherits = formValues.taskLayout === INHERIT;
+      const values: Record<string, unknown> = {
+        ...formValues,
+        taskLayout: inherits ? null : formValues.taskLayout,
+        taskAddressALocations: inherits
+          ? null
+          : formValues.taskLayout === WaybillTaskLayout.ADDRESS
+            ? Boolean(formValues.taskAddressALocations)
+            : false,
+      };
       if (editing) {
         // Поля "Код" и "Тип" зарегистрированы в форме (и потому попадают в
         // values) даже будучи disabled — antd не исключает их из результата
@@ -568,14 +601,20 @@ export function OfficesPanel() {
               <Form.Item
                 name="taskLayout"
                 label={t("Раскладка")}
-                tooltip={t("Рейс/Борт/Стоянка — для аэропортов; Адрес А/Б — для остальных сфер")}
+                tooltip={t("По умолчанию раскладка общая для всей организации. Свою задают только офисам, которым она нужна отдельно.")}
                 rules={[{ required: true }]}
               >
                 <Select
-                  options={Object.values(WaybillTaskLayout).map((value) => ({
-                    value,
-                    label: t(TASK_LAYOUT_LABEL[value] ?? value),
-                  }))}
+                  options={[
+                    {
+                      value: INHERIT,
+                      label: inheritLabel,
+                    },
+                    ...Object.values(WaybillTaskLayout).map((value) => ({
+                      value,
+                      label: t(TASK_LAYOUT_LABEL[value] ?? value),
+                    })),
+                  ]}
                 />
               </Form.Item>
             </Col>

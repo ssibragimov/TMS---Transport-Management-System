@@ -1012,7 +1012,7 @@ export class WaybillsService {
       });
     }
 
-    const office = await this.prisma.db.office.findUniqueOrThrow({
+    const officeRow = await this.prisma.db.office.findUniqueOrThrow({
       where: { id: officeId },
       select: {
         nameRu: true,
@@ -1022,8 +1022,16 @@ export class WaybillsService {
         phone: true,
         taskLayout: true,
         taskAddressALocations: true,
+        organization: { select: { taskLayout: true, taskAddressALocations: true } },
       },
     });
+    const { organization, ...officeOwn } = officeRow;
+    // Собственная раскладка офиса главнее; иначе — как у организации.
+    const office = {
+      ...officeOwn,
+      taskLayout: officeRow.taskLayout ?? organization.taskLayout,
+      taskAddressALocations: officeRow.taskAddressALocations ?? organization.taskAddressALocations,
+    };
 
     return {
       office,

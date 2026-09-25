@@ -50,7 +50,6 @@ enum WaybillTaskLayout {
   REGION_DISTRICT
 }
 
-/// Офис = аэропорт (или головной офис). Корень мультиарендности.
 /// Организация — отдельный клиент платформы («Аэропорты Узбекистана», TOSHSHAHARNUR).
 /// Объединяет офисы. Справочник общий для платформы, RLS на него не действует:
 /// создаёт и правит его только суперадминистратор (право platform.manage).
@@ -61,16 +60,40 @@ model Organization {
   nameUz String @map("name_uz") @db.VarChar(160)
   nameEn String @map("name_en") @db.VarChar(160)
 
+  /// Раскладка задания и логотип общие для всех офисов организации.
+  /// Офис может переопределить раскладку (Office.taskLayout) или логотип.
+  taskLayout            WaybillTaskLayout @default(FLIGHT) @map("task_layout")
+  taskAddressALocations Boolean           @default(false) @map("task_address_a_locations")
+  logoKey               String?           @map("logo_key") @db.VarChar(400)
+  logoMimeType          String?           @map("logo_mime_type") @db.VarChar(60)
+
   isActive  Boolean   @default(true) @map("is_active")
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   offices Office[]
+  admins  UserOrganization[]
 
   @@map("organizations")
 }
 
+/// Администратор организации: видит и ведёт все её офисы, но не другие организации.
+model UserOrganization {
+  userId         Int @map("user_id")
+  organizationId Int @map("organization_id")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([userId, organizationId])
+  @@index([organizationId])
+  @@map("user_organizations")
+}
+
+/// Офис = аэропорт (или головной офис). Корень мультиарендности.
 model Office {
   id       Int        @id @default(autoincrement())
   /// Код в номерах документов: PL-TAS-2026-000123
@@ -107,10 +130,12 @@ model Office {
 
   /// См. WaybillTaskLayout. FLIGHT — авиационные подписи полей задания,
   /// ADDRESS — универсальные Адрес А/Б для офисов вне авиации.
-  taskLayout             WaybillTaskLayout @default(FLIGHT) @map("task_layout")
+  /// NULL — как у организации (Organization.taskLayout): переопределяется только
+  /// там, где офису нужна своя раскладка.
+  taskLayout             WaybillTaskLayout? @map("task_layout")
   /// При ADDRESS: «Адрес А» выбирается из справочника TaskLocation этого
-  /// офиса, а не вводится свободным текстом.
-  taskAddressALocations  Boolean           @default(false) @map("task_address_a_locations")
+  /// офиса, а не вводится свободным текстом. NULL — как у организации.
+  taskAddressALocations  Boolean?           @map("task_address_a_locations")
 
   isActive  Boolean   @default(true) @map("is_active")
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -251,6 +276,7 @@ model User {
 
   defaultOffice Office?        @relation("UserDefaultOffice", fields: [defaultOfficeId], references: [id], onDelete: SetNull)
   offices       UserOffice[]
+  adminOrganizations UserOrganization[]
   roles         UserRole[]
   refreshTokens RefreshToken[]
   driverProfile Driver?

@@ -51,8 +51,13 @@ export interface UserDetail {
   status: string;
   bypassRls: boolean;
   defaultOfficeId: number | null;
+  /** Организации, которыми человек управляет (администратор организации) */
+  adminOrganizations?: Array<{ organizationId: number }>;
   offices: Array<{ office: { id: number; code: string; nameRu: string } }>;
-  roles: Array<{ officeId: number | null; role: { id: number; code: string; name: string } }>;
+  roles: Array<{
+    officeId: number | null;
+    role: { id: number; code: string; name: string };
+  }>;
 }
 
 interface RoleOption {
@@ -85,6 +90,17 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
   // сохраняем прежнее обращение к списку доступных офисов.
   const user = me;
 
+  const organizations = useQuery({
+    queryKey: ['organizations'],
+    enabled: open && canPlatform,
+    queryFn: async () =>
+      (
+        await api.get<Array<{ id: number; nameRu: string; isActive: boolean }>>(
+          '/organizations',
+        )
+      ).data,
+  });
+
   const roles = useQuery({
     queryKey: ['roles'],
     enabled: open,
@@ -115,7 +131,12 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
         locale: initial.locale,
         status: initial.status,
         defaultOfficeId: initial.defaultOfficeId ?? undefined,
-        platformAdmin: initial.roles.some((r) => r.role.code === SYSTEM_ROLES.SUPER_ADMIN),
+        platformAdmin: initial.roles.some(
+          (r) => r.role.code === SYSTEM_ROLES.SUPER_ADMIN,
+        ),
+        adminOrganizationIds: (initial.adminOrganizations ?? []).map(
+          (a) => a.organizationId,
+        ),
         offices: initial.offices.map((entry) => ({
           officeId: entry.office.id,
           roleCodes: byOffice.get(entry.office.id) ?? [],
@@ -202,14 +223,19 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
           offices: values.offices,
           defaultOfficeId: values.defaultOfficeId,
           // Отметку может менять только управляющий платформой.
-          ...(canPlatform && { platformAdmin: Boolean(values.platformAdmin) }),
+          ...(canPlatform && {
+            platformAdmin: Boolean(values.platformAdmin),
+            adminOrganizationIds: values.adminOrganizationIds ?? [],
+          }),
         });
         return data;
       }
-      const { platformAdmin, ...rest } = values;
+      const { platformAdmin, adminOrganizationIds, ...rest } = values;
+      const orgIds = (adminOrganizationIds ?? []) as number[];
       const { data } = await api.post('/users', {
         ...rest,
         ...(canPlatform && platformAdmin ? { platformAdmin: true } : {}),
+        ...(canPlatform && orgIds.length > 0 ? { adminOrganizationIds: orgIds } : {}),
       });
       return data;
     },
@@ -224,9 +250,13 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
     label: `${office.code} — ${office.name}`,
   }));
 
-  // Суперадминистратор выдаётся отметкой выше, а не ролью отдельного офиса.
+  // Суперадминистратор и администратор организации выдаются отдельными полями
+  // выше, а не ролью отдельного офиса.
   const roleOptions = (roles.data ?? [])
-    .filter((role) => role.code !== SYSTEM_ROLES.SUPER_ADMIN)
+    .filter(
+      (role) =>
+        role.code !== SYSTEM_ROLES.SUPER_ADMIN && role.code !== SYSTEM_ROLES.ORG_ADMIN,
+    )
     .map((role) => ({
       value: role.code,
       label: role.name,
@@ -236,9 +266,14 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
     <Modal
       open={open}
       width={780}
-      title={<CardTitle title={isEdit ? `Пользователь: ${initial?.fullName}` : 'Новый пользователь'} id={initial?.id} />}
-      okText={t("Сохранить")}
-      cancelText={t("Отмена")}
+      title={
+        <CardTitle
+          title={isEdit ? `Пользователь: ${initial?.fullName}` : 'Новый пользователь'}
+          id={initial?.id}
+        />
+      }
+      okText={t('Сохранить')}
+      cancelText={t('Отмена')}
       confirmLoading={save.isPending}
       onCancel={onClose}
       onOk={() => {
@@ -253,7 +288,9 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
           showIcon
           style={{ marginBottom: 16 }}
           message="Техническая учётная запись"
-          description={t("У этого пользователя включён обход изоляции офисов. Он видит данные всех аэропортов. Признак не редактируется через интерфейс.")}
+          description={t(
+            'У этого пользователя включён обход изоляции офисов. Он видит данные всех аэропортов. Признак не редактируется через интерфейс.',
+          )}
         />
       )}
 
@@ -312,24 +349,24 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
           <Col span={12}>
             <Form.Item
               name="fullName"
-              label={t("ФИО")}
-              rules={[{ required: true, message: t("Обязательное поле") }]}
+              label={t('ФИО')}
+              rules={[{ required: true, message: t('Обязательное поле') }]}
             >
-              <Input placeholder={t("Иванов Иван Иванович")} />
+              <Input placeholder={t('Иванов Иван Иванович')} />
             </Form.Item>
           </Col>
           <Col span={12}>
             {isEdit ? (
-              <Form.Item label={t("Электронная почта")}>
+              <Form.Item label={t('Электронная почта')}>
                 <Input value={initial?.email} disabled />
               </Form.Item>
             ) : (
               <Form.Item
                 name="email"
-                label={t("Электронная почта")}
+                label={t('Электронная почта')}
                 rules={[
-                  { required: true, message: t("Обязательное поле") },
-                  { type: 'email', message: t("Некорректный адрес") },
+                  { required: true, message: t('Обязательное поле') },
+                  { type: 'email', message: t('Некорректный адрес') },
                 ]}
               >
                 <Input autoComplete="off" />
@@ -345,10 +382,10 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
             <Col span={12}>
               <Form.Item
                 name="password"
-                label={t("Пароль")}
+                label={t('Пароль')}
                 rules={[
-                  { required: true, message: t("Обязательное поле") },
-                  { min: 8, message: t("Не короче 8 символов") },
+                  { required: true, message: t('Обязательное поле') },
+                  { min: 8, message: t('Не короче 8 символов') },
                 ]}
               >
                 <Input.Password autoComplete="new-password" />
@@ -361,9 +398,11 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
           <Col span={6}>
             <Form.Item
               name="internalNumber"
-              label={t("Основной")}
-              tooltip={t("Служебный внутренний номер телефона — четыре цифры. По нему сотрудника набирают внутри предприятия, поэтому он идёт раньше личного. Один номер может быть закреплён за несколькими сотрудниками.")}
-              rules={[{ pattern: /^\d{4}$/, message: t("Ровно четыре цифры") }]}
+              label={t('Основной')}
+              tooltip={t(
+                'Служебный внутренний номер телефона — четыре цифры. По нему сотрудника набирают внутри предприятия, поэтому он идёт раньше личного. Один номер может быть закреплён за несколькими сотрудниками.',
+              )}
+              rules={[{ pattern: /^\d{4}$/, message: t('Ровно четыре цифры') }]}
             >
               <Input
                 placeholder="1042"
@@ -376,17 +415,17 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
           <Col span={6}>
             <Form.Item
               name="phone"
-              label={t("Телефон")}
-              tooltip={t("Личный номер сотрудника")}
+              label={t('Телефон')}
+              tooltip={t('Личный номер сотрудника')}
             >
               <Input placeholder="+998 90 123-45-67" />
             </Form.Item>
           </Col>
           <Col span={6}>
-            <Form.Item name="locale" label={t("Язык")}>
+            <Form.Item name="locale" label={t('Язык')}>
               <Select
                 options={[
-                  { value: 'ru', label: t("Русский") },
+                  { value: 'ru', label: t('Русский') },
                   { value: 'uz', label: 'O‘zbekcha' },
                   { value: 'en', label: 'English' },
                 ]}
@@ -394,12 +433,12 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
             </Form.Item>
           </Col>
           <Col span={6}>
-            <Form.Item name="status" label={t("Статус")}>
+            <Form.Item name="status" label={t('Статус')}>
               <Select
                 options={[
-                  { value: 'ACTIVE', label: t("Активен") },
-                  { value: 'INVITED', label: t("Приглашён") },
-                  { value: 'SUSPENDED', label: t("Заблокирован") },
+                  { value: 'ACTIVE', label: t('Активен') },
+                  { value: 'INVITED', label: t('Приглашён') },
+                  { value: 'SUSPENDED', label: t('Заблокирован') },
                 ]}
               />
             </Form.Item>
@@ -407,21 +446,49 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
         </Row>
 
         <Divider orientation="left" plain>
-          {t("Доступ к офисам и роли")}
+          {t('Доступ к офисам и роли')}
         </Divider>
         <Typography.Paragraph type="secondary" style={{ marginTop: -8 }}>
-          {t("Роль действует в конкретном офисе. Один человек может быть диспетчером в Ташкенте и наблюдателем в Самарканде — это две отдельные строки.")}
-          {' '}
-          {t("Суперадминистратор платформы отмечается отдельно и видит все офисы всех организаций, в том числе созданные позже.")}
+          {t(
+            'Роль действует в конкретном офисе. Один человек может быть диспетчером в Ташкенте и наблюдателем в Самарканде — это две отдельные строки.',
+          )}{' '}
+          {t(
+            'Суперадминистратор платформы отмечается отдельно и видит все офисы всех организаций, в том числе созданные позже.',
+          )}
         </Typography.Paragraph>
 
         {canPlatform && (
           <Form.Item
             name="platformAdmin"
             valuePropName="checked"
-            extra={t("Полный доступ ко всем организациям и офисам, управление организациями и офисами. Ниже укажите хотя бы один офис — в него человек попадает после входа.")}
+            extra={t(
+              'Полный доступ ко всем организациям и офисам, управление организациями и офисами. Ниже укажите хотя бы один офис — в него человек попадает после входа.',
+            )}
           >
-            <Checkbox>{t("Суперадминистратор платформы")}</Checkbox>
+            <Checkbox>{t('Суперадминистратор платформы')}</Checkbox>
+          </Form.Item>
+        )}
+
+        {canPlatform && (
+          <Form.Item
+            name="adminOrganizationIds"
+            label={t('Администратор организации')}
+            extra={t(
+              'Видит и ведёт все офисы выбранных организаций, но не чужие. Ниже укажите хотя бы один офис — в него человек попадает после входа.',
+            )}
+          >
+            <Select
+              mode="multiple"
+              allowClear
+              style={{ width: '100%' }}
+              optionFilterProp="label"
+              placeholder={t('Не администратор организации')}
+              loading={organizations.isLoading}
+              options={(organizations.data ?? []).map((org) => ({
+                value: org.id,
+                label: org.nameRu,
+              }))}
+            />
           </Form.Item>
         )}
 
@@ -444,14 +511,14 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
                   <Col span={9}>
                     <Form.Item
                       name={[field.name, 'officeId']}
-                      rules={[{ required: true, message: t("Выберите офис") }]}
+                      rules={[{ required: true, message: t('Выберите офис') }]}
                       noStyle
                     >
                       <Select
                         showSearch
                         style={{ width: '100%' }}
                         optionFilterProp="label"
-                        placeholder={t("Офис")}
+                        placeholder={t('Офис')}
                         options={officeOptions}
                       />
                     </Form.Item>
@@ -461,9 +528,11 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
                       name={[field.name, 'roleCodes']}
                       rules={[
                         ({ getFieldValue }) => ({
-                          // Суперадминистратору платформы роль в офисе не нужна.
-                          required: !getFieldValue('platformAdmin'),
-                          message: t("Выберите роли"),
+                          // Управляющему платформой или организацией роль в офисе не нужна.
+                          required:
+                            !getFieldValue('platformAdmin') &&
+                            !(getFieldValue('adminOrganizationIds') ?? []).length,
+                          message: t('Выберите роли'),
                         }),
                       ]}
                       noStyle
@@ -472,7 +541,7 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
                         mode="multiple"
                         style={{ width: '100%' }}
                         allowClear
-                        placeholder={t("Роли в этом офисе")}
+                        placeholder={t('Роли в этом офисе')}
                         loading={roles.isLoading}
                         options={roleOptions}
                       />
@@ -494,7 +563,7 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
                 style={{ width: '100%' }}
                 onClick={() => add({ roleCodes: [] })}
               >
-                {t("Добавить офис")}
+                {t('Добавить офис')}
               </Button>
               <Form.ErrorList errors={errors} />
             </>
@@ -508,21 +577,25 @@ export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: P
         */}
         <Form.Item noStyle shouldUpdate={(prev, next) => prev.offices !== next.offices}>
           {({ getFieldValue }) => {
-            const assigned = ((getFieldValue('offices') ?? []) as Array<{ officeId?: number }>)
+            const assigned = (
+              (getFieldValue('offices') ?? []) as Array<{ officeId?: number }>
+            )
               .map((entry) => entry?.officeId)
               .filter((id): id is number => typeof id === 'number');
 
             return (
               <Form.Item
                 name="defaultOfficeId"
-                label={t("Офис по умолчанию")}
-                tooltip={t("В него пользователь попадает сразу после входа")}
+                label={t('Офис по умолчанию')}
+                tooltip={t('В него пользователь попадает сразу после входа')}
                 style={{ marginTop: 16 }}
               >
                 <Select
                   allowClear
-                  placeholder={t("Первый из назначенных")}
-                  options={officeOptions.filter((option) => assigned.includes(option.value))}
+                  placeholder={t('Первый из назначенных')}
+                  options={officeOptions.filter((option) =>
+                    assigned.includes(option.value),
+                  )}
                 />
               </Form.Item>
             );

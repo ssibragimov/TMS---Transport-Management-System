@@ -70,6 +70,40 @@ export class UsersService {
   }
 
   /**
+   * Администратор организации: доступ ко всем её офисам. Назначает только тот,
+   * кто управляет платформой, — организация не вправе сама выдать себе больше.
+   */
+  private async setOrganizationAdmin(
+    tx: PrismaTransactionClient,
+    userId: number,
+    organizationIds: number[],
+  ): Promise<void> {
+    const platform = TenantStore.require().permissions?.includes(PERMISSIONS.PLATFORM_MANAGE);
+    if (!platform) {
+      throw new ForbiddenException({
+        code: 'user.organization_admin_restricted',
+        message: 'Администратора организации назначает только суперадминистратор',
+      });
+    }
+
+    const unique = [...new Set(organizationIds)];
+    const found = await tx.organization.count({ where: { id: { in: unique }, deletedAt: null } });
+    if (found !== unique.length) {
+      throw new BadRequestException({
+        code: 'organization.not_found',
+        message: 'Организация не найдена',
+      });
+    }
+
+    await tx.userOrganization.deleteMany({ where: { userId } });
+    if (unique.length > 0) {
+      await tx.userOrganization.createMany({
+        data: unique.map((organizationId) => ({ userId, organizationId })),
+      });
+    }
+  }
+
+  /**
    * Отметка «суперадминистратор платформы» — это роль SUPER_ADMIN без привязки
    * к офису. Прежние назначения этой роли по отдельным офисам заменяются ею.
    */
@@ -159,6 +193,7 @@ export class UsersService {
             lastLoginAt: true,
             createdAt: true,
             defaultOfficeId: true,
+            adminOrganizations: { select: { organizationId: true } },
             offices: {
               select: { office: { select: { id: true, code: true, nameRu: true } } },
             },
@@ -199,6 +234,7 @@ export class UsersService {
           lastLoginAt: true,
           defaultOfficeId: true,
           createdAt: true,
+          adminOrganizations: { select: { organizationId: true } },
           offices: { select: { office: { select: { id: true, code: true, nameRu: true } } } },
           roles: {
             select: { officeId: true, role: { select: { id: true, code: true, name: true } } },
@@ -305,6 +341,9 @@ export class UsersService {
       if (dto.platformAdmin) {
         await this.setPlatformAdmin(tx, user.id, true, superAdmin);
       }
+      if (dto.adminOrganizationIds?.length) {
+        await this.setOrganizationAdmin(tx, user.id, dto.adminOrganizationIds);
+      }
 
       return user;
     });
@@ -342,6 +381,9 @@ export class UsersService {
       // перестройка ролей ниже стёрла бы их и человек лишился бы статуса.
       if (dto.platformAdmin !== undefined) {
         await this.setPlatformAdmin(tx, id, dto.platformAdmin, superAdmin);
+      }
+      if (dto.adminOrganizationIds !== undefined) {
+        await this.setOrganizationAdmin(tx, id, dto.adminOrganizationIds);
       }
 
       if (dto.offices) {
@@ -416,7 +458,10 @@ export class UsersService {
           ...(dto.status !== undefined && { status: dto.status }),
           // Блокировка и смена набора ролей должны действовать сразу:
           // инкремент версии сессии обрывает продление токенов.
-          ...((deactivating || dto.offices || platformChange) && {
+          ...((deactivating ||
+            dto.offices ||
+            platformChange ||
+            dto.adminOrganizationIds !== undefined) && {
             sessionVersion: { increment: 1 },
           }),
         },

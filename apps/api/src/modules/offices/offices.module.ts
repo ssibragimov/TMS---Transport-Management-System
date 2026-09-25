@@ -147,21 +147,20 @@ class CreateOfficeDto {
   @Max(12)
   winterToMonth?: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     enum: WaybillTaskLayout,
-    default: WaybillTaskLayout.FLIGHT,
-    description: 'FLIGHT — Рейс/Борт/Стоянка, ADDRESS — Адрес А/Б',
+    description: 'Собственная раскладка офиса. Не задана — как у организации.',
   })
+  @IsOptional()
   @IsEnum(WaybillTaskLayout)
-  taskLayout: WaybillTaskLayout;
+  taskLayout?: WaybillTaskLayout | null;
 
   @ApiPropertyOptional({
-    default: false,
     description: 'При ADDRESS: «Адрес А» выбирается из справочника локаций офиса',
   })
   @IsOptional()
   @IsBoolean()
-  taskAddressALocations?: boolean;
+  taskAddressALocations?: boolean | null;
 }
 
 class UpdateOfficeDto {
@@ -187,12 +186,15 @@ class UpdateOfficeDto {
 
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 
-  @ApiPropertyOptional({ enum: WaybillTaskLayout })
+  @ApiPropertyOptional({
+    enum: WaybillTaskLayout,
+    description: 'null — вернуть «как у организации»',
+  })
   @IsOptional()
   @IsEnum(WaybillTaskLayout)
-  taskLayout?: WaybillTaskLayout;
+  taskLayout?: WaybillTaskLayout | null;
 
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() taskAddressALocations?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() taskAddressALocations?: boolean | null;
 }
 
 @Injectable()
@@ -263,7 +265,9 @@ export class OfficesService {
     return this.prisma.db.office.findFirstOrThrow({
       where: { id, deletedAt: null },
       include: {
-        organization: { select: { id: true, code: true, nameRu: true } },
+        organization: {
+          select: { id: true, code: true, nameRu: true, taskLayout: true, taskAddressALocations: true },
+        },
         departments: { where: { deletedAt: null, isActive: true } },
         _count: { select: { vehicles: true, drivers: true, fuelTanks: true } },
       },
@@ -358,8 +362,8 @@ export class OfficesService {
           winterSurchargePct: dto.winterSurchargePct ?? 0,
           winterFromMonth: dto.winterFromMonth ?? 11,
           winterToMonth: dto.winterToMonth ?? 3,
-          taskLayout: dto.taskLayout,
-          taskAddressALocations: dto.taskAddressALocations ?? false,
+          taskLayout: dto.taskLayout ?? null,
+          taskAddressALocations: dto.taskAddressALocations ?? null,
         },
       });
     });
@@ -440,17 +444,23 @@ export class OfficesService {
   async readLogo(id: number) {
     const office = await this.prisma.db.office.findFirst({
       where: { id, deletedAt: null },
-      select: { logoKey: true, logoMimeType: true },
+      select: {
+        logoKey: true,
+        logoMimeType: true,
+        organization: { select: { logoKey: true, logoMimeType: true } },
+      },
     });
-    if (!office?.logoKey) {
+    // Логотип офиса главнее; если его нет — общий логотип организации.
+    const source = office?.logoKey ? office : office?.organization;
+    if (!source?.logoKey) {
       throw new NotFoundException({
         code: 'office.logo_not_found',
         message: 'У офиса нет логотипа',
       });
     }
 
-    const { stream } = this.storage.createReadStream(office.logoKey);
-    return { stream, mimeType: office.logoMimeType ?? 'image/png' };
+    const { stream } = this.storage.createReadStream(source.logoKey);
+    return { stream, mimeType: source.logoMimeType ?? 'image/png' };
   }
 
   async removeLogo(id: number) {

@@ -159,6 +159,8 @@ export const ALL_PERMISSIONS: Permission[] = Object.values(PERMISSIONS);
 export const SYSTEM_ROLES = {
   /** Полный доступ ко всем офисам. Заводится только вручную. */
   SUPER_ADMIN: 'SUPER_ADMIN',
+  /** Администратор организации: все офисы своей организации, но не чужих */
+  ORG_ADMIN: 'ORG_ADMIN',
   /** Администратор своего офиса */
   OFFICE_ADMIN: 'OFFICE_ADMIN',
   /** Начальник службы спецтранспорта */
@@ -189,6 +191,10 @@ const P = PERMISSIONS;
 /** Стартовая раскладка прав по ролям. Используется seed'ом. */
 export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
   [SYSTEM_ROLES.SUPER_ADMIN]: ALL_PERMISSIONS,
+
+  [SYSTEM_ROLES.ORG_ADMIN]: ALL_PERMISSIONS.filter(
+    (p) => p !== P.REPORT_CROSS_OFFICE && p !== P.PLATFORM_MANAGE,
+  ),
 
   [SYSTEM_ROLES.OFFICE_ADMIN]: ALL_PERMISSIONS.filter(
     (p) => p !== P.REPORT_CROSS_OFFICE && p !== P.PLATFORM_MANAGE,
@@ -302,6 +308,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
 /** Человекочитаемые названия ролей для UI. */
 export const ROLE_LABELS: Record<SystemRole, { ru: string; uz: string; en: string }> = {
   [SYSTEM_ROLES.SUPER_ADMIN]: { ru: 'Суперадминистратор', uz: 'Superadministrator', en: 'Super admin' },
+  [SYSTEM_ROLES.ORG_ADMIN]: { ru: 'Администратор организации', uz: 'Tashkilot administratori', en: 'Organization admin' },
   [SYSTEM_ROLES.OFFICE_ADMIN]: { ru: 'Администратор офиса', uz: 'Ofis administratori', en: 'Office admin' },
   [SYSTEM_ROLES.FLEET_MANAGER]: { ru: 'Начальник автослужбы', uz: 'Avtoxizmat boshlig‘i', en: 'Fleet manager' },
   [SYSTEM_ROLES.DISPATCHER]: { ru: 'Диспетчер', uz: 'Dispetcher', en: 'Dispatcher' },

@@ -494,7 +494,12 @@ async function resetOperationalData(officeIds: number[]): Promise<void> {
 // ─── Наполнение ─────────────────────────────────────────────────────────────
 
 async function seedOffice(plan: OfficePlan): Promise<void> {
-  const office = await prisma.office.findUniqueOrThrow({ where: { code: plan.code } });
+  const officeRow = await prisma.office.findUniqueOrThrow({
+    where: { code: plan.code },
+    include: { organization: { select: { taskLayout: true } } },
+  });
+  // Раскладка: своя у офиса, иначе — как у организации.
+  const office = { ...officeRow, taskLayout: officeRow.taskLayout ?? officeRow.organization.taskLayout };
   const year = new Date().getFullYear();
   reseed(plan.code);
 
