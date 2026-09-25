@@ -92,10 +92,12 @@ export class AuthService {
         });
       }
 
-      const activeOfficeId =
-        dto.officeId ?? user.defaultOfficeId ?? availableOffices[0].id;
-
-      const activeOffice = availableOffices.find((o) => o.id === activeOfficeId);
+      // Офис, названный при входе явно, обязан быть доступен. А вот офис «по
+      // умолчанию» мог отключить администратор — тогда человек входит в первый
+      // из доступных, а не остаётся за дверью с ошибкой.
+      const activeOffice = dto.officeId
+        ? availableOffices.find((o) => o.id === dto.officeId)
+        : (availableOffices.find((o) => o.id === user.defaultOfficeId) ?? availableOffices[0]);
       if (!activeOffice) {
         throw new ForbiddenException({
           code: 'auth.office_not_allowed',

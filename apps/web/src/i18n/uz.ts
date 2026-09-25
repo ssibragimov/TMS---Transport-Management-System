@@ -117,6 +117,8 @@ export const uz: Record<string, string> = {
   'Офис назначения': 'Qabul qiluvchi ofis',
   'Выберите офис': 'Ofisni tanlang',
   'Дата создания': 'Yaratilgan sana',
+  'не указан': 'ko‘rsatilmagan',
+  'Доступно офисов': 'Mavjud ofislar',
   'Карта Яндекса не подключена': 'Yandex xaritasi ulanmagan',
   'В сборке сайта не задан ключ Яндекс.Карт (переменная VITE_YANDEX_MAPS_API_KEY). Добавьте его в настройках сайта на Render и пересоберите сайт — карта появится сама.': 'Ushbu build’da Yandex xaritalari kaliti (VITE_YANDEX_MAPS_API_KEY) belgilanmagan. Uni Render’dagi sayt sozlamalariga qo‘shing va saytni qayta yig‘ing — xarita o‘zi paydo bo‘ladi.',
   'Широта': 'Kenglik',

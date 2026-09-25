@@ -10,7 +10,6 @@ import {
   GlobalOutlined,
   MedicineBoxOutlined,
   HistoryOutlined,
-  LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   SafetyOutlined,
@@ -24,6 +23,7 @@ import type { SelectProps } from 'antd';
 
 import { HeaderClock } from '@/components/HeaderClock';
 import { UserAvatar } from '@/components/UserAvatar';
+import { UserCard } from '@/components/UserCard';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -274,17 +274,21 @@ export function AppLayout() {
             }))}
           />
 
+          {/* Наведение на аватарку открывает карточку сотрудника: контакты,
+              офис и, отдельно за чертой, кнопка выхода. */}
           <Dropdown
-            menu={{
-              items: [
-                {
-                  key: 'logout',
-                  icon: <LogoutOutlined />,
-                  label: t('Выйти'),
-                  onClick: () => void logout(),
-                },
-              ],
-            }}
+            trigger={['hover']}
+            placement="bottomRight"
+            // Небольшая задержка закрытия: курсор доезжает до карточки,
+            // не теряя её по пути через зазор под шапкой.
+            mouseLeaveDelay={0.25}
+            popupRender={() =>
+              user ? (
+                <UserCard user={user} roleTitle={roleTitle} onLogout={() => void logout()} />
+              ) : (
+                <></>
+              )
+            }
           >
             {/* Фотография рядом с именем: по лицу свою учётку узнают быстрее,
                 чем по строке текста, — особенно на общем рабочем месте,
