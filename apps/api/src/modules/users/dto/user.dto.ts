@@ -97,6 +97,14 @@ export class CreateUserDto {
   @IsOptional()
   @IsEnum(UserStatus)
   status?: UserStatus;
+
+  @ApiPropertyOptional({
+    description:
+      'Суперадминистратор платформы: видит все офисы всех организаций. Выдаёт только суперадминистратор.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  platformAdmin?: boolean;
 }
 
 export class UpdateUserDto {
@@ -142,6 +150,11 @@ export class UpdateUserDto {
   @IsInt()
   @IsPositive()
   defaultOfficeId?: number;
+
+  @ApiPropertyOptional({ description: 'Суперадминистратор платформы. Меняет только суперадминистратор.' })
+  @IsOptional()
+  @IsBoolean()
+  platformAdmin?: boolean;
 }
 
 export class ResetPasswordDto {
@@ -167,6 +180,14 @@ export class UserQueryDto extends PaginationDto {
   @Type(() => Boolean)
   @IsBoolean()
   allOffices?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Только суперадминистраторы платформы. Игнорируется, если запрашивает не суперадминистратор.',
+  })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  platformAdmins?: boolean;
 }
 
 export class RoleDto {

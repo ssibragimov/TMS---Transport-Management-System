@@ -51,6 +51,26 @@ enum WaybillTaskLayout {
 }
 
 /// Офис = аэропорт (или головной офис). Корень мультиарендности.
+/// Организация — отдельный клиент платформы («Аэропорты Узбекистана», TOSHSHAHARNUR).
+/// Объединяет офисы. Справочник общий для платформы, RLS на него не действует:
+/// создаёт и правит его только суперадминистратор (право platform.manage).
+model Organization {
+  id     Int    @id @default(autoincrement())
+  code   String @unique @db.VarChar(16)
+  nameRu String @map("name_ru") @db.VarChar(160)
+  nameUz String @map("name_uz") @db.VarChar(160)
+  nameEn String @map("name_en") @db.VarChar(160)
+
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  offices Office[]
+
+  @@map("organizations")
+}
+
 model Office {
   id       Int        @id @default(autoincrement())
   /// Код в номерах документов: PL-TAS-2026-000123
@@ -58,6 +78,8 @@ model Office {
   kind     OfficeKind @default(AIRPORT)
   /// Иерархия: головной офис → аэропорты. Определяет officeScope пользователя.
   parentId Int?       @map("parent_id")
+  /// Организация, которой принадлежит офис.
+  organizationId Int  @map("organization_id")
 
   nameRu String @map("name_ru") @db.VarChar(160)
   nameUz String @map("name_uz") @db.VarChar(160)
@@ -95,8 +117,9 @@ model Office {
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  parent   Office?  @relation("OfficeHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
-  children Office[] @relation("OfficeHierarchy")
+  parent       Office?      @relation("OfficeHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children     Office[]     @relation("OfficeHierarchy")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
   departments        Department[]
   userOffices        UserOffice[]
@@ -126,6 +149,7 @@ model Office {
   taskLocations      TaskLocation[]
 
   @@index([parentId])
+  @@index([organizationId])
   @@index([isActive])
   @@map("offices")
 }

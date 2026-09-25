@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ALL_PERMISSIONS, SYSTEM_ROLES, type Permission } from '@gsm/shared';
+import { ALL_PERMISSIONS, PERMISSIONS, SYSTEM_ROLES, type Permission } from '@gsm/shared';
 
 import { PrismaService } from '@/common/prisma/prisma.service';
 
@@ -12,6 +12,7 @@ import { actorIsSuperAdmin } from './super-admin';
 
 /** Человекочитаемые названия групп прав — для экрана настройки ролей. */
 const GROUP_LABELS: Record<string, string> = {
+  platform: 'Платформа',
   office: 'Офисы',
   dictionary: 'Справочники',
   user: 'Пользователи',
@@ -43,6 +44,7 @@ const PERMISSION_HINTS: Record<string, string> = {
   'fuel.norm.manage': 'Правка норм расхода — влияет на все расчёты',
   'waybill.reopen': 'Изменение уже закрытого путевого листа',
   'report.cross_office': 'Сводные отчёты по всем аэропортам страны',
+  'platform.manage': 'Создание и правка организаций и офисов — только суперадминистратор',
 };
 
 @Injectable()
@@ -78,10 +80,13 @@ export class RolesService {
 
   /** Каталог прав, сгруппированный для интерфейса. */
   async permissions() {
-    const rows = await this.prisma.db.permission.findMany({
+    const superAdmin = await actorIsSuperAdmin(this.prisma);
+    const all = await this.prisma.db.permission.findMany({
       orderBy: [{ groupCode: 'asc' }, { code: 'asc' }],
       select: { id: true, code: true, groupCode: true },
     });
+    // Право управления платформой раздаёт только суперадминистратор.
+    const rows = superAdmin ? all : all.filter((row) => row.code !== PERMISSIONS.PLATFORM_MANAGE);
 
     const groups = new Map<string, Array<{ code: string; hint?: string }>>();
     for (const row of rows) {
@@ -187,6 +192,16 @@ export class RolesService {
         code: 'role.unknown_permission',
         message: 'Неизвестные права',
         details: { permissions: unknown },
+      });
+    }
+
+    if (
+      codes.includes(PERMISSIONS.PLATFORM_MANAGE) &&
+      !(await actorIsSuperAdmin(this.prisma))
+    ) {
+      throw new ForbiddenException({
+        code: 'role.platform_permission_restricted',
+        message: 'Право управления платформой может выдать только суперадминистратор',
       });
     }
 

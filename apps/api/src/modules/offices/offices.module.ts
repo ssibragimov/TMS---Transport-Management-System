@@ -49,6 +49,7 @@ import { AuditAs, Audited } from '@/common/audit/audit.interceptor';
 import { RequirePermissions } from '@/common/decorators';
 import { PrismaService } from '@/common/prisma/prisma.service';
 import { StorageService } from '@/common/storage/storage.service';
+import { TenantStore } from '@/common/tenancy/tenant-context';
 
 class CreateOfficeDto {
   @ApiProperty({ example: 'JIZ', description: 'Код участвует в номерах документов' })
@@ -56,6 +57,11 @@ class CreateOfficeDto {
   @MaxLength(8)
   @Matches(/^[A-Z]{2,8}$/, { message: 'Код — 2–8 заглавных латинских букв' })
   code: string;
+
+  @ApiProperty({ description: 'Организация, которой принадлежит офис' })
+  @IsInt()
+  @IsPositive()
+  organizationId: number;
 
   @ApiProperty({ enum: OfficeKind, default: OfficeKind.AIRPORT })
   @IsEnum(OfficeKind)
@@ -202,16 +208,36 @@ export class OfficesService {
    * офиса — все аэропорты страны. Дополнительного WHERE не требуется.
    */
   list(includeInactive = false) {
+    return this.asPlatformOrScoped(() => this.listScoped(includeInactive));
+  }
+
+  /**
+   * Управляющий платформой видит все офисы всех организаций, даже если сейчас
+   * работает в одном из них: иначе в списке администрирования, в форме
+   * пользователя и в выборе организации он видел бы только текущий офис.
+   * Остальным политика RLS оставляет их область видимости.
+   */
+  private async asPlatformOrScoped<T>(callback: () => PromiseLike<T>): Promise<T> {
+    const permissions = TenantStore.get()?.permissions ?? [];
+    if (!permissions.includes(PERMISSIONS.PLATFORM_MANAGE)) return callback();
+    // await внутри системного контекста обязателен: запрос Prisma выполняется
+    // лениво и иначе ушёл бы уже после выхода из него, с правами обычного офиса.
+    return TenantStore.runAsSystem(async () => await callback());
+  }
+
+  private listScoped(includeInactive: boolean) {
     return this.prisma.db.office.findMany({
       // Отключённые нужны только в администрировании: без них офис,
       // однажды отключённый, исчезал бы из списка навсегда и включить
       // его обратно было бы нечем.
       where: { deletedAt: null, ...(includeInactive ? {} : { isActive: true }) },
-      orderBy: [{ kind: 'asc' }, { code: 'asc' }],
+      orderBy: [{ organization: { nameRu: 'asc' } }, { kind: 'asc' }, { code: 'asc' }],
       select: {
         id: true,
         code: true,
         kind: true,
+        organizationId: true,
+        organization: { select: { id: true, code: true, nameRu: true } },
         nameRu: true,
         nameUz: true,
         nameEn: true,
@@ -230,9 +256,14 @@ export class OfficesService {
   }
 
   findOne(id: number) {
+    return this.asPlatformOrScoped(() => this.findOneScoped(id));
+  }
+
+  private findOneScoped(id: number) {
     return this.prisma.db.office.findFirstOrThrow({
       where: { id, deletedAt: null },
       include: {
+        organization: { select: { id: true, code: true, nameRu: true } },
         departments: { where: { deletedAt: null, isActive: true } },
         _count: { select: { vehicles: true, drivers: true, fuelTanks: true } },
       },
@@ -273,7 +304,7 @@ export class OfficesService {
    *
    * Выполняется в системном контексте: офиса ещё нет ни в чьей области
    * видимости, и политика RLS отвергла бы вставку с WITH CHECK.
-   * Право office.manage есть только у суперадминистратора.
+   * Право platform.manage есть только у суперадминистратора.
    */
   async create(dto: CreateOfficeDto) {
     return this.prisma.systemTransaction(async (tx) => {
@@ -285,10 +316,35 @@ export class OfficesService {
         });
       }
 
+      const organization = await tx.organization.findFirst({
+        where: { id: dto.organizationId, deletedAt: null, isActive: true },
+        select: { id: true },
+      });
+      if (!organization) {
+        throw new BadRequestException({
+          code: 'office.organization_not_found',
+          message: 'Организация не найдена или отключена',
+        });
+      }
+
+      if (dto.parentId) {
+        const parent = await tx.office.findFirst({
+          where: { id: dto.parentId, deletedAt: null },
+          select: { organizationId: true },
+        });
+        if (!parent || parent.organizationId !== dto.organizationId) {
+          throw new BadRequestException({
+            code: 'office.parent_other_organization',
+            message: 'Головной офис должен быть из той же организации',
+          });
+        }
+      }
+
       return tx.office.create({
         data: {
           code: dto.code,
           kind: dto.kind,
+          organizationId: dto.organizationId,
           parentId: dto.parentId ?? null,
           nameRu: dto.nameRu,
           nameUz: dto.nameUz,
@@ -428,7 +484,7 @@ export class OfficesController {
   constructor(private readonly offices: OfficesService) {}
 
   @Post()
-  @RequirePermissions(PERMISSIONS.OFFICE_MANAGE)
+  @RequirePermissions(PERMISSIONS.PLATFORM_MANAGE)
   @ApiOperation({
     summary: 'Подключение нового аэропорта',
     description:
@@ -440,7 +496,7 @@ export class OfficesController {
   }
 
   @Patch(':id')
-  @RequirePermissions(PERMISSIONS.OFFICE_MANAGE)
+  @RequirePermissions(PERMISSIONS.PLATFORM_MANAGE)
   @ApiOperation({ summary: 'Изменение офиса' })
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateOfficeDto) {
     return this.offices.update(id, dto);

@@ -12,6 +12,7 @@ import { FieldViolationPage } from '@/pages/field/FieldViolationPage';
 import { FuelPage } from '@/pages/FuelPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { MedicalPage } from '@/pages/MedicalPage';
+import { PlatformPage } from '@/pages/PlatformPage';
 import { TechnicalPage } from '@/pages/TechnicalPage';
 import { ReportsPage } from '@/pages/ReportsPage';
 import { StockPage } from '@/pages/StockPage';
@@ -98,6 +99,7 @@ export default function App() {
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/platform" element={<PlatformPage />} />
         <Route path="/audit" element={<AuditPage />} />
       </Route>
 

@@ -96,6 +96,8 @@ export interface OfficeSummaryDto {
   id: number;
   code: string;
   name: string;
+  /** Организация, которой принадлежит офис */
+  organization: { id: number; code: string; name: string };
   iataCode: string | null;
   timezone: string;
   kind: string;

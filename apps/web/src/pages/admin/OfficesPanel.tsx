@@ -37,9 +37,18 @@ import { useAuth } from '@/auth/AuthContext';
 import { createdAtColumn, newestFirst } from '@/components/createdAtColumn';
 import { StickyTable } from '@/components/StickyTable';
 
+interface OrganizationRow {
+  id: number;
+  code: string;
+  nameRu: string;
+  isActive: boolean;
+}
+
 interface OfficeRow {
   id: number;
   code: string;
+  organizationId: number;
+  organization: { id: number; code: string; nameRu: string };
   kind: string;
   parentId: number | null;
   nameRu: string;
@@ -179,12 +188,19 @@ function OfficeLogoCell({ office, manage }: { office: OfficeRow; manage: boolean
 export function OfficesPanel() {
   const { t } = useTranslation();
 
-  const { can } = useAuth();
+  const { can, refreshProfile } = useAuth();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<OfficeRow | null>(null);
   const [form] = Form.useForm();
 
-  const manage = can(PERMISSIONS.OFFICE_MANAGE);
+  const manage = can(PERMISSIONS.PLATFORM_MANAGE);
+
+  const organizations = useQuery({
+    queryKey: ['organizations'],
+    enabled: manage,
+    queryFn: async () => (await api.get<OrganizationRow[]>('/organizations')).data,
+  });
+  const watchedOrganizationId = Form.useWatch<number | undefined>('organizationId', form);
 
   // Отключённые запрашиваются намеренно: иначе офис, однажды отключённый,
   // пропал бы и отсюда, и включить его обратно было бы нечем.
@@ -248,7 +264,14 @@ export function OfficesPanel() {
         // validateFields(). UpdateOfficeDto их не объявляет, а ValidationPipe
         // настроен с forbidNonWhitelisted: любое лишнее свойство в теле
         // запроса — это 400, а не молчаливый игнор.
-        const { code: _code, kind: _kind, ...patchValues } = values;
+        // То же для «Организации» и «Головного офиса»: они задаются при создании.
+        const {
+          code: _code,
+          kind: _kind,
+          organizationId: _organizationId,
+          parentId: _parentId,
+          ...patchValues
+        } = values;
         return (await api.patch(`/offices/${editing.id}`, patchValues)).data;
       }
       return (await api.post('/offices', values)).data;
@@ -305,6 +328,11 @@ export function OfficesPanel() {
           { title: t("Код"), dataIndex: 'code', width: 90 },
           { title: t("Наименование"), dataIndex: 'nameRu' },
           {
+            title: t("Организация"),
+            width: 200,
+            render: (_: unknown, row: OfficeRow) => row.organization?.nameRu ?? '—',
+          },
+          {
             title: t("Тип"),
             dataIndex: 'kind',
             width: 150,
@@ -356,7 +384,9 @@ export function OfficesPanel() {
                         }
                         okText={row.isActive ? t('Отключить') : t('Включить')}
                         cancelText={t("Отмена")}
-                        onConfirm={() => toggleActive.mutate(row)}
+                        onConfirm={() =>
+                          toggleActive.mutate(row, { onSuccess: () => void refreshProfile() })
+                        }
                       >
                         <Tooltip title={row.isActive ? t('Отключить') : t('Включить')}>
                           <Button
@@ -389,11 +419,34 @@ export function OfficesPanel() {
         onCancel={() => setOpen(false)}
         onOk={() => {
           void form.validateFields().then((values) => {
-            save.mutate(values, { onSuccess: () => setOpen(false) });
+            save.mutate(values, {
+              onSuccess: () => {
+                setOpen(false);
+                // Список офисов в шапке берётся из профиля — обновляем его.
+                void refreshProfile();
+              },
+            });
           });
         }}
       >
         <Form form={form} layout="vertical">
+          <Form.Item
+            name="organizationId"
+            label={t("Организация")}
+            tooltip={t("Клиент платформы, которому принадлежит офис. После создания не меняется.")}
+            rules={[{ required: true, message: t("Обязательное поле") }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              disabled={Boolean(editing)}
+              placeholder={t("Выберите организацию")}
+              options={(organizations.data ?? [])
+                .filter((org) => org.isActive || org.id === editing?.organizationId)
+                .map((org) => ({ value: org.id, label: org.nameRu }))}
+            />
+          </Form.Item>
+
           <Row gutter={16}>
             <Col span={6}>
               <Form.Item
@@ -425,7 +478,11 @@ export function OfficesPanel() {
                   allowClear
                   disabled={Boolean(editing)}
                   options={(offices.data ?? [])
-                    .filter((office) => office.kind === 'HEADQUARTERS')
+                    .filter(
+                      (office) =>
+                        office.kind === 'HEADQUARTERS' &&
+                        office.organizationId === watchedOrganizationId,
+                    )
                     .map((office) => ({ value: office.id, label: office.nameRu }))}
                 />
               </Form.Item>

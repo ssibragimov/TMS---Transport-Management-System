@@ -7,6 +7,7 @@ import {
   EnvironmentOutlined,
   InboxOutlined,
   FileTextOutlined,
+  GlobalOutlined,
   MedicineBoxOutlined,
   HistoryOutlined,
   LogoutOutlined,
@@ -19,6 +20,7 @@ import {
 import type { Permission } from '@gsm/shared';
 import { PERMISSIONS } from '@gsm/shared';
 import { Dropdown, Layout, Menu, Select, Space, Tag, Tooltip, Typography } from 'antd';
+import type { SelectProps } from 'antd';
 
 import { HeaderClock } from '@/components/HeaderClock';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -132,6 +134,12 @@ export function AppLayout() {
       permission: PERMISSIONS.USER_READ,
     },
     {
+      key: '/platform',
+      icon: <GlobalOutlined />,
+      label: t('Платформа'),
+      permission: PERMISSIONS.PLATFORM_MANAGE,
+    },
+    {
       key: '/admin',
       icon: <DatabaseOutlined />,
       label: t('Администрирование'),
@@ -157,6 +165,36 @@ export function AppLayout() {
   };
 
   const activeOffice = user?.activeOffice;
+
+  /*
+    Офисы в переключателе группируются по организациям — но только когда
+    организаций больше одной: у сотрудника единственной организации лишний
+    заголовок над списком только занимал бы место.
+  */
+  const officeOptions: NonNullable<SelectProps<number>['options']> = (() => {
+    const offices = user?.availableOffices ?? [];
+    const toOption = (office: (typeof offices)[number]) => ({
+      value: office.id,
+      label: `${office.code} — ${office.name}`,
+    });
+
+    const organizations = new Map<number, { name: string; options: ReturnType<typeof toOption>[] }>();
+    for (const office of offices) {
+      const key = office.organization?.id ?? 0;
+      const group = organizations.get(key) ?? {
+        name: office.organization?.name ?? '',
+        options: [],
+      };
+      group.options.push(toOption(office));
+      organizations.set(key, group);
+    }
+
+    if (organizations.size < 2) return offices.map(toOption);
+    return [...organizations.values()].map((group) => ({
+      label: group.name,
+      options: group.options,
+    }));
+  })();
 
   /*
    * Должность под именем пользователя.
@@ -208,11 +246,10 @@ export function AppLayout() {
           <Select
             value={user?.activeOffice.id}
             style={{ minWidth: 240 }}
+            showSearch
+            optionFilterProp="label"
             onChange={(officeId) => void switchOffice(officeId)}
-            options={user?.availableOffices.map((office) => ({
-              value: office.id,
-              label: `${office.code} — ${office.name}`,
-            }))}
+            options={officeOptions}
             disabled={(user?.availableOffices.length ?? 0) < 2}
           />
           <Tag color="blue">{user?.activeOffice.iataCode ?? user?.activeOffice.code}</Tag>

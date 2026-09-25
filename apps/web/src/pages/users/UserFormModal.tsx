@@ -10,6 +10,7 @@ import {
   Alert,
   App,
   Button,
+  Checkbox,
   Col,
   Collapse,
   Divider,
@@ -25,7 +26,7 @@ import {
 } from 'antd';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
-import { SYSTEM_ROLES } from '@gsm/shared';
+import { PERMISSIONS, SYSTEM_ROLES } from '@gsm/shared';
 
 import { EntityAuditLog } from '@/components/EntityAuditLog';
 import { errorMessage } from '@/api/client';
@@ -66,13 +67,16 @@ interface Props {
   /** null — создание нового пользователя */
   initial: UserDetail | null;
   onClose: () => void;
+  /** При создании сразу отметить «суперадминистратор платформы» (вкладка «Платформа») */
+  presetPlatformAdmin?: boolean;
 }
 
-export function UserFormModal({ open, initial, onClose }: Props) {
+export function UserFormModal({ open, initial, onClose, presetPlatformAdmin }: Props) {
   const { t } = useTranslation();
 
   const [form] = Form.useForm();
-  const { user: me, refreshProfile } = useAuth();
+  const { user: me, refreshProfile, can } = useAuth();
+  const canPlatform = can(PERMISSIONS.PLATFORM_MANAGE);
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const isEdit = Boolean(initial?.id);
@@ -97,6 +101,8 @@ export function UserFormModal({ open, initial, onClose }: Props) {
       const byOffice = new Map<number, string[]>();
       for (const assignment of initial.roles) {
         if (assignment.officeId === null) continue;
+        // Суперадминистратор — отметка «платформы», а не роль офиса.
+        if (assignment.role.code === SYSTEM_ROLES.SUPER_ADMIN) continue;
         const list = byOffice.get(assignment.officeId) ?? [];
         list.push(assignment.role.code);
         byOffice.set(assignment.officeId, list);
@@ -109,6 +115,7 @@ export function UserFormModal({ open, initial, onClose }: Props) {
         locale: initial.locale,
         status: initial.status,
         defaultOfficeId: initial.defaultOfficeId ?? undefined,
+        platformAdmin: initial.roles.some((r) => r.role.code === SYSTEM_ROLES.SUPER_ADMIN),
         offices: initial.offices.map((entry) => ({
           officeId: entry.office.id,
           roleCodes: byOffice.get(entry.office.id) ?? [],
@@ -118,47 +125,11 @@ export function UserFormModal({ open, initial, onClose }: Props) {
       form.setFieldsValue({
         locale: 'ru',
         status: 'ACTIVE',
+        platformAdmin: Boolean(presetPlatformAdmin),
         offices: [{ officeId: user?.activeOffice.id, roleCodes: [] }],
       });
     }
-  }, [open, initial, form, user]);
-
-  /**
-   * Суперадминистратору доступ ко всем офисам выдаётся сам.
-   *
-   * Роль по определению означает работу поверх всех аэропортов, и заставлять
-   * кадровика добавлять их по одному — заведомо лишний труд, в котором к тому
-   * же легко пропустить офис. Для остальных ролей поведение прежнее: офисы
-   * назначаются вручную, потому что доступ там точечный.
-   *
-   * Строки не дописываются к уже введённым, а заменяют их: смысл действия —
-   * «все офисы», и остаток прежнего выбора сделал бы результат непредсказуемым.
-   */
-  const handleValuesChange = (changed: Record<string, unknown>): void => {
-    if (!('offices' in changed)) return;
-
-    const rows = (form.getFieldValue('offices') ?? []) as Array<{
-      officeId?: number;
-      roleCodes?: string[];
-    }>;
-    const grantsSuperAdmin = rows.some((row) =>
-      row?.roleCodes?.includes(SYSTEM_ROLES.SUPER_ADMIN),
-    );
-    if (!grantsSuperAdmin) return;
-
-    const available = user?.availableOffices ?? [];
-    // Уже покрыты все офисы — второй раз не трогаем, иначе правка ролей
-    // в одной строке сбрасывала бы роли в остальных.
-    if (rows.length >= available.length) return;
-
-    form.setFieldsValue({
-      offices: available.map((office) => ({
-        officeId: office.id,
-        roleCodes: [SYSTEM_ROLES.SUPER_ADMIN],
-      })),
-      defaultOfficeId: form.getFieldValue('defaultOfficeId') ?? available[0]?.id,
-    });
-  };
+  }, [open, initial, form, user, presetPlatformAdmin]);
 
   /**
    * Фотография сохраняется отдельным запросом, а не вместе с формой.
@@ -230,10 +201,16 @@ export function UserFormModal({ open, initial, onClose }: Props) {
           status: values.status,
           offices: values.offices,
           defaultOfficeId: values.defaultOfficeId,
+          // Отметку может менять только управляющий платформой.
+          ...(canPlatform && { platformAdmin: Boolean(values.platformAdmin) }),
         });
         return data;
       }
-      const { data } = await api.post('/users', values);
+      const { platformAdmin, ...rest } = values;
+      const { data } = await api.post('/users', {
+        ...rest,
+        ...(canPlatform && platformAdmin ? { platformAdmin: true } : {}),
+      });
       return data;
     },
     {
@@ -247,10 +224,13 @@ export function UserFormModal({ open, initial, onClose }: Props) {
     label: `${office.code} — ${office.name}`,
   }));
 
-  const roleOptions = (roles.data ?? []).map((role) => ({
-    value: role.code,
-    label: role.name,
-  }));
+  // Суперадминистратор выдаётся отметкой выше, а не ролью отдельного офиса.
+  const roleOptions = (roles.data ?? [])
+    .filter((role) => role.code !== SYSTEM_ROLES.SUPER_ADMIN)
+    .map((role) => ({
+      value: role.code,
+      label: role.name,
+    }));
 
   return (
     <Modal
@@ -327,7 +307,7 @@ export function UserFormModal({ open, initial, onClose }: Props) {
         </div>
       )}
 
-      <Form form={form} layout="vertical" onValuesChange={handleValuesChange}>
+      <Form form={form} layout="vertical">
         <Row gutter={16}>
           <Col span={12}>
             <Form.Item
@@ -432,8 +412,18 @@ export function UserFormModal({ open, initial, onClose }: Props) {
         <Typography.Paragraph type="secondary" style={{ marginTop: -8 }}>
           {t("Роль действует в конкретном офисе. Один человек может быть диспетчером в Ташкенте и наблюдателем в Самарканде — это две отдельные строки.")}
           {' '}
-          {t("Исключение — суперадминистратор: при выборе этой роли все доступные офисы подставляются сразу.")}
+          {t("Суперадминистратор платформы отмечается отдельно и видит все офисы всех организаций, в том числе созданные позже.")}
         </Typography.Paragraph>
+
+        {canPlatform && (
+          <Form.Item
+            name="platformAdmin"
+            valuePropName="checked"
+            extra={t("Полный доступ ко всем организациям и офисам, управление организациями и офисами. Ниже укажите хотя бы один офис — в него человек попадает после входа.")}
+          >
+            <Checkbox>{t("Суперадминистратор платформы")}</Checkbox>
+          </Form.Item>
+        )}
 
         <Form.List
           name="offices"
@@ -459,6 +449,7 @@ export function UserFormModal({ open, initial, onClose }: Props) {
                     >
                       <Select
                         showSearch
+                        style={{ width: '100%' }}
                         optionFilterProp="label"
                         placeholder={t("Офис")}
                         options={officeOptions}
@@ -468,11 +459,18 @@ export function UserFormModal({ open, initial, onClose }: Props) {
                   <Col span={13}>
                     <Form.Item
                       name={[field.name, 'roleCodes']}
-                      rules={[{ required: true, message: t("Выберите роли") }]}
+                      rules={[
+                        ({ getFieldValue }) => ({
+                          // Суперадминистратору платформы роль в офисе не нужна.
+                          required: !getFieldValue('platformAdmin'),
+                          message: t("Выберите роли"),
+                        }),
+                      ]}
                       noStyle
                     >
                       <Select
                         mode="multiple"
+                        style={{ width: '100%' }}
                         allowClear
                         placeholder={t("Роли в этом офисе")}
                         loading={roles.isLoading}

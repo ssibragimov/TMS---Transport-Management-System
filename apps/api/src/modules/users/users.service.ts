@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { SYSTEM_ROLES, type PaginatedResult } from '@gsm/shared';
+import { PERMISSIONS, SYSTEM_ROLES, type PaginatedResult } from '@gsm/shared';
 
 import { APP_CONFIG, type AppConfig } from '@/config/configuration';
 import { paginate } from '@/common/dto/pagination.dto';
@@ -44,10 +44,10 @@ export class UsersService {
    * в интерфейсе: форма — не граница безопасности.
    */
   private assertOfficesAllowed(officeIds: number[]): void {
-    const context = TenantStore.require();
-    if (context.bypassRls) return;
+    const { bypass, officeIds: scope } = this.scopeOf();
+    if (bypass) return;
 
-    const allowed = new Set(context.officeScope);
+    const allowed = new Set(scope);
     const forbidden = officeIds.filter((id) => !allowed.has(id));
 
     if (forbidden.length > 0) {
@@ -59,9 +59,46 @@ export class UsersService {
     }
   }
 
+  /**
+   * Управляющий платформой работает в одном офисе, но управляет людьми всех:
+   * для него область видимости пользователей — вся платформа, как при обходе RLS.
+   */
   private scopeOf(): { bypass: boolean; officeIds: number[] } {
     const context = TenantStore.require();
-    return { bypass: context.bypassRls, officeIds: context.officeScope };
+    const platform = context.permissions?.includes(PERMISSIONS.PLATFORM_MANAGE) ?? false;
+    return { bypass: context.bypassRls || platform, officeIds: context.officeScope };
+  }
+
+  /**
+   * Отметка «суперадминистратор платформы» — это роль SUPER_ADMIN без привязки
+   * к офису. Прежние назначения этой роли по отдельным офисам заменяются ею.
+   */
+  private async setPlatformAdmin(
+    tx: PrismaTransactionClient,
+    userId: number,
+    enabled: boolean,
+    actorIsSuper: boolean,
+  ): Promise<void> {
+    if (!actorIsSuper) {
+      throw new ForbiddenException({
+        code: 'user.platform_admin_restricted',
+        message: 'Статус суперадминистратора платформы выдаёт только суперадминистратор',
+      });
+    }
+    if (!enabled && TenantStore.require().userId === userId) {
+      throw new ConflictException({
+        code: 'user.cannot_demote_self',
+        message: 'Нельзя снять статус суперадминистратора с самого себя',
+      });
+    }
+
+    await tx.userRole.deleteMany({
+      where: { userId, role: { code: SYSTEM_ROLES.SUPER_ADMIN } },
+    });
+    if (enabled) {
+      const role = await tx.role.findUniqueOrThrow({ where: { code: SYSTEM_ROLES.SUPER_ADMIN } });
+      await tx.userRole.create({ data: { userId, roleId: role.id, officeId: null } });
+    }
   }
 
   async list(
@@ -82,7 +119,11 @@ export class UsersService {
     const where: Prisma.UserWhereInput = {
       deletedAt: null,
       ...hideSuperAdmins(superAdmin),
-      ...(officeFilter && { offices: { some: officeFilter } }),
+      // Суперадминистратор платформы не привязан к офису, поэтому в списке
+      // «только они» фильтр по офису не применяется.
+      ...(superAdmin && query.platformAdmins
+        ? { roles: { some: { role: { code: SYSTEM_ROLES.SUPER_ADMIN } } } }
+        : officeFilter && { offices: { some: officeFilter } }),
       ...(query.status && { status: query.status }),
       // Служебный внутренний номер участвует в поиске наравне с ФИО:
       // по короткому номеру сотрудника находят быстрее всего.
@@ -261,6 +302,10 @@ export class UsersService {
         select: { id: true, email: true, fullName: true, status: true },
       });
 
+      if (dto.platformAdmin) {
+        await this.setPlatformAdmin(tx, user.id, true, superAdmin);
+      }
+
       return user;
     });
   }
@@ -285,7 +330,20 @@ export class UsersService {
       }
     }
 
+    const currentlyPlatformAdmin = current.roles.some(
+      (r) => r.role.code === SYSTEM_ROLES.SUPER_ADMIN,
+    );
+    const platformChange =
+      dto.platformAdmin !== undefined && dto.platformAdmin !== currentlyPlatformAdmin;
+
     return this.prisma.systemTransaction(async (tx) => {
+      // Выполняется и при неизменном значении: прежние назначения роли по
+      // отдельным офисам сводятся к одной записи без привязки к офису, иначе
+      // перестройка ролей ниже стёрла бы их и человек лишился бы статуса.
+      if (dto.platformAdmin !== undefined) {
+        await this.setPlatformAdmin(tx, id, dto.platformAdmin, superAdmin);
+      }
+
       if (dto.offices) {
         const { bypass, officeIds } = this.scopeOf();
         const manageable = new Set(officeIds);
@@ -358,7 +416,9 @@ export class UsersService {
           ...(dto.status !== undefined && { status: dto.status }),
           // Блокировка и смена набора ролей должны действовать сразу:
           // инкремент версии сессии обрывает продление токенов.
-          ...((deactivating || dto.offices) && { sessionVersion: { increment: 1 } }),
+          ...((deactivating || dto.offices || platformChange) && {
+            sessionVersion: { increment: 1 },
+          }),
         },
         select: { id: true, email: true, fullName: true, status: true },
       });

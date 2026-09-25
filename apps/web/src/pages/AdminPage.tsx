@@ -22,7 +22,6 @@ import { TableCard } from '@/components/TableCard';
 import { CATEGORY_LABEL, METER_LABEL, fmt } from '@/lib/labels';
 
 import { CrudPanel } from './admin/CrudPanel';
-import { OfficesPanel } from './admin/OfficesPanel';
 
 interface FuelTypeRow {
   id: number;
@@ -851,11 +850,6 @@ export function AdminPage() {
                 )}
               />
             ),
-          },
-          {
-            key: 'offices',
-            label: t("Офисы и аэропорты"),
-            children: <OfficesPanel />,
           },
           {
             key: 'norms-hint',

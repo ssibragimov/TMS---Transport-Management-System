@@ -21,6 +21,7 @@ import { DriversModule } from '@/modules/drivers/drivers.module';
 import { FuelModule } from '@/modules/fuel/fuel.module';
 import { HealthModule } from '@/modules/health/health.module';
 import { OfficesModule } from '@/modules/offices/offices.module';
+import { OrganizationsModule } from '@/modules/organizations/organizations.module';
 import { ReportsModule } from '@/modules/reports/reports.module';
 import { StockModule } from '@/modules/stock/stock.module';
 import { TelemetryModule } from '@/modules/telemetry/telemetry.module';
@@ -45,6 +46,7 @@ import { WaybillsModule } from '@/modules/waybills/waybills.module';
     AuthModule,
     UsersModule,
     OfficesModule,
+    OrganizationsModule,
     DictionariesModule,
     VehiclesModule,
     DriversModule,

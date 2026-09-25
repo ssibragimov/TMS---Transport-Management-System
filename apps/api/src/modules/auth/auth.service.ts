@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import { OfficeKind, Prisma, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomUUID } from 'node:crypto';
+import { SYSTEM_ROLES } from '@gsm/shared';
 import type {
   AuthTokens,
   CurrentUserDto,
@@ -298,22 +299,39 @@ export class AuthService {
    * между аэропортами.
    */
   private async accessibleOffices(userId: number, bypassRls: boolean) {
-    if (bypassRls) {
+    if (bypassRls || (await this.holdsSuperAdminRole(userId))) {
       return this.prisma.db.office.findMany({
-        where: { deletedAt: null, isActive: true },
-        orderBy: [{ kind: 'asc' }, { code: 'asc' }],
+        where: { deletedAt: null, isActive: true, organization: { isActive: true } },
+        include: { organization: true },
+        orderBy: [{ organization: { nameRu: 'asc' } }, { kind: 'asc' }, { code: 'asc' }],
       });
     }
 
     const links = await this.prisma.db.userOffice.findMany({
       // Отключённый офис недоступен и по явной записи: отключение означает,
       // что аэропорт больше не работает, а не что его просто скрыли из списка.
-      where: { userId, office: { deletedAt: null, isActive: true } },
-      include: { office: true },
+      where: {
+        userId,
+        office: { deletedAt: null, isActive: true, organization: { isActive: true } },
+      },
+      include: { office: { include: { organization: true } } },
       orderBy: [{ office: { kind: 'asc' } }, { office: { code: 'asc' } }],
     });
 
     return links.map((link) => link.office);
+  }
+
+  /**
+   * Суперадминистратор — свойство человека, а не отдельного офиса: роль,
+   * выданная где угодно, открывает все офисы платформы, в том числе созданные
+   * позже. Иначе каждому новому офису пришлось бы вручную проставлять доступ.
+   */
+  private async holdsSuperAdminRole(userId: number): Promise<boolean> {
+    const assignment = await this.prisma.db.userRole.findFirst({
+      where: { userId, role: { code: SYSTEM_ROLES.SUPER_ADMIN } },
+      select: { userId: true },
+    });
+    return assignment !== null;
   }
 
   private async resolveOfficeScope(
@@ -354,10 +372,14 @@ export class AuthService {
       },
     });
 
-    // Учитываются роли, выданные глобально (office_id IS NULL)
-    // и роли, выданные именно в активном офисе.
+    // Учитываются роли, выданные глобально (office_id IS NULL), роли активного
+    // офиса и роль суперадминистратора, выданная где угодно: она действует
+    // во всех офисах платформы.
     const applicableRoles = user.roles.filter(
-      (ur) => ur.officeId === null || ur.officeId === officeId,
+      (ur) =>
+        ur.officeId === null ||
+        ur.officeId === officeId ||
+        ur.role.code === SYSTEM_ROLES.SUPER_ADMIN,
     );
 
     const permissions = [
@@ -379,10 +401,16 @@ export class AuthService {
       longitude: Prisma.Decimal | null;
       taskLayout: string;
       taskAddressALocations: boolean;
+      organization: { id: number; code: string; nameRu: string };
     }): OfficeSummaryDto => ({
       id: o.id,
       code: o.code,
       name: o.nameRu,
+      organization: {
+        id: o.organization.id,
+        code: o.organization.code,
+        name: o.organization.nameRu,
+      },
       iataCode: o.iataCode,
       timezone: o.timezone,
       kind: o.kind,

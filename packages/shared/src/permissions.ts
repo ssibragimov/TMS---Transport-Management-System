@@ -10,6 +10,14 @@
  */
 
 export const PERMISSIONS = {
+  // ─── Платформа ────────────────────────────────────────────────────────
+  /**
+   * Организации и офисы: создание и правка. Только у суперадминистратора —
+   * администратор офиса управляет данными своего офиса, но не самим набором
+   * офисов платформы.
+   */
+  PLATFORM_MANAGE: 'platform.manage',
+
   // ─── Справочники и настройки ──────────────────────────────────────────
   OFFICE_READ: 'office.read',
   OFFICE_MANAGE: 'office.manage',
@@ -183,7 +191,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
   [SYSTEM_ROLES.SUPER_ADMIN]: ALL_PERMISSIONS,
 
   [SYSTEM_ROLES.OFFICE_ADMIN]: ALL_PERMISSIONS.filter(
-    (p) => p !== P.REPORT_CROSS_OFFICE,
+    (p) => p !== P.REPORT_CROSS_OFFICE && p !== P.PLATFORM_MANAGE,
   ),
 
   [SYSTEM_ROLES.FLEET_MANAGER]: [

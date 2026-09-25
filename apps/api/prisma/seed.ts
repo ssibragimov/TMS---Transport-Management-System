@@ -374,11 +374,23 @@ async function seedRoles(): Promise<void> {
 }
 
 async function seedOffices(): Promise<{ hqId: number; officeIds: Map<string, number> }> {
+  const organization = await prisma.organization.upsert({
+    where: { code: 'UZAIR' },
+    update: {},
+    create: {
+      code: 'UZAIR',
+      nameRu: 'Аэропорты Узбекистана',
+      nameUz: 'O‘zbekiston aeroportlari',
+      nameEn: 'Airports of Uzbekistan',
+    },
+  });
+
   const hq = await prisma.office.upsert({
     where: { code: 'HQ' },
     update: {},
     create: {
       code: 'HQ',
+      organizationId: organization.id,
       kind: OfficeKind.HEADQUARTERS,
       nameRu: 'Uzbekistan Airports — головной офис',
       nameUz: 'Uzbekistan Airports — bosh ofis',
@@ -404,6 +416,7 @@ async function seedOffices(): Promise<{ hqId: number; officeIds: Map<string, num
       },
       create: {
         code: airport.code,
+        organizationId: organization.id,
         kind: OfficeKind.AIRPORT,
         parentId: hq.id,
         nameRu: airport.nameRu,
