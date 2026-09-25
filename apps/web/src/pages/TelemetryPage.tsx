@@ -1,16 +1,38 @@
-import { EnvironmentOutlined, ReloadOutlined } from '@ant-design/icons';
+import {
+  DeleteOutlined,
+  EditOutlined,
+  EnvironmentOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { Badge, Button, Card, Empty, Segmented, Space, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
+import {
+  Badge,
+  Button,
+  Card,
+  Empty,
+  Popconfirm,
+  Segmented,
+  Space,
+  Switch,
+  Table,
+  Tabs,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd';
 import dayjs from 'dayjs';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PERMISSIONS } from '@gsm/shared';
 
 import { api } from '@/api/client';
+import { useApiMutation } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
 import { CATEGORY_LABEL, fmt } from '@/lib/labels';
 
 import { AirportMap } from './telemetry/AirportMap';
+import { FENCE_KIND_LABEL, GeofenceEditor, type EditableFence } from './telemetry/GeofenceEditor';
 import type { PlanFence, PlanVehicle } from './telemetry/PlanMap';
 import { TrackDrawer } from './telemetry/TrackDrawer';
 
@@ -103,19 +125,24 @@ function minutesAgo(ts: string): string {
   return dayjs(ts).format('DD.MM HH:mm');
 }
 
-const FENCE_KIND_LABEL: Record<string, string> = {
-  APRON: 'Перрон',
-  PARKING: 'Стоянка',
-  FUEL_DEPOT: 'Склад ГСМ',
-  PERIMETER: 'Периметр',
-  OTHER: 'Прочее',
-};
-
 export function TelemetryPage() {
   const { t } = useTranslation();
   const { can } = useAuth();
 
   const [selected, setSelected] = useState<number | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingFence, setEditingFence] = useState<EditableFence | null>(null);
+
+  const removeFence = useApiMutation(
+    async (id: number) => (await api.delete(`/geofences/${id}`)).data,
+    { successMessage: t('Геозона удалена'), invalidate: [['geofences'], ['telemetry-events']] },
+  );
+
+  const toggleFence = useApiMutation(
+    async (fence: FenceRow) =>
+      (await api.patch(`/geofences/${fence.id}`, { isActive: !fence.isActive })).data,
+    { successMessage: t('Состояние геозоны изменено'), invalidate: [['geofences']] },
+  );
   const [trackVehicle, setTrackVehicle] = useState<number | null>(null);
   const [filter, setFilter] = useState<'all' | 'tracked'>('tracked');
 
@@ -377,6 +404,19 @@ export function TelemetryPage() {
             label: t('Геозоны'),
             children: (
               <Card>
+                {can(PERMISSIONS.GEOFENCE_MANAGE) && (
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    style={{ marginBottom: 12 }}
+                    onClick={() => {
+                      setEditingFence(null);
+                      setEditorOpen(true);
+                    }}
+                  >
+                    {t('Добавить зону')}
+                  </Button>
+                )}
                 <Table<FenceRow>
                   rowKey="id"
                   size="small"
@@ -445,7 +485,58 @@ export function TelemetryPage() {
                           <Typography.Text type="warning">{t('не обведён')}</Typography.Text>
                         ),
                     },
+                    ...(can(PERMISSIONS.GEOFENCE_MANAGE)
+                      ? [
+                          {
+                            title: t('Действует'),
+                            width: 110,
+                            render: (_: unknown, row: FenceRow) => (
+                              <Switch
+                                size="small"
+                                checked={row.isActive}
+                                loading={toggleFence.isPending}
+                                onChange={() => toggleFence.mutate(row)}
+                              />
+                            ),
+                          },
+                          {
+                            title: '',
+                            width: 100,
+                            render: (_: unknown, row: FenceRow) => (
+                              <Space size={0}>
+                                <Tooltip title={t('Изменить')}>
+                                  <Button
+                                    type="text"
+                                    icon={<EditOutlined />}
+                                    onClick={() => {
+                                      setEditingFence(row);
+                                      setEditorOpen(true);
+                                    }}
+                                  />
+                                </Tooltip>
+                                <Popconfirm
+                                  title={t('Удалить геозону?')}
+                                  description={t('Вместе с ней удалятся и записанные въезды и выезды. Чтобы сохранить историю, лучше отключить зону.')}
+                                  okText={t('Удалить')}
+                                  cancelText={t('Отмена')}
+                                  onConfirm={() => removeFence.mutate(row.id)}
+                                >
+                                  <Tooltip title={t('Удалить')}>
+                                    <Button type="text" danger icon={<DeleteOutlined />} />
+                                  </Tooltip>
+                                </Popconfirm>
+                              </Space>
+                            ),
+                          },
+                        ]
+                      : []),
                   ]}
+                />
+                <GeofenceEditor
+                  open={editorOpen}
+                  fence={editingFence}
+                  others={(fences.data ?? []).filter((f) => f.id !== editingFence?.id)}
+                  onClose={() => setEditorOpen(false)}
                 />
               </Card>
             ),

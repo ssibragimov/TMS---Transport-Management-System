@@ -538,7 +538,7 @@ export function StickyTable<RecordType extends object>({
           }
           placement="bottom"
           rootClassName="gsm-cell-tip"
-          overlayStyle={{ maxWidth: 480, pointerEvents: 'none' }}
+          styles={{ root: { maxWidth: 480, pointerEvents: 'none' } }}
         >
           <span
             aria-hidden

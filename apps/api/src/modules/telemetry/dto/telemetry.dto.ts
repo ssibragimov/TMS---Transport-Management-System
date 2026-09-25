@@ -6,6 +6,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsIn,
   IsInt,
   IsLatitude,
   IsLongitude,
@@ -161,8 +162,7 @@ export class GeofenceDto {
   name: string;
 
   @ApiProperty({ description: 'APRON | PARKING | FUEL_DEPOT | PERIMETER | OTHER' })
-  @IsString()
-  @MaxLength(32)
+  @IsIn(['APRON', 'PARKING', 'FUEL_DEPOT', 'PERIMETER', 'OTHER'])
   kind: string;
 
   @ApiPropertyOptional({
@@ -172,6 +172,7 @@ export class GeofenceDto {
   })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(500, { message: 'В контуре не больше 500 точек' })
   area?: number[][];
 
   @ApiPropertyOptional({ description: 'Ограничение скорости внутри зоны, км/ч' })
@@ -193,8 +194,7 @@ export class GeofenceDto {
 
   @ApiPropertyOptional({ example: '#1677ff' })
   @IsOptional()
-  @IsString()
-  @MaxLength(9)
+  @Matches(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/, { message: 'Цвет — в виде #RRGGBB' })
   color?: string;
 
   @ApiPropertyOptional()

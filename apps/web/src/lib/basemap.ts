@@ -58,6 +58,30 @@ export async function basemapAvailable(): Promise<boolean> {
   }
 }
 
+/**
+ * Стиль для редактора зон, когда своего файла тайлов нет (рабочий сервер).
+ *
+ * Растр OpenStreetMap из интернета: редактирует зоны администратор за рабочим
+ * столом, где интернет есть, а на диспетчерской карте он не нужен. Шрифты
+ * подписей берутся те же, что у основной подложки, — они лежат в репозитории.
+ */
+export function buildOnlineStyle(): StyleSpecification {
+  return {
+    version: 8,
+    glyphs: `${mapBase()}/fonts/{fontstack}/{range}.pbf`,
+    sources: {
+      osm: {
+        type: 'raster',
+        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: '© OpenStreetMap',
+      },
+    },
+    layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+  };
+}
+
 export function buildStyle(): StyleSpecification {
   const base = mapBase();
 
