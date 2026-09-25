@@ -1,4 +1,5 @@
-import { Alert, Button, Form, Input, Select, Space, Typography } from 'antd';
+import { LockOutlined, MailOutlined } from '@ant-design/icons';
+import { Alert, App, Button, Form, Input, Select, Space, Typography } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
@@ -16,6 +17,7 @@ interface LoginForm {
 
 export function LoginPage() {
   const { t } = useTranslation();
+  const { modal } = App.useApp();
   const { user, login } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -41,6 +43,18 @@ export function LoginPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Самостоятельного сброса пароля в системе нет: учётные записи ведёт
+  // администратор, поэтому ссылка не открывает форму, а объясняет, к кому идти.
+  const forgotPassword = (): void => {
+    modal.info({
+      title: t('Забыли пароль?'),
+      content: t(
+        'Пароль сбрасывает администратор вашего офиса — обратитесь к нему, и он задаст новый.',
+      ),
+      okText: t('Понятно'),
+    });
   };
 
   return (
@@ -82,19 +96,25 @@ export function LoginPage() {
               }))}
             />
           </div>
+
+          <div className="gsm-login-caption">
+            <h2>{t('Учёт и контроль спецтранспорта аэропортов')}</h2>
+            <p>{t('Топливо, техника, путевые листы и нарушения — в одной системе')}</p>
+          </div>
         </div>
 
         <div className="gsm-login-form">
           <div className="gsm-login-form-head">
-            <Typography.Title level={3}>{t('Вход в систему')}</Typography.Title>
-            <Typography.Text type="secondary">
-              {t('Учёт и контроль спецтранспорта аэропортов')}
-            </Typography.Text>
+            <div className="gsm-login-kicker">{t('Вход в аккаунт')}</div>
+            <h1>{t('Добро пожаловать!')}</h1>
+            <p>{t('Введите почту и пароль')}</p>
           </div>
 
-          {error && <Alert type="error" message={error} showIcon style={{ margin: '16px 0' }} />}
+          <Form<LoginForm> layout="vertical" onFinish={onFinish} requiredMark={false}>
+            {error && (
+              <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />
+            )}
 
-          <Form<LoginForm> layout="vertical" onFinish={onFinish} style={{ marginTop: 24 }}>
             <Form.Item
               name="email"
               label={t('Электронная почта')}
@@ -102,6 +122,7 @@ export function LoginPage() {
             >
               <Input
                 size="large"
+                prefix={<MailOutlined />}
                 autoComplete="username"
                 autoFocus
                 placeholder={t('например, chief.tas@gsm.local')}
@@ -112,9 +133,21 @@ export function LoginPage() {
               name="password"
               label={t('Пароль')}
               rules={[{ required: true, min: 8 }]}
+              style={{ marginBottom: 10 }}
             >
-              <Input.Password size="large" autoComplete="current-password" />
+              <Input.Password
+                size="large"
+                prefix={<LockOutlined />}
+                autoComplete="current-password"
+                placeholder={t('Введите пароль')}
+              />
             </Form.Item>
+
+            <div className="gsm-login-forgot">
+              <Typography.Link onClick={forgotPassword}>
+                {t('Забыли пароль?')}
+              </Typography.Link>
+            </div>
 
             <Button
               className="gsm-login-submit"
@@ -129,10 +162,11 @@ export function LoginPage() {
           </Form>
 
           <div className="gsm-login-note">
-            {t('Нет доступа?')}{' '}
-            <b>{t('Обратитесь к администратору вашего офиса')}</b>
+            {t('Нет доступа?')} <b>{t('Обратитесь к администратору вашего офиса')}</b>
             {' — '}
-            {t('учётные записи заводятся вручную, самостоятельной регистрации в системе нет.')}
+            {t(
+              'учётные записи заводятся вручную, самостоятельной регистрации в системе нет.',
+            )}
           </div>
         </div>
       </div>
