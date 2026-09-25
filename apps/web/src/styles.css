@@ -369,15 +369,17 @@ body {
   color: #fff;
 }
 
-/* Автозаполнение браузера красит поле в светлый цвет и текст в чёрный — возвращаем
-   свои: иначе после подстановки сохранённого логина поле выбивалось бы из палитры. */
+/* Автозаполнение браузера красит поле в светлый цвет и текст в чёрный. Заливку
+   не подменяем своей: сплошной цвет закрашивал бы лишь внутреннюю часть поля, и
+   по краям (у значков) оставался бы градиент — края отличались бы по тону.
+   Вместо этого браузерную заливку откладываем практически навсегда, и сквозь
+   поле виден тот же градиент, что и у обёртки. Цвет текста возвращаем белым. */
 .gsm-login-form input:-webkit-autofill,
 .gsm-login-form input:-webkit-autofill:hover,
 .gsm-login-form input:-webkit-autofill:focus {
   -webkit-text-fill-color: #fff;
   caret-color: #fff;
-  -webkit-box-shadow: 0 0 0 1000px #0b2a8c inset;
-  transition: background-color 9999s ease-out 0s;
+  transition: background-color 600000s ease-out 0s;
 }
 
 .gsm-login-forgot {
