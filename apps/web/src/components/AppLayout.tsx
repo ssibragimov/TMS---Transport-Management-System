@@ -323,7 +323,7 @@ export function AppLayout() {
               в поддержку («на какой версии вы работаете»). */}
           <Tooltip title={t('Версия платформы')}>
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              v{__APP_VERSION__}
+              v{__APP_VERSION__} · {__BUILD_ID__}
             </Typography.Text>
           </Tooltip>
         </Space>

@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 import { BrowserRouter } from 'react-router-dom';
+import { registerSW } from 'virtual:pwa-register';
 
 import App from './App';
 import { AuthProvider } from './auth/AuthContext';
@@ -47,6 +48,29 @@ function LocalizedConfigProvider({ children }: { children: ReactNode }) {
     </ConfigProvider>
   );
 }
+
+/*
+  Обновление приложения. Сайт кеширует себя в браузере (PWA), и без этого
+  блока новая версия подхватывалась лишь со второго открытия страницы: пока
+  вкладка жива, она показывала старую сборку. Здесь браузер сам проверяет
+  наличие новой версии — при открытии, при возвращении на вкладку и раз в
+  полчаса, — а найдя её, перезагружает страницу (режим autoUpdate).
+*/
+const UPDATE_CHECK_MS = 30 * 60_000;
+
+registerSW({
+  immediate: true,
+  onRegisteredSW(_url, registration) {
+    if (!registration) return;
+    const check = (): void => {
+      void registration.update().catch(() => undefined);
+    };
+    window.setInterval(check, UPDATE_CHECK_MS);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') check();
+    });
+  },
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {

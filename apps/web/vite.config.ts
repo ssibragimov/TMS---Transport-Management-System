@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
@@ -11,6 +12,24 @@ const rootPackage = JSON.parse(
   readFileSync(resolve(__dirname, '../../package.json'), 'utf-8'),
 ) as { version: string };
 
+/**
+ * Номер сборки: короткий идентификатор коммита. На Render его отдаёт сама
+ * платформа, локально берём из git. Показывается в шапке рядом с версией —
+ * по нему видно, какая именно сборка открыта в браузере, и не приходится
+ * гадать, обновился ли сайт или браузер держит старую копию.
+ */
+function buildId(): string {
+  const fromRender = process.env.RENDER_GIT_COMMIT;
+  if (fromRender) return fromRender.slice(0, 7);
+  try {
+    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+  } catch {
+    return 'dev';
+  }
+}
+
 export default defineConfig({
   // На GitHub Pages сайт живёт в подкаталоге /<имя-репозитория>/, поэтому пути
   // к ассетам должны быть с префиксом. Задаётся через VITE_BASE только на время
@@ -23,6 +42,7 @@ export default defineConfig({
   envDir: resolve(__dirname, '../..'),
   define: {
     __APP_VERSION__: JSON.stringify(rootPackage.version),
+    __BUILD_ID__: JSON.stringify(buildId()),
   },
   plugins: [
     react(),
