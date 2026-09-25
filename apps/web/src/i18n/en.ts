@@ -133,6 +133,7 @@ export const en: Record<string, string> = {
   'Нет прав на просмотр водителей': 'No permission to view drivers',
   'Дата приёма': 'Hire date',
   'Дата создания': 'Created',
+  'Обратитесь в службу поддержки': 'Contact technical support',
   'Топливо, техника, путевые листы и нарушения — в одной системе': 'Fuel, vehicles, waybills and violations — in one system',
   'Вход в аккаунт': 'Sign in to your account',
   'Добро пожаловать!': 'Welcome back!',

@@ -10,6 +10,10 @@ import { LocaleFlag } from '@/components/LocaleFlag';
 import { LoginPhotoCarousel } from '@/components/LoginPhotoCarousel';
 import i18n, { SUPPORTED_LOCALES, localeDescriptor } from '@/i18n';
 
+/** Телефон службы поддержки: для набора и для показа. */
+const SUPPORT_PHONE = '+998977779472';
+const SUPPORT_PHONE_DISPLAY = '+998 97 777 94 72';
+
 interface LoginForm {
   email: string;
   password: string;
@@ -45,13 +49,18 @@ export function LoginPage() {
     }
   };
 
-  // Самостоятельного сброса пароля в системе нет: учётные записи ведёт
-  // администратор, поэтому ссылка не открывает форму, а объясняет, к кому идти.
+  // Самостоятельного сброса пароля в системе нет, поэтому ссылка не открывает
+  // форму, а сообщает, куда обратиться. Номер — ссылка tel: для звонка с телефона.
   const forgotPassword = (): void => {
     modal.info({
       title: t('Забыли пароль?'),
-      content: t(
-        'Пароль сбрасывает администратор вашего офиса — обратитесь к нему, и он задаст новый.',
+      content: (
+        <div>
+          <div>{t('Обратитесь в службу поддержки')}</div>
+          <Typography.Link href={`tel:${SUPPORT_PHONE}`} strong style={{ fontSize: 18 }}>
+            {SUPPORT_PHONE_DISPLAY}
+          </Typography.Link>
+        </div>
       ),
       okText: t('Понятно'),
     });
@@ -59,6 +68,29 @@ export function LoginPage() {
 
   return (
     <div className="gsm-login">
+      {/*
+        Язык выбирается до входа намеренно: сотрудник, которому русский
+        интерфейс незнаком, иначе не понял бы даже подписи полей формы.
+        Переключатель стоит в правом верхнем углу страницы, а не поверх фото.
+      */}
+      <Select
+        className="gsm-login-locale"
+        classNames={{ popup: { root: 'gsm-login-locale-dropdown' } }}
+        value={localeDescriptor(i18n.language).code}
+        popupMatchSelectWidth={false}
+        optionLabelProp="label"
+        onChange={changeLocale}
+        options={SUPPORTED_LOCALES.map((locale) => ({
+          value: locale.code,
+          label: (
+            <Space size={8}>
+              <LocaleFlag code={locale.flag} />
+              {locale.label}
+            </Space>
+          ),
+        }))}
+      />
+
       <div className="gsm-login-card">
         <div className="gsm-login-visual">
           <LoginPhotoCarousel />
@@ -73,28 +105,6 @@ export function LoginPage() {
               </svg>
               TMS
             </div>
-
-            {/*
-              Язык выбирается до входа намеренно: сотрудник, которому русский
-              интерфейс незнаком, иначе не понял бы даже подписи полей формы.
-            */}
-            <Select
-              className="gsm-login-locale"
-              classNames={{ popup: { root: 'gsm-login-locale-dropdown' } }}
-              value={localeDescriptor(i18n.language).code}
-              popupMatchSelectWidth={false}
-              optionLabelProp="label"
-              onChange={changeLocale}
-              options={SUPPORTED_LOCALES.map((locale) => ({
-                value: locale.code,
-                label: (
-                  <Space size={8}>
-                    <LocaleFlag code={locale.flag} />
-                    {locale.label}
-                  </Space>
-                ),
-              }))}
-            />
           </div>
 
           <div className="gsm-login-caption">

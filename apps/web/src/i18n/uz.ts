@@ -117,6 +117,7 @@ export const uz: Record<string, string> = {
   'Офис назначения': 'Qabul qiluvchi ofis',
   'Выберите офис': 'Ofisni tanlang',
   'Дата создания': 'Yaratilgan sana',
+  'Обратитесь в службу поддержки': 'Qo‘llab-quvvatlash xizmatiga murojaat qiling',
   'Топливо, техника, путевые листы и нарушения — в одной системе': 'Yoqilg‘i, texnika, yo‘l varaqalari va qoidabuzarliklar — yagona tizimda',
   'Вход в аккаунт': 'Hisobga kirish',
   'Добро пожаловать!': 'Xush kelibsiz!',
