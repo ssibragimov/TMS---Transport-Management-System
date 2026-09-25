@@ -1,7 +1,9 @@
 import {
   Alert,
+  App,
   Button,
   Col,
+  ColorPicker,
   Form,
   Input,
   InputNumber,
@@ -12,35 +14,26 @@ import {
   Space,
   Switch,
   Typography,
-  ColorPicker,
-  App,
 } from 'antd';
-import {
-  Map as MapLibreMap,
-  NavigationControl,
-  ScaleControl,
-  LngLatBounds,
-  type GeoJSONSource,
-  type MapMouseEvent,
-} from 'maplibre-gl';
-import { useEffect, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import 'maplibre-gl/dist/maplibre-gl.css';
-
-import { useApiMutation } from '@/api/hooks';
 import { api } from '@/api/client';
+import { useApiMutation } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthContext';
-import { buildOnlineStyle } from '@/lib/basemap';
 import {
   circleRing,
   distanceM,
-  edgeInsertIndex,
   rectRing,
   ringAreaM2,
   selfIntersects,
   type LonLat,
 } from '@/lib/geo';
+import { YANDEX_MAPS_KEY } from '@/lib/yandexMaps';
+
+import type { CanvasClick, CanvasOtherZone } from './geofenceCanvas';
+import { GeofenceLibreCanvas } from './GeofenceLibreCanvas';
+import { GeofenceYandexCanvas } from './GeofenceYandexCanvas';
 
 /**
  * Редактор геозоны на карте.
@@ -48,8 +41,10 @@ import {
  * Контур строится щелчками по карте: многоугольник по точкам, круг (центр и
  * радиус) или прямоугольник (два угла). Любой из них потом правится как обычный
  * многоугольник — точки двигаются, по линии добавляются новые, двойной щелчок
- * по точке удаляет её. Библиотеки рисования не подключаются: набор действий
- * небольшой, а лишняя зависимость в сборке дороже сорока строк своего кода.
+ * по точке удаляет её.
+ *
+ * Карта — Яндекс, если задан ключ и он принят, иначе OpenStreetMap. Вся логика
+ * рисования здесь, карты только показывают состояние (см. geofenceCanvas).
  */
 
 export interface EditableFence {
@@ -87,15 +82,11 @@ const DEFAULT_CENTER: LonLat = [69.2401, 41.2995];
 
 type Tool = 'polygon' | 'circle' | 'rect';
 
-const SRC_OTHERS = 'ed-others';
-const SRC_POLY = 'ed-poly';
-const SRC_VERTS = 'ed-verts';
-
 interface Props {
   open: boolean;
   /** null — новая зона */
   fence: EditableFence | null;
-  /** Остальные зоны офиса — рисуются серым для ориентира */
+  /** Остальные зоны офиса — рисуются для ориентира */
   others: EditableFence[];
   onClose: () => void;
 }
@@ -145,19 +136,28 @@ function EditorBody({
   const [tool, setTool] = useState<Tool>('polygon');
   const [pending, setPending] = useState<LonLat | null>(null);
   const [circle, setCircle] = useState<{ center: LonLat; radius: number } | null>(null);
-  const [ready, setReady] = useState(false);
-  const [tilesError, setTilesError] = useState(false);
   const [color, setColor] = useState(fence?.color ?? KIND_COLOR.APRON);
+  const [tilesError, setTilesError] = useState(false);
+  // Причина, по которой Яндекс не открылся; пока null — пробуем его.
+  const [yandexError, setYandexError] = useState<string | null>(null);
+  const useYandex = Boolean(YANDEX_MAPS_KEY) && yandexError === null;
 
-  const container = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<MapLibreMap | null>(null);
-  const dragIndex = useRef<number | null>(null);
-  const dragMoved = useRef(false);
-
-  // Обработчики карты создаются один раз, а состояние меняется — читаем его
-  // через ссылку, чтобы не переподписываться на каждое движение мыши.
+  // Обработчики карты вызываются из событий, а состояние меняется — читаем
+  // актуальное через ссылку, чтобы карта не переподписывалась на каждый щелчок.
   const live = useRef({ ring, finished, tool, pending });
   live.current = { ring, finished, tool, pending };
+
+  const otherZones = useMemo<CanvasOtherZone[]>(
+    () =>
+      others
+        .filter((o) => o.isActive && o.area && o.area.length >= 3)
+        .map((o) => ({
+          name: o.name,
+          color: o.color ?? '#8c8c8c',
+          area: o.area as LonLat[],
+        })),
+    [others],
+  );
 
   const finish = (points: LonLat[]): void => {
     setRing(points);
@@ -165,301 +165,49 @@ function EditorBody({
     setPending(null);
   };
 
-  useEffect(() => {
-    if (!container.current) return;
+  const handleClick = ({ point, nearest, insertIndex }: CanvasClick): void => {
+    const {
+      ring: points,
+      finished: done,
+      tool: currentTool,
+      pending: first,
+    } = live.current;
+    const hit = nearest !== null;
 
-    const map = new MapLibreMap({
-      container: container.current,
-      style: buildOnlineStyle(),
-      center,
-      zoom: 16,
-      minZoom: 5,
-      maxZoom: 19,
-      doubleClickZoom: false,
-      attributionControl: { compact: true },
-    });
-    mapRef.current = map;
-    map.addControl(new NavigationControl({ showCompass: false }), 'top-right');
-    map.addControl(new ScaleControl({ unit: 'metric' }), 'bottom-left');
-
-    map.on('error', (e) => {
-      if ((e as { sourceId?: string }).sourceId === 'osm') setTilesError(true);
-    });
-
-    map.on('load', () => {
-      const empty = { type: 'FeatureCollection' as const, features: [] };
-      map.addSource(SRC_OTHERS, { type: 'geojson', data: empty });
-      map.addSource(SRC_POLY, { type: 'geojson', data: empty });
-      map.addSource(SRC_VERTS, { type: 'geojson', data: empty });
-
-      map.addLayer({
-        id: 'ed-others-fill',
-        type: 'fill',
-        source: SRC_OTHERS,
-        paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.1 },
-      });
-      map.addLayer({
-        id: 'ed-others-line',
-        type: 'line',
-        source: SRC_OTHERS,
-        paint: { 'line-color': ['get', 'color'], 'line-width': 1.5, 'line-opacity': 0.6 },
-      });
-      map.addLayer({
-        id: 'ed-others-label',
-        type: 'symbol',
-        source: SRC_OTHERS,
-        layout: {
-          'text-field': ['get', 'name'],
-          'text-font': ['Noto Sans Medium'],
-          'text-size': 12,
-        },
-        paint: {
-          'text-color': '#595959',
-          'text-halo-color': '#fff',
-          'text-halo-width': 1.5,
-        },
-      });
-      map.addLayer({
-        id: 'ed-poly-fill',
-        type: 'fill',
-        source: SRC_POLY,
-        filter: ['==', ['geometry-type'], 'Polygon'],
-        paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.22 },
-      });
-      map.addLayer({
-        id: 'ed-poly-line',
-        type: 'line',
-        source: SRC_POLY,
-        paint: { 'line-color': ['get', 'color'], 'line-width': 3 },
-      });
-      map.addLayer({
-        id: 'ed-verts',
-        type: 'circle',
-        source: SRC_VERTS,
-        paint: {
-          'circle-radius': ['case', ['get', 'closing'], 9, ['get', 'pending'], 6, 6],
-          'circle-color': ['case', ['get', 'pending'], '#faad14', '#ffffff'],
-          'circle-stroke-color': ['get', 'color'],
-          'circle-stroke-width': 3,
-        },
-      });
-
-      map.on('mouseenter', 'ed-verts', () => {
-        map.getCanvas().style.cursor = 'grab';
-      });
-      map.on('mouseleave', 'ed-verts', () => {
-        map.getCanvas().style.cursor = live.current.finished ? '' : 'crosshair';
-      });
-
-      // Перетаскивание точки: пока тянем, карта не должна ехать вместе с мышью.
-      map.on(
-        'mousedown',
-        'ed-verts',
-        (
-          e: MapMouseEvent & {
-            features?: Array<{ properties: Record<string, unknown> }>;
-          },
-        ) => {
-          const index = e.features?.[0]?.properties?.index;
-          if (typeof index !== 'number' || index < 0) return;
-          e.preventDefault();
-          dragIndex.current = index;
-          dragMoved.current = false;
-          map.dragPan.disable();
-          map.getCanvas().style.cursor = 'grabbing';
-        },
-      );
-      map.on('mousemove', (e) => {
-        const index = dragIndex.current;
-        if (index === null) return;
-        dragMoved.current = true;
-        setCircle(null);
-        setRing((current) =>
-          current.map((p, i) =>
-            i === index ? ([e.lngLat.lng, e.lngLat.lat] as LonLat) : p,
-          ),
-        );
-      });
-      const endDrag = (): void => {
-        if (dragIndex.current === null) return;
-        dragIndex.current = null;
-        map.dragPan.enable();
-        map.getCanvas().style.cursor = live.current.finished ? '' : 'crosshair';
-      };
-      map.on('mouseup', endDrag);
-      window.addEventListener('mouseup', endDrag);
-
-      // Двойной щелчок по точке удаляет её — но контур остаётся многоугольником.
-      map.on(
-        'dblclick',
-        'ed-verts',
-        (
-          e: MapMouseEvent & {
-            features?: Array<{ properties: Record<string, unknown> }>;
-          },
-        ) => {
-          e.preventDefault();
-          const index = e.features?.[0]?.properties?.index;
-          if (typeof index !== 'number' || index < 0 || live.current.ring.length <= 3)
-            return;
-          setCircle(null);
-          setRing((current) => current.filter((_, i) => i !== index));
-        },
-      );
-
-      map.on('click', (e) => {
-        // Щелчок, которым закончили перетаскивание, точкой не считается.
-        if (dragMoved.current) {
-          dragMoved.current = false;
+    if (!done) {
+      if (currentTool === 'polygon') {
+        if (hit) {
+          if (nearest === 0 && points.length >= 3) finish(points);
           return;
         }
-        const {
-          ring: points,
-          finished: done,
-          tool: currentTool,
-          pending: first,
-        } = live.current;
-        const p: LonLat = [e.lngLat.lng, e.lngLat.lat];
-        // Попадание по точке считаем сами, по расстоянию на экране: так надёжнее,
-        // чем спрашивать у карты, что нарисовано под курсором.
-        const nearest = points.findIndex((q) => {
-          const s = map.project(q);
-          return Math.hypot(s.x - e.point.x, s.y - e.point.y) <= 12;
-        });
-        const hit = nearest >= 0;
-
-        if (!done) {
-          if (currentTool === 'polygon') {
-            if (hit) {
-              if (nearest === 0 && points.length >= 3) finish(points);
-              return;
-            }
-            setRing([...points, p]);
-          } else if (!first) {
-            setPending(p);
-          } else if (currentTool === 'circle') {
-            const radius = Math.max(5, Math.round(distanceM(first, p)));
-            setCircle({ center: first, radius });
-            finish(circleRing(first, radius));
-          } else {
-            finish(rectRing(first, p));
-          }
-          return;
-        }
-
-        if (hit) return;
-        const index = edgeInsertIndex(points, e.point, (q) => map.project(q));
-        if (index !== null) {
-          setCircle(null);
-          setRing([...points.slice(0, index), p, ...points.slice(index)]);
-        }
-      });
-
-      setReady(true);
-    });
-
-    return () => {
-      mapRef.current = null;
-      map.remove();
-    };
-    // Карта создаётся один раз на время открытого окна.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Показать все зоны офиса и, если она есть, обводимую зону целиком.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!ready || !map) return;
-
-    const source = map.getSource(SRC_OTHERS) as GeoJSONSource | undefined;
-    source?.setData({
-      type: 'FeatureCollection',
-      features: others
-        .filter((o) => o.isActive && o.area && o.area.length >= 3)
-        .map((o) => ({
-          type: 'Feature' as const,
-          properties: { name: o.name, color: o.color ?? '#8c8c8c' },
-          geometry: { type: 'Polygon' as const, coordinates: [[...o.area!, o.area![0]]] },
-        })),
-    });
-
-    const points: LonLat[] =
-      ring.length >= 3
-        ? ring
-        : (others.flatMap((o) => (o.isActive && o.area ? o.area : [])) as LonLat[]);
-    if (points.length >= 2) {
-      const bounds = points.reduce(
-        (b, p) => b.extend(p),
-        new LngLatBounds(points[0], points[0]),
-      );
-      map.fitBounds(bounds, { padding: 70, maxZoom: 18, duration: 0 });
-    }
-    // Только при открытии: дальше карту двигает сам пользователь.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready]);
-
-  // Контур и его точки перерисовываются при каждом изменении.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!ready || !map) return;
-
-    const poly = map.getSource(SRC_POLY) as GeoJSONSource | undefined;
-    if (ring.length >= 3) {
-      poly?.setData({
-        type: 'Feature',
-        properties: { color },
-        geometry: { type: 'Polygon', coordinates: [[...ring, ring[0]]] },
-      });
-    } else if (ring.length === 2) {
-      poly?.setData({
-        type: 'Feature',
-        properties: { color },
-        geometry: { type: 'LineString', coordinates: ring },
-      });
-    } else {
-      poly?.setData({ type: 'FeatureCollection', features: [] });
+        setRing([...points, point]);
+      } else if (!first) {
+        setPending(point);
+      } else if (currentTool === 'circle') {
+        const radius = Math.max(5, Math.round(distanceM(first, point)));
+        setCircle({ center: first, radius });
+        finish(circleRing(first, radius));
+      } else {
+        finish(rectRing(first, point));
+      }
+      return;
     }
 
-    const verts = map.getSource(SRC_VERTS) as GeoJSONSource | undefined;
-    verts?.setData({
-      type: 'FeatureCollection',
-      features: [
-        // У круга ручек нет: сорок восемь точек на окружности только мешают,
-        // радиус задаётся числом, а для иной формы контур обводится заново.
-        ...(circle
-          ? [
-              {
-                type: 'Feature' as const,
-                properties: { index: -1, color, closing: false, pending: true },
-                geometry: { type: 'Point' as const, coordinates: circle.center },
-              },
-            ]
-          : ring.map((p, index) => ({
-              type: 'Feature' as const,
-              properties: {
-                index,
-                color,
-                // Первая точка крупнее: по ней замыкается многоугольник.
-                closing:
-                  !finished && tool === 'polygon' && index === 0 && ring.length >= 3,
-                pending: false,
-              },
-              geometry: { type: 'Point' as const, coordinates: p },
-            }))),
-        ...(pending
-          ? [
-              {
-                type: 'Feature' as const,
-                properties: { index: -1, color, closing: false, pending: true },
-                geometry: { type: 'Point' as const, coordinates: pending },
-              },
-            ]
-          : []),
-      ],
-    });
+    if (hit || insertIndex === null) return;
+    setCircle(null);
+    setRing([...points.slice(0, insertIndex), point, ...points.slice(insertIndex)]);
+  };
 
-    map.getCanvas().style.cursor = finished ? '' : 'crosshair';
-  }, [ready, ring, pending, finished, tool, color, circle]);
+  const handleVertexMove = (index: number, point: LonLat): void => {
+    setCircle(null);
+    setRing((current) => current.map((p, i) => (i === index ? point : p)));
+  };
+
+  const handleVertexDelete = (index: number): void => {
+    if (live.current.ring.length <= 3) return;
+    setCircle(null);
+    setRing((current) => current.filter((_, i) => i !== index));
+  };
 
   const restart = (): void => {
     setRing([]);
@@ -541,6 +289,20 @@ function EditorBody({
         'Тяните точки, чтобы подвинуть. Щёлкните по линии — добавится точка. Двойной щелчок по точке удаляет её.',
       );
 
+  const canvasProps = {
+    center,
+    others: otherZones,
+    ring,
+    color,
+    drawing: !finished,
+    closingFirst: !finished && tool === 'polygon' && ring.length >= 3,
+    pending,
+    circleCenter: circle ? circle.center : null,
+    onClick: handleClick,
+    onVertexMove: handleVertexMove,
+    onVertexDelete: handleVertexDelete,
+  };
+
   return (
     <Row gutter={16}>
       <Col xs={24} lg={15}>
@@ -589,6 +351,16 @@ function EditorBody({
             {hint}
           </Typography.Text>
 
+          {YANDEX_MAPS_KEY && yandexError !== null && (
+            <Alert
+              type="info"
+              showIcon
+              message={t('Карта Яндекса недоступна — показана резервная (OpenStreetMap)')}
+              description={
+                <Typography.Text type="secondary">{yandexError}</Typography.Text>
+              }
+            />
+          )}
           {tilesError && (
             <Alert
               type="warning"
@@ -599,15 +371,14 @@ function EditorBody({
             />
           )}
 
-          <div
-            ref={container}
-            style={{
-              height: 560,
-              borderRadius: 8,
-              overflow: 'hidden',
-              border: '1px solid rgba(0,0,0,0.12)',
-            }}
-          />
+          {useYandex ? (
+            <GeofenceYandexCanvas {...canvasProps} onUnavailable={setYandexError} />
+          ) : (
+            <GeofenceLibreCanvas
+              {...canvasProps}
+              onTilesError={() => setTilesError(true)}
+            />
+          )}
 
           <Typography.Text type={crossing ? 'danger' : 'secondary'}>
             {crossing

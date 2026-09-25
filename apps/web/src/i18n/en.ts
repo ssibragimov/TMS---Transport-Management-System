@@ -133,6 +133,7 @@ export const en: Record<string, string> = {
   'Нет прав на просмотр водителей': 'No permission to view drivers',
   'Дата приёма': 'Hire date',
   'Дата создания': 'Created',
+  'Карта Яндекса недоступна — показана резервная (OpenStreetMap)': 'Yandex Maps is unavailable — showing the fallback map (OpenStreetMap)',
   'Геозона': 'Geofence',
   'Геозоны': 'Geofences',
   'Новая геозона': 'New geofence',

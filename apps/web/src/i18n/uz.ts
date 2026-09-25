@@ -117,6 +117,7 @@ export const uz: Record<string, string> = {
   'Офис назначения': 'Qabul qiluvchi ofis',
   'Выберите офис': 'Ofisni tanlang',
   'Дата создания': 'Yaratilgan sana',
+  'Карта Яндекса недоступна — показана резервная (OpenStreetMap)': 'Yandex xaritasi mavjud emas — zaxira xarita (OpenStreetMap) ko‘rsatilmoqda',
   'Новая геозона': 'Yangi geozona',
   'Геозона сохранена': 'Geozona saqlandi',
   'Геозона создана': 'Geozona yaratildi',
