@@ -5,11 +5,18 @@ import { useEffect, useRef, useState } from 'react';
  * из src/ — их четыре, они меняются редко и раздаются как есть, без
  * хеширования имени файла (see apps/web/public/map за тем же приёмом).
  */
-const PHOTO_COUNT = 4;
-const PHOTOS = Array.from(
-  { length: PHOTO_COUNT },
-  (_, index) => `${import.meta.env.BASE_URL}login/photo-${index + 1}.jpg`,
-);
+const BASE = `${import.meta.env.BASE_URL}login/`;
+
+/**
+ * Кадры слева — горизонтальные, а рамка вертикальная, поэтому показывается
+ * лишь часть снимка. `position` подобран так, чтобы в кадр попадал главный
+ * объект: человек, экран или голограмма.
+ */
+const PHOTOS = [
+  { src: `${BASE}photo-1.webp`, position: '28% center' },
+  { src: `${BASE}photo-2.webp`, position: '22% center' },
+  { src: `${BASE}photo-3.webp`, position: '62% center' },
+];
 
 const SLIDE_MS = 5000;
 
@@ -30,11 +37,11 @@ export function LoginPhotoCarousel() {
   return (
     <>
       <div className="gsm-login-photos" aria-hidden>
-        {PHOTOS.map((src, index) => (
+        {PHOTOS.map(({ src, position }, index) => (
           <div
             key={src}
             className={`gsm-login-photo${index === active ? ' active' : ''}`}
-            style={{ backgroundImage: `url(${src})` }}
+            style={{ backgroundImage: `url(${src})`, backgroundPosition: position }}
           />
         ))}
       </div>
@@ -46,7 +53,7 @@ export function LoginPhotoCarousel() {
         слайд перезапускает CSS-анимацию заново — сбрасывать вручную не нужно.
       */}
       <div className="gsm-login-dots" aria-hidden>
-        {PHOTOS.map((src, index) => (
+        {PHOTOS.map(({ src }, index) => (
           <span key={src} className={index === active ? 'on' : ''}>
             <span className="gsm-login-dot-fill" style={{ animationDuration: `${SLIDE_MS}ms` }} />
           </span>
